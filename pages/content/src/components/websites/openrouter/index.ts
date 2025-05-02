@@ -13,4 +13,3 @@ export * from './chatInputHandler';
 
 // Export sidebar components from common
 export { SidebarManager } from '@src/components/sidebar';
-

@@ -27,7 +27,7 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
     const timeoutId = setTimeout(() => {
       setIsLoaded(true);
     }, 300);
-    
+
     return () => clearTimeout(timeoutId);
   }, []);
 
@@ -225,7 +225,8 @@ const AvailableTools: React.FC<AvailableToolsProps> = ({ tools, onExecute, onRef
                         <pre className="text-xs bg-slate-50 dark:bg-slate-800 p-2 text-slate-700 dark:text-slate-300 whitespace-pre-wrap max-h-60 overflow-y-auto rounded border border-slate-200 dark:border-slate-700">
                           {(() => {
                             try {
-                              const schemaObject = typeof tool.schema === 'string' ? JSON.parse(tool.schema) : tool.schema;
+                              const schemaObject =
+                                typeof tool.schema === 'string' ? JSON.parse(tool.schema) : tool.schema;
                               return JSON.stringify(schemaObject, null, 2);
                             } catch (error) {
                               console.error('Error processing tool schema:', error, tool.schema);

@@ -37,7 +37,6 @@ export interface SiteAdapter {
   supportsFileUpload(): boolean;
   // Method to attach a file to the chat input
   attachFile(file: File): Promise<boolean>;
-
 }
 
 // Registry of all site adapters
@@ -114,7 +113,6 @@ export function initializeSiteAdapter(): void {
     adapter.initialize();
   }
 }
-
 
 /**
  * Toggle sidebar using the appropriate site adapter

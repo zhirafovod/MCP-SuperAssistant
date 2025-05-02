@@ -18,11 +18,10 @@ import { registerSiteAdapter } from '../utils/siteAdapter';
 import { adapterRegistry } from './adapterRegistry';
 import { initGeminiComponents, handleAutoInsert, handleAutoSubmit } from './adaptercomponents/gemini';
 
-
 export class GeminiAdapter extends BaseAdapter {
   name = 'Gemini';
   hostname = ['gemini.google.com'];
-  
+
   // Properties to track navigation
   private lastUrl: string = '';
   private urlCheckInterval: number | null = null;
@@ -44,19 +43,19 @@ export class GeminiAdapter extends BaseAdapter {
 
     // Initialize Gemini components
     initGeminiComponents();
-    
+
     // Start URL checking to handle navigation within Gemini
     if (!this.urlCheckInterval) {
       this.lastUrl = window.location.href;
       this.urlCheckInterval = window.setInterval(() => {
         const currentUrl = window.location.href;
-        
+
         if (currentUrl !== this.lastUrl) {
           logMessage(`URL changed from ${this.lastUrl} to ${currentUrl}`);
           this.lastUrl = currentUrl;
 
           initGeminiComponents();
-          
+
           // Check if we should show or hide the sidebar based on URL
           this.checkCurrentUrl();
         }
@@ -131,22 +130,18 @@ export class GeminiAdapter extends BaseAdapter {
   private checkCurrentUrl(): void {
     const currentUrl = window.location.href;
     logMessage(`Checking current Gemini URL: ${currentUrl}`);
-    
+
     // Check if we should show or hide the sidebar based on URL
-    const excludedUrls = [
-      'https://gemini.google.com/u/6/app'
-    ];
-    
-    const includedPatterns = [
-      /^https:\/\/gemini\.google\.com\/u\/6\/app\/.*/
-    ];
-    
+    const excludedUrls = ['https://gemini.google.com/u/6/app'];
+
+    const includedPatterns = [/^https:\/\/gemini\.google\.com\/u\/6\/app\/.*/];
+
     // Check if current URL is excluded
     const isExcluded = excludedUrls.some(url => currentUrl === url);
-    
+
     // Check if current URL matches included patterns
     const isIncluded = includedPatterns.some(pattern => pattern.test(currentUrl));
-    
+
     if (isExcluded && !isIncluded) {
       // Keep sidebar visible but clear detected tools for excluded URLs
       if (this.sidebarManager) {

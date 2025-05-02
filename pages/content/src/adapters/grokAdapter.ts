@@ -6,14 +6,9 @@
 
 import { BaseAdapter } from './common';
 import { logMessage } from '../utils/helpers';
-import {
-  insertToolResultToChatInput,
-  attachFileToChatInput,
-  submitChatInput,
-} from '../components/websites/grok';
+import { insertToolResultToChatInput, attachFileToChatInput, submitChatInput } from '../components/websites/grok';
 import { SidebarManager } from '../components/sidebar';
 import { initGrokComponents } from './adaptercomponents';
-
 
 export class GrokAdapter extends BaseAdapter {
   name = 'Grok';
@@ -44,19 +39,19 @@ export class GrokAdapter extends BaseAdapter {
     this.checkCurrentUrl();
 
     initGrokComponents();
-    
+
     // Start URL checking to handle navigation within Grok
     if (!this.urlCheckInterval) {
       this.lastUrl = window.location.href;
       this.urlCheckInterval = window.setInterval(() => {
         const currentUrl = window.location.href;
-        
+
         if (currentUrl !== this.lastUrl) {
           logMessage(`URL changed from ${this.lastUrl} to ${currentUrl}`);
           this.lastUrl = currentUrl;
 
           initGrokComponents();
-          
+
           // Check if we should show or hide the sidebar based on URL
           this.checkCurrentUrl();
         }
@@ -136,10 +131,10 @@ export class GrokAdapter extends BaseAdapter {
   private checkCurrentUrl(): void {
     const currentUrl = window.location.href;
     logMessage(`Checking current Grok URL: ${currentUrl}`);
-    
+
     // For Grok, we want to show the sidebar only on URLs that match our patterns
     const isValidUrl = this.urlPatterns.some(pattern => pattern.test(currentUrl));
-    
+
     if (isValidUrl) {
       // Show sidebar for valid URLs
       if (this.sidebarManager && !this.sidebarManager.getIsVisible()) {

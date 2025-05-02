@@ -1,10 +1,12 @@
 // OpenRouter website components for MCP-SuperAssistant
 // Provides toggle buttons (MCP, Auto Insert, Auto Submit, Auto Execute) and state management
 
-import {
-  initializeAdapter,
+import type {
   AdapterConfig,
-  SimpleSiteAdapter // Assuming SimpleSiteAdapter might be needed for callbacks
+  SimpleSiteAdapter, // Assuming SimpleSiteAdapter might be needed for callbacks
+} from './common';
+import {
+  initializeAdapter, // Assuming SimpleSiteAdapter might be needed for callbacks
 } from './common';
 
 // --- OpenRouter Specific Functions ---
@@ -21,12 +23,14 @@ function findOpenRouterButtonInsertionPoint(): { container: Element; insertAfter
     const webSearchButton = container.querySelector(webSearchButtonSelector);
 
     if (webSearchButton) {
-       console.log('[OpenRouter Adapter] Found insertion point after Web Search button.');
-       return { container: container, insertAfter: webSearchButton };
+      console.log('[OpenRouter Adapter] Found insertion point after Web Search button.');
+      return { container: container, insertAfter: webSearchButton };
     } else {
-        console.warn('[OpenRouter Adapter] Found container, but could not find Web Search button. Appending to container.');
-        // Fallback: Append to the container if the specific button isn't found
-        return { container: container, insertAfter: null };
+      console.warn(
+        '[OpenRouter Adapter] Found container, but could not find Web Search button. Appending to container.',
+      );
+      // Fallback: Append to the container if the specific button isn't found
+      return { container: container, insertAfter: null };
     }
   }
 
@@ -39,11 +43,11 @@ function onOpenRouterMCPEnabled(adapter: SimpleSiteAdapter | null): void {
   console.log('[OpenRouter Adapter] MCP Enabled - Showing sidebar.');
   // Use the adapter's sidebarManager to show the sidebar
   if (adapter?.sidebarManager?.show) {
-      adapter.sidebarManager.show();
+    adapter.sidebarManager.show();
   } else {
-      console.warn('[OpenRouter Adapter] Could not find sidebarManager.show() method on adapter.');
-      // Optional Fallback: Try a generic toggle if show isn't available
-      // adapter?.toggleSidebar?.();
+    console.warn('[OpenRouter Adapter] Could not find sidebarManager.show() method on adapter.');
+    // Optional Fallback: Try a generic toggle if show isn't available
+    // adapter?.toggleSidebar?.();
   }
 }
 
@@ -72,7 +76,7 @@ const openRouterAdapterConfig: AdapterConfig = {
   onMCPDisabled: onOpenRouterMCPDisabled, // Optional: Add if specific actions needed
 };
 
-// --- Initialization --- 
+// --- Initialization ---
 
 export function initOpenRouterComponents(): void {
   console.log('Initializing OpenRouter MCP components using common framework');
@@ -80,13 +84,13 @@ export function initOpenRouterComponents(): void {
 
   // Optional: Expose manual injection for debugging
   (window as any).injectMCPButtons_OpenRouter = () => {
-      console.log('Manual injection for OpenRouter triggered');
-      const insertFn = (window as any)[`injectMCPButtons_${openRouterAdapterConfig.adapterName}`];
-      if (insertFn) {
-          insertFn();
-      } else {
-          console.warn('Manual injection function not found for OpenRouter.');
-      }
+    console.log('Manual injection for OpenRouter triggered');
+    const insertFn = (window as any)[`injectMCPButtons_${openRouterAdapterConfig.adapterName}`];
+    if (insertFn) {
+      insertFn();
+    } else {
+      console.warn('Manual injection function not found for OpenRouter.');
+    }
   };
 
   console.log('OpenRouter MCP components initialization complete.');

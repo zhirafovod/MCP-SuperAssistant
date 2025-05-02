@@ -41,7 +41,7 @@ const Sidebar: React.FC = () => {
   const availableTools = communicationMethods?.availableTools || [];
   const sendMessage = communicationMethods?.sendMessage || (async () => 'Error: Communication unavailable');
   const refreshTools = communicationMethods?.refreshTools || (async () => []);
-  
+
   const [isMinimized, setIsMinimized] = useState(false);
   const [detectedTools, setDetectedTools] = useState<DetectedTool[]>([]);
   const [activeTab, setActiveTab] = useState<'availableTools' | 'instructions'>('availableTools');
@@ -55,7 +55,7 @@ const Sidebar: React.FC = () => {
   const [isInputMinimized, setIsInputMinimized] = useState(false);
   // Add a state to track if component loading is complete, regardless of background services
   const [isComponentLoadingComplete, setIsComponentLoadingComplete] = useState(false);
-  
+
   const sidebarRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
@@ -117,7 +117,7 @@ const Sidebar: React.FC = () => {
         logMessage(`[Sidebar] Error loading preferences: ${error instanceof Error ? error.message : String(error)}`);
       } finally {
         isInitialLoadRef.current = false;
-        
+
         // Delay disabling the initial render flag to prevent flickering
         setTimeout(() => {
           setIsInitialRender(false);
@@ -127,7 +127,7 @@ const Sidebar: React.FC = () => {
     };
 
     loadPreferences();
-    
+
     // Ensure loading completes even if preferences fail
     const timeoutId = setTimeout(() => {
       if (!isComponentLoadingComplete) {
@@ -136,7 +136,7 @@ const Sidebar: React.FC = () => {
         setIsInitialRender(false);
       }
     }, 1000);
-    
+
     return () => clearTimeout(timeoutId);
   }, []);
 
@@ -167,10 +167,10 @@ const Sidebar: React.FC = () => {
   //     try {
   //       const toolDict = getMasterToolDict();
   //       const mcpTools = Object.values(toolDict) as DetectedTool[];
-        
+
   //       // Update the detected tools state
   //       setDetectedTools(mcpTools);
-        
+
   //       if (mcpTools.length > 0) {
   //         // logMessage(`[Sidebar] Found ${mcpTools.length} MCP tools`);
   //       }
@@ -179,10 +179,10 @@ const Sidebar: React.FC = () => {
   //       console.error("Error updating detected tools:", error);
   //     }
   //   };
-    
+
   //   // Set up interval to check for new tools
   //   const updateInterval = setInterval(updateDetectedTools, 1000);
-    
+
   //   // Track URL changes to clear detected tools on navigation
   //   let lastUrl = window.location.href;
   //   const checkUrlChange = () => {
@@ -194,13 +194,13 @@ const Sidebar: React.FC = () => {
   //       logMessage('[Sidebar] URL changed, cleared detected tools');
   //     }
   //   };
-    
+
   //   // Check for URL changes frequently
   //   const urlCheckInterval = setInterval(checkUrlChange, 300);
-    
+
   //   // Initial check
   //   // updateDetectedTools();
-    
+
   //   return () => {
   //     clearInterval(updateInterval);
   //     clearInterval(urlCheckInterval);
@@ -217,17 +217,21 @@ const Sidebar: React.FC = () => {
           `[Sidebar] Applying push mode (${isPushMode}, minimized: ${isMinimized}) and width (${sidebarWidth}) to BaseSidebarManager`,
         );
         // Pass minimized width if minimized, otherwise sidebarWidth
-        sidebarManager.setPushContentMode(isPushMode, isMinimized ? SIDEBAR_MINIMIZED_WIDTH : sidebarWidth, isMinimized);
+        sidebarManager.setPushContentMode(
+          isPushMode,
+          isMinimized ? SIDEBAR_MINIMIZED_WIDTH : sidebarWidth,
+          isMinimized,
+        );
 
         // If only width changed while push mode is active, update styles
         // Added checks to prevent unnecessary updates during resize or initial load
         if (isPushMode && !isInitialLoadRef.current && !isResizingRef.current) {
-           sidebarManager.updatePushModeStyles(isMinimized ? SIDEBAR_MINIMIZED_WIDTH : sidebarWidth);
+          sidebarManager.updatePushModeStyles(isMinimized ? SIDEBAR_MINIMIZED_WIDTH : sidebarWidth);
         }
       } else {
-         logMessage('[Sidebar] Sidebar is hidden, skipping application of push mode/width preferences.');
-         // Ensure push mode is explicitly turned off if the sidebar should be hidden
-         sidebarManager.setPushContentMode(false);
+        logMessage('[Sidebar] Sidebar is hidden, skipping application of push mode/width preferences.');
+        // Ensure push mode is explicitly turned off if the sidebar should be hidden
+        sidebarManager.setPushContentMode(false);
       }
     } else {
       logMessage('[Sidebar] Sidebar manager not found when trying to apply push mode/width.');
@@ -239,7 +243,6 @@ const Sidebar: React.FC = () => {
     }
     // Reset resize ref after applying changes
     isResizingRef.current = false;
-
   }, [isPushMode, sidebarWidth, isMinimized, adapter]); // Re-run when these change
 
   // Simple transition management
@@ -248,9 +251,9 @@ const Sidebar: React.FC = () => {
     if (transitionTimerRef.current !== null) {
       clearTimeout(transitionTimerRef.current);
     }
-    
+
     setIsTransitioning(true);
-    
+
     // Set timeout to end transition
     transitionTimerRef.current = window.setTimeout(() => {
       setIsTransitioning(false);
@@ -265,58 +268,61 @@ const Sidebar: React.FC = () => {
 
   const toggleInputMinimize = () => setIsInputMinimized(prev => !prev);
 
-  const handleResize = useCallback((width: number) => {
-    // Mark as resizing to prevent unnecessary updates
-    if (!isResizingRef.current) {
-      isResizingRef.current = true;
-      
-      if (sidebarRef.current) {
-        sidebarRef.current.classList.add('resizing');
-      }
-    }
+  const handleResize = useCallback(
+    (width: number) => {
+      // Mark as resizing to prevent unnecessary updates
+      if (!isResizingRef.current) {
+        isResizingRef.current = true;
 
-    // Enforce minimum width constraint
-    const constrainedWidth = Math.max(SIDEBAR_DEFAULT_WIDTH, width);
-
-    // Update push mode styles if enabled
-    if (isPushMode) {
-      try {
-        const sidebarManager = (window as any).activeSidebarManager;
-        if (sidebarManager && typeof sidebarManager.updatePushModeStyles === 'function') {
-          sidebarManager.updatePushModeStyles(constrainedWidth);
+        if (sidebarRef.current) {
+          sidebarRef.current.classList.add('resizing');
         }
-      } catch (error) {
-        logMessage(
-          `[Sidebar] Error updating push mode styles: ${error instanceof Error ? error.message : String(error)}`,
-        );
       }
-    }
 
-    // Debounce the state update for better performance
-    if (window.requestAnimationFrame) {
-      window.requestAnimationFrame(() => {
-        setSidebarWidth(constrainedWidth);
-        
-        // End resize after a short delay
-        if (transitionTimerRef.current !== null) {
-          clearTimeout(transitionTimerRef.current);
-        }
-        
-        transitionTimerRef.current = window.setTimeout(() => {
-          if (sidebarRef.current) {
-            sidebarRef.current.classList.remove('resizing');
+      // Enforce minimum width constraint
+      const constrainedWidth = Math.max(SIDEBAR_DEFAULT_WIDTH, width);
+
+      // Update push mode styles if enabled
+      if (isPushMode) {
+        try {
+          const sidebarManager = (window as any).activeSidebarManager;
+          if (sidebarManager && typeof sidebarManager.updatePushModeStyles === 'function') {
+            sidebarManager.updatePushModeStyles(constrainedWidth);
           }
-          
-          // Store current width for future reference
-          previousWidthRef.current = constrainedWidth;
-          isResizingRef.current = false;
-          transitionTimerRef.current = null;
-        }, 200) as unknown as number;
-      });
-    } else {
-      setSidebarWidth(constrainedWidth);
-    }
-  }, [isPushMode]);
+        } catch (error) {
+          logMessage(
+            `[Sidebar] Error updating push mode styles: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+
+      // Debounce the state update for better performance
+      if (window.requestAnimationFrame) {
+        window.requestAnimationFrame(() => {
+          setSidebarWidth(constrainedWidth);
+
+          // End resize after a short delay
+          if (transitionTimerRef.current !== null) {
+            clearTimeout(transitionTimerRef.current);
+          }
+
+          transitionTimerRef.current = window.setTimeout(() => {
+            if (sidebarRef.current) {
+              sidebarRef.current.classList.remove('resizing');
+            }
+
+            // Store current width for future reference
+            previousWidthRef.current = constrainedWidth;
+            isResizingRef.current = false;
+            transitionTimerRef.current = null;
+          }, 200) as unknown as number;
+        });
+      } else {
+        setSidebarWidth(constrainedWidth);
+      }
+    },
+    [isPushMode],
+  );
 
   const handlePushModeToggle = (checked: boolean) => {
     setIsPushMode(checked);
@@ -332,7 +338,7 @@ const Sidebar: React.FC = () => {
     // Store call IDs before clearing for future reference
     const toolsWithCallIds = detectedTools.filter(tool => tool.callId);
     const callIds: string[] = [];
-    
+
     if (toolsWithCallIds.length > 0) {
       toolsWithCallIds.forEach(tool => {
         if (tool.callId) {
@@ -341,7 +347,7 @@ const Sidebar: React.FC = () => {
       });
       logMessage(`[Sidebar] Storing ${callIds.length} call IDs for future reference: ${callIds.join(', ')}`);
     }
-    
+
     // Clear tools in the UI and detector
     setDetectedTools([]);
     clearAllTools(callIds); // Pass the call IDs to the clearAllTools function
@@ -404,7 +410,7 @@ const Sidebar: React.FC = () => {
         isResizingRef.current ? 'resizing' : '',
         isMinimized ? 'collapsed' : '',
         isTransitioning ? 'sidebar-transitioning' : '',
-        isInitialRender ? 'initial-render' : ''
+        isInitialRender ? 'initial-render' : '',
       )}
       style={{ width: isMinimized ? `${SIDEBAR_MINIMIZED_WIDTH}px` : `${sidebarWidth}px` }}>
       {/* Resize Handle - only visible when not minimized */}
@@ -428,7 +434,9 @@ const Sidebar: React.FC = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Visit MCP Super Assistant Website"
-                className="block"> {/* Make link block for sizing */}
+                className="block">
+                {' '}
+                {/* Make link block for sizing */}
                 <img
                   src={chrome.runtime.getURL('icon-34.png')}
                   alt="MCP Logo"
@@ -506,15 +514,14 @@ const Sidebar: React.FC = () => {
       {/* Main Content Area - Using sliding panel approach */}
       <div className="sidebar-inner-content flex-1 relative overflow-hidden bg-white dark:bg-slate-900">
         {/* Virtual slide - content always at full width */}
-        <div 
+        <div
           ref={contentRef}
           className={cn(
-            "absolute top-0 bottom-0 right-0 transition-transform duration-200 ease-in-out",
-            isMinimized ? "translate-x-full" : "translate-x-0",
-            isTransitioning ? "will-change-transform" : ""
+            'absolute top-0 bottom-0 right-0 transition-transform duration-200 ease-in-out',
+            isMinimized ? 'translate-x-full' : 'translate-x-0',
+            isTransitioning ? 'will-change-transform' : '',
           )}
-          style={{ width: `${sidebarWidth}px` }}
-        >
+          style={{ width: `${sidebarWidth}px` }}>
           <div className="flex flex-col h-full">
             {/* Status and Settings section */}
             <div className="py-4 px-4 space-y-4 overflow-y-auto flex-shrink-0">
@@ -527,7 +534,11 @@ const Sidebar: React.FC = () => {
                     <Typography variant="subtitle" className="text-slate-700 dark:text-slate-300 font-medium">
                       Push Content Mode
                     </Typography>
-                    <ToggleWithoutLabel label="Push Content Mode" checked={isPushMode} onChange={handlePushModeToggle} />
+                    <ToggleWithoutLabel
+                      label="Push Content Mode"
+                      checked={isPushMode}
+                      onChange={handlePushModeToggle}
+                    />
                   </div>
                   {/* <div className="flex items-center justify-between">
                     <Typography variant="subtitle" className="text-slate-700 dark:text-slate-300 font-medium">
@@ -591,10 +602,11 @@ const Sidebar: React.FC = () => {
             {/* Tab Content Area - scrollable area with flex-grow to fill available space */}
             <div className="flex-1 min-h-0 px-4 pb-4 overflow-hidden">
               {/* AvailableTools */}
-              <div className={cn(
-                'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
-                { 'hidden': activeTab !== 'availableTools' }
-              )}>
+              <div
+                className={cn(
+                  'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
+                  { hidden: activeTab !== 'availableTools' },
+                )}>
                 <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
                   <CardContent className="p-0">
                     <AvailableTools
@@ -608,10 +620,11 @@ const Sidebar: React.FC = () => {
               </div>
 
               {/* Instructions */}
-              <div className={cn(
-                'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
-                { 'hidden': activeTab !== 'instructions' }
-              )}>
+              <div
+                className={cn(
+                  'h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent',
+                  { hidden: activeTab !== 'instructions' },
+                )}>
                 <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow duration-300">
                   <CardContent className="p-0">
                     <InstructionManager adapter={adapter} tools={formattedTools} />
@@ -624,12 +637,7 @@ const Sidebar: React.FC = () => {
             <div className="border-t border-slate-200 dark:border-slate-700 flex-shrink-0 bg-white dark:bg-slate-800 shadow-inner">
               {!isInputMinimized ? (
                 <div className="relative">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={toggleInputMinimize}
-                    className="absolute top-2 right-2"
-                  >
+                  <Button variant="ghost" size="sm" onClick={toggleInputMinimize} className="absolute top-2 right-2">
                     <Icon name="chevron-down" size="sm" />
                   </Button>
                   <InputArea
@@ -642,12 +650,7 @@ const Sidebar: React.FC = () => {
                   />
                 </div>
               ) : (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={toggleInputMinimize}
-                  className="w-full h-10"
-                >
+                <Button variant="default" size="sm" onClick={toggleInputMinimize} className="w-full h-10">
                   <Icon name="chevron-up" size="sm" className="mr-2" />
                   Show Input
                 </Button>

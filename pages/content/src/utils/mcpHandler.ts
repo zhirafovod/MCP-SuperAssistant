@@ -34,10 +34,10 @@ class McpHandler {
    */
   private constructor() {
     this.connectionId = `mcp-connection-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-    
+
     // Start with a clean initialization - don't connect immediately
     // Just set up the handlers and let the first visibility check or manual action connect
-    
+
     // Listen for page visibility changes to reconnect if needed
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
@@ -181,13 +181,13 @@ class McpHandler {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logMessage(`[MCP Handler] Error sending heartbeat: ${errorMessage}`);
-        
+
         // Check for extension context invalidation
         if (errorMessage.includes('Extension context invalidated')) {
           this.handleExtensionContextInvalidated();
           return;
         }
-        
+
         // Try to reconnect on heartbeat error
         this.disconnect(false);
         this.connect();
@@ -215,27 +215,27 @@ class McpHandler {
     this.extensionContextValid = false;
     this.isConnected = false;
     this.notifyConnectionStatus();
-    
+
     // Clean up all intervals and timeouts
     this.stopHeartbeat();
-    
+
     if (this.connectionCheckTimeoutId !== null) {
       window.clearTimeout(this.connectionCheckTimeoutId);
       this.connectionCheckTimeoutId = null;
     }
-    
+
     if (this.reconnectTimeoutId !== null) {
       window.clearTimeout(this.reconnectTimeoutId);
       this.reconnectTimeoutId = null;
     }
-    
+
     if (this.staleRequestCleanupInterval !== null) {
       window.clearInterval(this.staleRequestCleanupInterval);
       this.staleRequestCleanupInterval = null;
     }
-    
+
     // Fail all pending requests
-    this.pendingRequests.forEach((request) => {
+    this.pendingRequests.forEach(request => {
       try {
         request.callback(null, 'Extension context invalidated');
       } catch (callbackError) {
@@ -243,7 +243,7 @@ class McpHandler {
       }
     });
     this.pendingRequests.clear();
-    
+
     this.port = null;
     this.isReconnecting = false;
   }
@@ -258,7 +258,7 @@ class McpHandler {
         logMessage('[MCP Handler] Extension context invalid, skipping connection attempt');
         return;
       }
-      
+
       if (this.isReconnecting) {
         logMessage('[MCP Handler] Already reconnecting, skipping connect request');
         return;
@@ -269,17 +269,17 @@ class McpHandler {
       this.disconnect(false);
 
       logMessage(`[MCP Handler] Connecting to background script with ID: ${this.connectionId}`);
-      
+
       try {
         this.port = chrome.runtime.connect({ name: this.connectionId });
       } catch (connectError) {
         const errorMessage = connectError instanceof Error ? connectError.message : String(connectError);
-        
+
         if (errorMessage.includes('Extension context invalidated')) {
           this.handleExtensionContextInvalidated();
           return;
         }
-        
+
         throw connectError; // Re-throw for the outer catch block
       }
 
@@ -288,10 +288,10 @@ class McpHandler {
       this.port.onDisconnect.addListener(() => {
         const error = chrome.runtime.lastError;
         const errorMessage = error ? error.message || 'Unknown error' : 'No error provided';
-        
+
         if (error) {
           logMessage(`[MCP Handler] Connection error: ${errorMessage}`);
-          
+
           if (errorMessage.includes('Extension context invalidated')) {
             this.handleExtensionContextInvalidated();
             return;
@@ -323,7 +323,7 @@ class McpHandler {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logMessage(`[MCP Handler] Failed to connect: ${errorMessage}`);
-      
+
       if (errorMessage.includes('Extension context invalidated')) {
         this.handleExtensionContextInvalidated();
         return;
@@ -367,7 +367,7 @@ class McpHandler {
     if (!this.extensionContextValid) {
       return;
     }
-    
+
     if (this.reconnectTimeoutId !== null) {
       window.clearTimeout(this.reconnectTimeoutId);
     }
@@ -401,7 +401,7 @@ class McpHandler {
     if (!this.extensionContextValid) {
       return;
     }
-    
+
     if (this.port) {
       try {
         // Send a connectivity check message
@@ -415,12 +415,12 @@ class McpHandler {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logMessage(`[MCP Handler] Error sending connection check: ${errorMessage}`);
-        
+
         if (errorMessage.includes('Extension context invalidated')) {
           this.handleExtensionContextInvalidated();
           return;
         }
-        
+
         // If we get an error sending a message, the port is dead
         this.port = null;
         this.isConnected = false;
@@ -643,7 +643,7 @@ class McpHandler {
       callback(null, 'Extension context invalidated');
       return '';
     }
-    
+
     if (!this.port) {
       logMessage('[MCP Handler] Not connected to background script');
       callback(null, 'Not connected to background script');
@@ -669,16 +669,16 @@ class McpHandler {
         args,
         requestId,
       });
-      
+
       logMessage(`[MCP Handler] Sent tool call request: ${requestId} for tool: ${toolName}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logMessage(`[MCP Handler] Error sending tool call: ${errorMessage}`);
-      
+
       if (errorMessage.includes('Extension context invalidated')) {
         this.handleExtensionContextInvalidated();
       }
-      
+
       this.pendingRequests.delete(requestId);
       callback(null, `Failed to send tool call: ${errorMessage}`);
       return '';
@@ -702,7 +702,7 @@ class McpHandler {
       callback(null, 'Extension context invalidated');
       return '';
     }
-    
+
     if (!this.port) {
       logMessage('[MCP Handler] Not connected to background script');
       callback(null, 'Not connected to background script');
@@ -727,16 +727,16 @@ class McpHandler {
         requestId,
         forceRefresh, // Include the forceRefresh flag
       });
-      
+
       logMessage(`[MCP Handler] Sent tool details request: ${requestId} (forceRefresh: ${forceRefresh})`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logMessage(`[MCP Handler] Error sending get tool details: ${errorMessage}`);
-      
+
       if (errorMessage.includes('Extension context invalidated')) {
         this.handleExtensionContextInvalidated();
       }
-      
+
       this.pendingRequests.delete(requestId);
       callback(null, `Failed to send tool details request: ${errorMessage}`);
       return '';
@@ -756,7 +756,7 @@ class McpHandler {
       callback(null, 'Extension context invalidated');
       return '';
     }
-    
+
     if (!this.port) {
       logMessage('[MCP Handler] Not connected to background script');
       callback(null, 'Not connected to background script');
@@ -780,16 +780,16 @@ class McpHandler {
         type: 'FORCE_RECONNECT',
         requestId,
       });
-      
+
       logMessage(`[MCP Handler] Sent force reconnect request: ${requestId}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logMessage(`[MCP Handler] Error sending force reconnect: ${errorMessage}`);
-      
+
       if (errorMessage.includes('Extension context invalidated')) {
         this.handleExtensionContextInvalidated();
       }
-      
+
       this.pendingRequests.delete(requestId);
       callback(null, `Failed to send reconnect request: ${errorMessage}`);
       return '';

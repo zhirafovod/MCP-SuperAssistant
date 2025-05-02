@@ -33,8 +33,8 @@ if (typeof window !== 'undefined') {
       console.debug(`Detected theme: ${theme}`);
       console.debug(`Using ${isDark ? 'dark' : 'light'} theme`);
       return { theme, isDark };
-    }
+    },
   };
-  
+
   console.debug('[Theme Detector] Global theme control available via window.themeControl');
 }

@@ -82,4 +82,4 @@ export interface StabilizedBlock {
   block: HTMLDivElement;
   placeholder: HTMLDivElement;
   originalStyles: Partial<CSSStyleDeclaration>;
-} 
+}

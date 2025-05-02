@@ -14,15 +14,15 @@ export default {
   plugins: [
     resolve({ browser: true }), // Resolve bare module specifiers in node_modules
     commonjs(), // Convert CommonJS modules to ES6
-    typescript({ 
+    typescript({
       tsconfig: './tsconfig.json',
       compilerOptions: {
         // Ensure output is compatible with browsers targeted by IIFE
         target: 'ES2015', // A safe target for wide browser compatibility
         declaration: false, // No need for declaration files in the bundle
         declarationDir: undefined,
-      }
-     }), // Compile TypeScript
-    terser() // Minify the output bundle
-  ]
-}; 
+      },
+    }), // Compile TypeScript
+    terser(), // Minify the output bundle
+  ],
+};

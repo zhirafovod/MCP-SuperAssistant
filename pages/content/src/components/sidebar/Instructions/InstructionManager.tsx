@@ -14,14 +14,14 @@ export const instructionsState = {
     if (instructionsState.instructions === newInstructions) {
       return;
     }
-    
+
     // Set flag to prevent circular updates
     instructionsState.updating = true;
     instructionsState.instructions = newInstructions;
-    
+
     // Call all registered listeners when instructions change
     instructionsState.listeners.forEach(listener => listener(newInstructions));
-    
+
     // Reset flag after all listeners have been called
     setTimeout(() => {
       instructionsState.updating = false;
@@ -33,7 +33,7 @@ export const instructionsState = {
     return () => {
       instructionsState.listeners = instructionsState.listeners.filter(l => l !== listener);
     };
-  }
+  },
 };
 
 interface InstructionManagerProps {
@@ -54,11 +54,14 @@ interface ActionButtonProps {
 const ActionButton: React.FC<ActionButtonProps> = ({ onClick, disabled, loading, success, color, label }) => {
   const colorClasses = {
     blue: 'text-blue-700 dark:text-blue-500 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800/40',
-    green: 'text-green-700 dark:text-green-500 bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-800/40',
+    green:
+      'text-green-700 dark:text-green-500 bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-800/40',
     red: 'text-red-700 dark:text-red-500 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-800/40',
-    amber: 'text-amber-700 dark:text-amber-500 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-800/40',
-    purple: 'text-purple-700 dark:text-purple-500 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-800/40',
-    slate: 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+    amber:
+      'text-amber-700 dark:text-amber-500 bg-amber-100 dark:bg-amber-900/30 hover:bg-amber-200 dark:hover:bg-amber-800/40',
+    purple:
+      'text-purple-700 dark:text-purple-500 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-800/40',
+    slate: 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400',
   };
 
   return (
@@ -67,7 +70,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({ onClick, disabled, loading,
       disabled={disabled || loading}
       className={cn(
         'px-2 py-1 text-xs font-medium rounded transition-colors w-[70px] text-center',
-        disabled || loading ? colorClasses.slate : colorClasses[color]
+        disabled || loading ? colorClasses.slate : colorClasses[color],
       )}>
       {loading ? `${label}...` : success ? `${label} ✓` : label}
     </button>
@@ -110,7 +113,7 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
     if (instructionsState.updating) {
       return;
     }
-    
+
     // Update global state
     if (instructionsState.instructions !== instructions) {
       instructionsState.setInstructions(instructions);
@@ -119,13 +122,13 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
 
   // Update local state when global state changes (sync with MCPPopover)
   useEffect(() => {
-    const unsubscribe = instructionsState.subscribe((newInstructions) => {
+    const unsubscribe = instructionsState.subscribe(newInstructions => {
       // Only update local state if it's different from current instructions
       if (newInstructions !== instructions) {
         setInstructions(newInstructions);
       }
     });
-    
+
     return () => {
       unsubscribe();
     };

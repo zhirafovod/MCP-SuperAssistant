@@ -7,29 +7,19 @@
  */
 
 // Export Grok components initializer
-export {
-  initGrokComponents
-} from './grok';
+export { initGrokComponents } from './grok';
 
 // Export Perplexity components initializer
-export {
-  initPerplexityComponents
-} from './perplexity';
+export { initPerplexityComponents } from './perplexity';
 
 // Export Gemini components initializer
-export {
-  initGeminiComponents
-} from './gemini';
+export { initGeminiComponents } from './gemini';
 
 // Export ChatGPT components initializer
-export {
-  initChatGPTComponents
-} from './chatgpt';
+export { initChatGPTComponents } from './chatgpt';
 
 // Export AI Studio components initializer
-export {
-  initAIStudioComponents
-} from './aistudio';
+export { initAIStudioComponents } from './aistudio';
 
 // Note: Functions like insertToggleButtons, handleAutoInsert, handleAutoSubmit
 // are now part of the common framework and are not directly exported per adapter.

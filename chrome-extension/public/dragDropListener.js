@@ -1,9 +1,9 @@
-(function() {
+(function () {
   // Avoid multiple listener registration
   if (window.__mcpDragListener) return;
   window.__mcpDragListener = true;
 
-  window.addEventListener('message', async (event) => {
+  window.addEventListener('message', async event => {
     if (event.source !== window || !event.data || event.data.type !== 'MCP_DROP_FILE') return;
     let file, fileName, fileType, lastModified, randomText;
     if (event.data.fileData) {
@@ -14,7 +14,7 @@
       const blob = await fetch(event.data.fileData).then(res => res.blob());
       file = new File([blob], fileName, { type: fileType, lastModified });
       randomText = null;
-    } 
+    }
     // else {
     //   // Fallback: generate random file as in reference
     //   const timestamp = new Date().toISOString();
@@ -25,7 +25,8 @@
     //   file = new File([blob], fileName, { type: 'text/plain', lastModified: Date.now() });
     // }
     // Target the drop zone with multiple fallback selectors
-    const dropZone = document.querySelector('div[xapfileselectordropzone]') ||
+    const dropZone =
+      document.querySelector('div[xapfileselectordropzone]') ||
       document.querySelector('.text-input-field') ||
       document.querySelector('.input-area') ||
       document.querySelector('.ql-editor');
@@ -38,19 +39,23 @@
     const dataTransfer = {
       files: [file],
       types: ['Files', 'application/x-moz-file'],
-      items: [{
-        kind: 'file',
-        type: file.type,
-        getAsFile: function() { return file; }
-      }],
-      getData: function(format) {
+      items: [
+        {
+          kind: 'file',
+          type: file.type,
+          getAsFile: function () {
+            return file;
+          },
+        },
+      ],
+      getData: function (format) {
         if (format && format.toLowerCase() === 'text/plain' && randomText) return randomText;
         return '';
       },
-      setData: function() {},
-      clearData: function() {},
+      setData: function () {},
+      clearData: function () {},
       dropEffect: 'copy',
-      effectAllowed: 'copyMove'
+      effectAllowed: 'copyMove',
     };
     // Create more complete drag events sequence
     const dragEnterEvent = new Event('dragenter', { bubbles: true, cancelable: true });
@@ -60,15 +65,15 @@
     [dragEnterEvent, dragOverEvent, dropEvent].forEach(event => {
       Object.defineProperty(event, 'dataTransfer', {
         value: dataTransfer,
-        writable: false
+        writable: false,
       });
     });
     // Simulate preventDefault() calls that would happen in a real drag
-    dragOverEvent.preventDefault = function() {
+    dragOverEvent.preventDefault = function () {
       console.log('dragover preventDefault called');
       Event.prototype.preventDefault.call(this);
     };
-    dropEvent.preventDefault = function() {
+    dropEvent.preventDefault = function () {
       console.log('drop preventDefault called');
       Event.prototype.preventDefault.call(this);
     };

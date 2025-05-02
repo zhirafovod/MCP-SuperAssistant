@@ -56,7 +56,6 @@ declare global {
 }
 (window as any).toggleState = toggleState;
 
-
 // --- Toggle State Manager ---
 
 export class ToggleStateManager {
@@ -67,7 +66,7 @@ export class ToggleStateManager {
     this.config = config;
     // Ensure toggleState is initialized correctly
     if (!(window as any).toggleState) {
-        (window as any).toggleState = { ...defaultState };
+      (window as any).toggleState = { ...defaultState };
     }
     toggleState = (window as any).toggleState;
   }
@@ -87,23 +86,23 @@ export class ToggleStateManager {
 
     const adapter = window.mcpAdapter;
     if (enabled) {
-        if (this.config.onMCPEnabled) {
-            this.config.onMCPEnabled(adapter || null);
-        } else if (adapter?.showSidebarWithToolOutputs) {
-            adapter.showSidebarWithToolOutputs();
-        } else if (adapter?.toggleSidebar) {
-            adapter.toggleSidebar(); // Fallback
-        }
+      if (this.config.onMCPEnabled) {
+        this.config.onMCPEnabled(adapter || null);
+      } else if (adapter?.showSidebarWithToolOutputs) {
+        adapter.showSidebarWithToolOutputs();
+      } else if (adapter?.toggleSidebar) {
+        adapter.toggleSidebar(); // Fallback
+      }
     } else {
-         if (this.config.onMCPDisabled) {
-            this.config.onMCPDisabled(adapter || null);
-         } else if (adapter?.hideSidebar) {
-            adapter.hideSidebar();
-         } else if (adapter?.sidebarManager?.hide) {
-             adapter.sidebarManager.hide();
-         } else if (adapter?.toggleSidebar) {
-            adapter.toggleSidebar(); // Fallback
-        }
+      if (this.config.onMCPDisabled) {
+        this.config.onMCPDisabled(adapter || null);
+      } else if (adapter?.hideSidebar) {
+        adapter.hideSidebar();
+      } else if (adapter?.sidebarManager?.hide) {
+        adapter.sidebarManager.hide();
+      } else if (adapter?.toggleSidebar) {
+        adapter.toggleSidebar(); // Fallback
+      }
     }
 
     this.updateUI();
@@ -143,12 +142,12 @@ export class ToggleStateManager {
     }
 
     if (toggleState.autoSubmit !== enabled) {
-        toggleState.autoSubmit = enabled;
-        this.updateUI();
-        this.saveState();
+      toggleState.autoSubmit = enabled;
+      this.updateUI();
+      this.saveState();
     } else {
-         console.log(`[${this.config.adapterName}] Auto Submit state already ${enabled}`);
-         this.updateUI(); // Ensure UI is consistent even if state didn't change logically
+      console.log(`[${this.config.adapterName}] Auto Submit state already ${enabled}`);
+      this.updateUI(); // Ensure UI is consistent even if state didn't change logically
     }
   }
 
@@ -167,31 +166,43 @@ export class ToggleStateManager {
     console.log(`[${this.config.adapterName}] Validating toggle state`);
     let changed = false;
     if (!toggleState.mcpEnabled) {
-      if (toggleState.autoInsert) { toggleState.autoInsert = false; changed = true; }
-      if (toggleState.autoSubmit) { toggleState.autoSubmit = false; changed = true; }
-      if (toggleState.autoExecute) { toggleState.autoExecute = false; changed = true; }
+      if (toggleState.autoInsert) {
+        toggleState.autoInsert = false;
+        changed = true;
+      }
+      if (toggleState.autoSubmit) {
+        toggleState.autoSubmit = false;
+        changed = true;
+      }
+      if (toggleState.autoExecute) {
+        toggleState.autoExecute = false;
+        changed = true;
+      }
     }
     if (!toggleState.autoInsert) {
-      if (toggleState.autoSubmit) { toggleState.autoSubmit = false; changed = true; }
+      if (toggleState.autoSubmit) {
+        toggleState.autoSubmit = false;
+        changed = true;
+      }
     }
     if (changed) {
-        console.log(`[${this.config.adapterName}] State adjusted for consistency:`, toggleState);
-        this.updateUI();
-        this.saveState();
+      console.log(`[${this.config.adapterName}] State adjusted for consistency:`, toggleState);
+      this.updateUI();
+      this.saveState();
     }
   }
 
   stateLoaded(loaded: MCPToggleState | null): void {
     this.loadedState = loaded; // Store for applyLoadedState
     if (loaded) {
-        console.log(`[${this.config.adapterName}] State loaded from storage:`, loaded);
-        // Merge loaded state with defaults, prioritizing loaded values
-        toggleState = { ...defaultState, ...loaded };
-        (window as any).toggleState = toggleState; // Update global reference
+      console.log(`[${this.config.adapterName}] State loaded from storage:`, loaded);
+      // Merge loaded state with defaults, prioritizing loaded values
+      toggleState = { ...defaultState, ...loaded };
+      (window as any).toggleState = toggleState; // Update global reference
     } else {
-        console.log(`[${this.config.adapterName}] No saved state found, using defaults.`);
-        toggleState = { ...defaultState }; // Reset to defaults if nothing loaded
-        (window as any).toggleState = toggleState;
+      console.log(`[${this.config.adapterName}] No saved state found, using defaults.`);
+      toggleState = { ...defaultState }; // Reset to defaults if nothing loaded
+      (window as any).toggleState = toggleState;
     }
     this.validateState(); // Validate after loading/resetting
     // Initial UI update and sidebar sync happens in applyLoadedState after button insertion
@@ -202,19 +213,19 @@ export class ToggleStateManager {
     // Apply MCP state - show/hide sidebar
     const adapter = window.mcpAdapter;
     if (toggleState.mcpEnabled) {
-        if (this.config.onMCPEnabled) {
-            this.config.onMCPEnabled(adapter || null);
-        } else if (adapter?.showSidebarWithToolOutputs) {
-            adapter.showSidebarWithToolOutputs();
-        }
+      if (this.config.onMCPEnabled) {
+        this.config.onMCPEnabled(adapter || null);
+      } else if (adapter?.showSidebarWithToolOutputs) {
+        adapter.showSidebarWithToolOutputs();
+      }
     } else {
-        if (this.config.onMCPDisabled) {
-            this.config.onMCPDisabled(adapter || null);
-        } else if (adapter?.hideSidebar) {
-            adapter.hideSidebar();
-        } else if (adapter?.sidebarManager?.hide) {
-            adapter.sidebarManager.hide();
-        }
+      if (this.config.onMCPDisabled) {
+        this.config.onMCPDisabled(adapter || null);
+      } else if (adapter?.hideSidebar) {
+        adapter.hideSidebar();
+      } else if (adapter?.sidebarManager?.hide) {
+        adapter.sidebarManager.hide();
+      }
     }
     this.updateUI(); // Update button states in the popover
     this.loadedState = null; // Clear loaded state after applying
@@ -223,25 +234,25 @@ export class ToggleStateManager {
   updateUI(): void {
     console.log(`[${this.config.adapterName}] Updating button states`, toggleState);
     if (this.config.updateUI) {
-        this.config.updateUI(); // Call adapter-specific UI update if provided
+      this.config.updateUI(); // Call adapter-specific UI update if provided
     }
     // Update the popover if it exists
     const popoverContainer = document.getElementById('mcp-popover-container');
     if (popoverContainer) {
-        const event = new CustomEvent('mcp:update-toggle-state', {
-            detail: { toggleState: { ...toggleState } } // Pass a copy
-        });
-        popoverContainer.dispatchEvent(event);
-        console.log(`[${this.config.adapterName}] Dispatched mcp:update-toggle-state event`);
+      const event = new CustomEvent('mcp:update-toggle-state', {
+        detail: { toggleState: { ...toggleState } }, // Pass a copy
+      });
+      popoverContainer.dispatchEvent(event);
+      console.log(`[${this.config.adapterName}] Dispatched mcp:update-toggle-state event`);
     } else {
-         console.log(`[${this.config.adapterName}] Popover container not found for UI update.`);
+      console.log(`[${this.config.adapterName}] Popover container not found for UI update.`);
     }
   }
 
   // --- Storage ---
   private getCurrentURLKey(): string {
     if (this.config.getCurrentURLKey) {
-        return this.config.getCurrentURLKey();
+      return this.config.getCurrentURLKey();
     }
     // Default implementation (used by Gemini, AI Studio, potentially others)
     return window.location.pathname || window.location.href; // Use pathname or full href as fallback
@@ -275,7 +286,10 @@ export class ToggleStateManager {
       // Handle Chrome Storage API (async)
       storage.get(storageKey, (result: Record<string, MCPToggleState>) => {
         if (chrome.runtime.lastError) {
-          console.error(`[${this.config.adapterName}] Error loading state from chrome.storage:`, chrome.runtime.lastError);
+          console.error(
+            `[${this.config.adapterName}] Error loading state from chrome.storage:`,
+            chrome.runtime.lastError,
+          );
           this.stateLoaded(null);
         } else if (result && result[storageKey]) {
           this.stateLoaded(result[storageKey]);
@@ -284,8 +298,8 @@ export class ToggleStateManager {
         }
       });
     } else {
-        console.error(`[${this.config.adapterName}] Unsupported storage type provided.`);
-        this.stateLoaded(null);
+      console.error(`[${this.config.adapterName}] Unsupported storage type provided.`);
+      this.stateLoaded(null);
     }
   }
 
@@ -294,7 +308,6 @@ export class ToggleStateManager {
     const storageKey = this.getStorageKey();
     const stateToSave = { ...toggleState }; // Save a copy
     console.log(`[${this.config.adapterName}] Saving state to storage key: ${storageKey}`, stateToSave);
-
 
     if (storage === localStorage || storage === sessionStorage) {
       // Handle Web Storage API (sync)
@@ -315,34 +328,38 @@ export class ToggleStateManager {
         }
       });
     } else {
-         console.error(`[${this.config.adapterName}] Unsupported storage type provided for saving.`);
+      console.error(`[${this.config.adapterName}] Unsupported storage type provided for saving.`);
     }
-     // Also update the global window object immediately
-     (window as any).toggleState = toggleState;
+    // Also update the global window object immediately
+    (window as any).toggleState = toggleState;
   }
 }
-
 
 // --- Auto Actions ---
 
 export function handleAutoInsert(text: string, adapterName: string, skipAutoInsertCheck: boolean = false): void {
   if (!toggleState.autoInsert && !skipAutoInsertCheck) {
-      console.log(`[${adapterName}] Auto Insert disabled, skipping text insert.`);
-      return;
+    console.log(`[${adapterName}] Auto Insert disabled, skipping text insert.`);
+    return;
   }
   const adapter = window.mcpAdapter;
   if (adapter && adapter.name === adapterName && adapter.insertTextIntoInput) {
     console.log(`[${adapterName}] Auto Insert: Inserting text into input.`);
     adapter.insertTextIntoInput(text);
   } else {
-     console.warn(`[${adapterName}] Adapter not found or doesn't match for handleAutoInsert.`);
+    console.warn(`[${adapterName}] Adapter not found or doesn't match for handleAutoInsert.`);
   }
 }
 
-export function handleAutoInsertWithFile(file: File, confirmationText: string | null, adapterName: string, skipAutoInsertCheck: boolean = false): void {
+export function handleAutoInsertWithFile(
+  file: File,
+  confirmationText: string | null,
+  adapterName: string,
+  skipAutoInsertCheck: boolean = false,
+): void {
   if (!toggleState.autoInsert && !skipAutoInsertCheck) {
-       console.log(`[${adapterName}] Auto Insert disabled, skipping file attach.`);
-       return;
+    console.log(`[${adapterName}] Auto Insert disabled, skipping file attach.`);
+    return;
   }
   const adapter = window.mcpAdapter;
   if (adapter && adapter.name === adapterName) {
@@ -351,19 +368,19 @@ export function handleAutoInsertWithFile(file: File, confirmationText: string | 
       adapter.attachFile(file);
       // Optionally insert confirmation text if provided
       if (confirmationText && adapter.insertTextIntoInput) {
-          console.log(`[${adapterName}] Auto Insert: Inserting file confirmation text.`);
-          // Use a slight delay if needed, though often not necessary after attachFile
-          setTimeout(() => adapter.insertTextIntoInput!(confirmationText), 50);
+        console.log(`[${adapterName}] Auto Insert: Inserting file confirmation text.`);
+        // Use a slight delay if needed, though often not necessary after attachFile
+        setTimeout(() => adapter.insertTextIntoInput!(confirmationText), 50);
       }
     } else {
       console.warn(`[${adapterName}] File upload not supported or attachFile method missing on this adapter.`);
       // Fallback: maybe insert text indicating the file couldn't be attached?
-       if (adapter.insertTextIntoInput) {
-           adapter.insertTextIntoInput(`[File Attachment Failed: ${file.name}]`);
-       }
+      if (adapter.insertTextIntoInput) {
+        adapter.insertTextIntoInput(`[File Attachment Failed: ${file.name}]`);
+      }
     }
   } else {
-      console.warn(`[${adapterName}] Adapter not found or doesn't match for handleAutoInsertWithFile.`);
+    console.warn(`[${adapterName}] Adapter not found or doesn't match for handleAutoInsertWithFile.`);
   }
 }
 
@@ -371,8 +388,8 @@ export function handleAutoSubmit(adapterName: string): void {
   // Auto Submit depends on Auto Insert being enabled (validated by ToggleStateManager)
   // and also depends on the mcp:tool-execution-complete event logic checking toggleState.autoSubmit
   if (!toggleState.autoSubmit) {
-       console.log(`[${adapterName}] Auto Submit disabled, skipping submission.`);
-       return;
+    console.log(`[${adapterName}] Auto Submit disabled, skipping submission.`);
+    return;
   }
 
   const adapter = window.mcpAdapter;
@@ -380,13 +397,12 @@ export function handleAutoSubmit(adapterName: string): void {
     console.log(`[${adapterName}] Auto Submit: Triggering submission.`);
     // Add a small delay to ensure any prior insertion/attachment has settled in the UI
     setTimeout(() => {
-        adapter.triggerSubmission();
+      adapter.triggerSubmission();
     }, 500); // 500ms delay, adjust if needed
   } else {
-      console.warn(`[${adapterName}] Adapter not found or doesn't match for handleAutoSubmit.`);
+    console.warn(`[${adapterName}] Adapter not found or doesn't match for handleAutoSubmit.`);
   }
 }
-
 
 // --- Event Listener Setup ---
 
@@ -417,16 +433,16 @@ export function setupToolExecutionListener(stateManager: ToggleStateManager, ada
           const file = customEvent.detail.file as File;
           const confirmationText = customEvent.detail.confirmationText as string | null;
           if (file) {
-              handleAutoInsertWithFile(file, confirmationText, adapterName, skipAutoInsertCheck);
+            handleAutoInsertWithFile(file, confirmationText, adapterName, skipAutoInsertCheck);
           } else {
-               console.error(`[${adapterName}] isFileAttachment is true but no file found in event detail.`);
+            console.error(`[${adapterName}] isFileAttachment is true but no file found in event detail.`);
           }
         } else {
           const resultText = customEvent.detail.result as string;
           if (resultText !== undefined && resultText !== null) {
-              handleAutoInsert(resultText, adapterName, skipAutoInsertCheck);
+            handleAutoInsert(resultText, adapterName, skipAutoInsertCheck);
           } else {
-               console.warn(`[${adapterName}] No result text found in event detail for auto-insert.`);
+            console.warn(`[${adapterName}] No result text found in event detail for auto-insert.`);
           }
         }
 
@@ -434,21 +450,19 @@ export function setupToolExecutionListener(stateManager: ToggleStateManager, ada
         // State manager ensures autoSubmit is false if autoInsert is false (unless skipAutoInsertCheck was true)
         // We re-check the state here in case skipAutoInsertCheck was true but autoSubmit should still be respected
         if (stateManager.getState().autoSubmit) {
-           handleAutoSubmit(adapterName);
+          handleAutoSubmit(adapterName);
         } else {
-            console.log(`[${adapterName}] Auto Submit is disabled, not triggering submission.`);
+          console.log(`[${adapterName}] Auto Submit is disabled, not triggering submission.`);
         }
-
       } else {
-          console.log(`[${adapterName}] Auto Insert is disabled, skipping insert and submit actions.`);
+        console.log(`[${adapterName}] Auto Insert is disabled, skipping insert and submit actions.`);
       }
     } else {
-        console.warn(`[${adapterName}] mcp:tool-execution-complete event received without detail.`);
+      console.warn(`[${adapterName}] mcp:tool-execution-complete event received without detail.`);
     }
   });
-   console.log(`[${adapterName}] mcp:tool-execution-complete event listener added.`);
+  console.log(`[${adapterName}] mcp:tool-execution-complete event listener added.`);
 }
-
 
 // --- UI Insertion ---
 
@@ -475,15 +489,14 @@ export function insertToggleButtonsCommon(config: AdapterConfig, stateManager: T
 
   // Handle different return types from findButtonInsertionPoint
   if (insertionPointResult instanceof Element) {
-      container = insertionPointResult; // Simple case: the container itself is returned
+    container = insertionPointResult; // Simple case: the container itself is returned
   } else if (insertionPointResult && typeof insertionPointResult === 'object' && 'container' in insertionPointResult) {
-      container = insertionPointResult.container; // Structured case: { container, insertAfter }
-      insertAfter = insertionPointResult.insertAfter;
+    container = insertionPointResult.container; // Structured case: { container, insertAfter }
+    insertAfter = insertionPointResult.insertAfter;
   } else {
-       console.error(`[${adapterName}] Invalid insertion point result:`, insertionPointResult);
-       return; // Cannot proceed
+    console.error(`[${adapterName}] Invalid insertion point result:`, insertionPointResult);
+    return; // Cannot proceed
   }
-
 
   try {
     const reactContainer = document.createElement('div');
@@ -493,38 +506,38 @@ export function insertToggleButtonsCommon(config: AdapterConfig, stateManager: T
 
     // Ensure container is still in the DOM
     if (!document.body.contains(container)) {
-        console.log(`[${adapterName}] Insertion container is no longer in the DOM, retrying...`);
-        setTimeout(() => insertToggleButtonsCommon(config, stateManager), 1000);
-        return;
+      console.log(`[${adapterName}] Insertion container is no longer in the DOM, retrying...`);
+      setTimeout(() => insertToggleButtonsCommon(config, stateManager), 1000);
+      return;
     }
 
     // Insert the container at the appropriate location
     if (insertAfter && insertAfter.parentNode === container) {
       container.insertBefore(reactContainer, insertAfter.nextSibling);
-       console.log(`[${adapterName}] Inserted popover container after specified element.`);
+      console.log(`[${adapterName}] Inserted popover container after specified element.`);
     } else {
       // Append to the end if insertAfter is null, not found, or not a child
       container.appendChild(reactContainer);
-       console.log(`[${adapterName}] Appended popover container to the end of the container element.`);
+      console.log(`[${adapterName}] Appended popover container to the end of the container element.`);
     }
 
     // Render the React MCPPopover
     ReactDOM.createRoot(reactContainer).render(
       React.createElement(MCPPopover, {
-        toggleStateManager: { // Pass the methods from the stateManager instance
+        toggleStateManager: {
+          // Pass the methods from the stateManager instance
           getState: stateManager.getState.bind(stateManager),
           setMCPEnabled: stateManager.setMCPEnabled.bind(stateManager),
           setAutoInsert: stateManager.setAutoInsert.bind(stateManager),
           setAutoSubmit: stateManager.setAutoSubmit.bind(stateManager),
           setAutoExecute: stateManager.setAutoExecute.bind(stateManager),
-          updateUI: stateManager.updateUI.bind(stateManager) // Pass the bound updateUI
-        }
-      })
+          updateUI: stateManager.updateUI.bind(stateManager), // Pass the bound updateUI
+        },
+      }),
     );
 
     console.log(`[${adapterName}] MCP popover rendered successfully.`);
     stateManager.applyLoadedState(); // Apply loaded state now that the popover exists
-
   } catch (error) {
     console.error(`[${adapterName}] Error inserting MCP popover:`, error);
     // Optional: Retry on error
@@ -532,83 +545,82 @@ export function insertToggleButtonsCommon(config: AdapterConfig, stateManager: T
   }
 }
 
-
 // --- Initialization ---
 
 export function initializeAdapter(config: AdapterConfig): ToggleStateManager {
-    console.log(`Initializing common components for: ${config.adapterName}`);
+  console.log(`Initializing common components for: ${config.adapterName}`);
 
-    // Ensure global mcpAdapter is set if possible (might be set later by specific adapter)
-    if (!window.mcpAdapter && (window as any).getCurrentAdapter) {
-        window.mcpAdapter = (window as any).getCurrentAdapter();
-        console.log(`[${config.adapterName}] Set global mcpAdapter.`);
+  // Ensure global mcpAdapter is set if possible (might be set later by specific adapter)
+  if (!window.mcpAdapter && (window as any).getCurrentAdapter) {
+    window.mcpAdapter = (window as any).getCurrentAdapter();
+    console.log(`[${config.adapterName}] Set global mcpAdapter.`);
+  }
+
+  // Create the state manager instance
+  const stateManager = new ToggleStateManager(config);
+
+  // Load state from storage
+  stateManager.loadState(); // This is async for chrome.storage
+
+  // Determine the insertion function
+  const insertFunction = config.insertToggleButtons || insertToggleButtonsCommon;
+
+  // Wait for UI readiness and insert buttons
+  const waitForUI = () => {
+    // Use findButtonInsertionPoint to check readiness
+    if (config.findButtonInsertionPoint()) {
+      console.log(`[${config.adapterName}] UI ready, inserting MCP popover.`);
+      insertFunction(config, stateManager);
+    } else {
+      console.log(`[${config.adapterName}] UI not ready, waiting...`);
+      setTimeout(waitForUI, 1000); // Check again in 1 second
     }
+  };
+  // Initial wait might be needed depending on the site
+  setTimeout(waitForUI, 500); // Start checking after 500ms
 
-    // Create the state manager instance
-    const stateManager = new ToggleStateManager(config);
+  // Setup MutationObserver to reinsert if necessary
+  const observer = new MutationObserver(mutations => {
+    // Basic check: if the popover is gone, try reinserting
+    // More specific checks could be added based on mutation targets if needed
+    if (!document.getElementById('mcp-popover-container')) {
+      // Check if the original insertion container still exists before trying to reinsert
+      const insertionPoint = config.findButtonInsertionPoint();
+      if (insertionPoint) {
+        console.log(`[${config.adapterName}] MCP popover missing, attempting reinsertion...`);
+        insertFunction(config, stateManager);
+      } else {
+        console.log(`[${config.adapterName}] MCP popover missing, but insertion point also missing. Waiting...`);
+      }
+    }
+  });
 
-    // Load state from storage
-    stateManager.loadState(); // This is async for chrome.storage
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    // Consider adding attributes: true, attributeFilter: ['class', 'style'] if needed
+  });
+  console.log(`[${config.adapterName}] MutationObserver set up.`);
 
-    // Determine the insertion function
-    const insertFunction = config.insertToggleButtons || insertToggleButtonsCommon;
+  // Setup the tool execution listener
+  setupToolExecutionListener(stateManager, config.adapterName);
 
-    // Wait for UI readiness and insert buttons
-    const waitForUI = () => {
-        // Use findButtonInsertionPoint to check readiness
-        if (config.findButtonInsertionPoint()) {
-            console.log(`[${config.adapterName}] UI ready, inserting MCP popover.`);
-            insertFunction(config, stateManager);
-        } else {
-            console.log(`[${config.adapterName}] UI not ready, waiting...`);
-            setTimeout(waitForUI, 1000); // Check again in 1 second
-        }
-    };
-    // Initial wait might be needed depending on the site
-    setTimeout(waitForUI, 500); // Start checking after 500ms
+  // Optional: Add periodic check as a fallback
+  setInterval(() => {
+    if (!document.getElementById('mcp-popover-container')) {
+      const insertionPoint = config.findButtonInsertionPoint();
+      if (insertionPoint) {
+        console.log(`[${config.adapterName}] Periodic check: MCP popover missing, reinserting...`);
+        insertFunction(config, stateManager);
+      }
+    }
+  }, 7500); // Check every 7.5 seconds
 
-    // Setup MutationObserver to reinsert if necessary
-    const observer = new MutationObserver((mutations) => {
-        // Basic check: if the popover is gone, try reinserting
-        // More specific checks could be added based on mutation targets if needed
-        if (!document.getElementById('mcp-popover-container')) {
-             // Check if the original insertion container still exists before trying to reinsert
-             const insertionPoint = config.findButtonInsertionPoint();
-             if (insertionPoint) {
-                 console.log(`[${config.adapterName}] MCP popover missing, attempting reinsertion...`);
-                 insertFunction(config, stateManager);
-             } else {
-                  console.log(`[${config.adapterName}] MCP popover missing, but insertion point also missing. Waiting...`);
-             }
-        }
-    });
+  // Optional: Expose manual injection for debugging
+  (window as any)[`injectMCPButtons_${config.adapterName}`] = () => {
+    console.log(`[${config.adapterName}] Manual injection triggered.`);
+    insertFunction(config, stateManager);
+  };
 
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        // Consider adding attributes: true, attributeFilter: ['class', 'style'] if needed
-    });
-     console.log(`[${config.adapterName}] MutationObserver set up.`);
-
-    // Setup the tool execution listener
-    setupToolExecutionListener(stateManager, config.adapterName);
-
-    // Optional: Add periodic check as a fallback
-    setInterval(() => {
-        if (!document.getElementById('mcp-popover-container')) {
-             const insertionPoint = config.findButtonInsertionPoint();
-             if (insertionPoint) {
-                console.log(`[${config.adapterName}] Periodic check: MCP popover missing, reinserting...`);
-                insertFunction(config, stateManager);
-             }
-        }
-    }, 7500); // Check every 7.5 seconds
-
-    // Optional: Expose manual injection for debugging
-    (window as any)[`injectMCPButtons_${config.adapterName}`] = () => {
-         console.log(`[${config.adapterName}] Manual injection triggered.`);
-         insertFunction(config, stateManager);
-    };
-
-    return stateManager; // Return the manager instance
+  return stateManager; // Return the manager instance
 }

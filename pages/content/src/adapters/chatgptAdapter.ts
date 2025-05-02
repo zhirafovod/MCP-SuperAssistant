@@ -6,17 +6,13 @@
 
 import { BaseAdapter } from './common';
 import { logMessage } from '../utils/helpers';
-import {
-  insertToolResultToChatInput,
-  attachFileToChatInput,
-  submitChatInput,
-} from '../components/websites/chatgpt';
+import { insertToolResultToChatInput, attachFileToChatInput, submitChatInput } from '../components/websites/chatgpt';
 import { SidebarManager } from '../components/sidebar';
 import { initChatGPTComponents } from './adaptercomponents';
 export class ChatGptAdapter extends BaseAdapter {
   name = 'ChatGPT';
   hostname = ['chat.openai.com', 'chatgpt.com'];
-  
+
   // Properties to track navigation
   private lastUrl: string = '';
   private urlCheckInterval: number | null = null;
@@ -37,23 +33,22 @@ export class ChatGptAdapter extends BaseAdapter {
     // super.initializeObserver(forceReset);
     initChatGPTComponents();
 
-      // Start URL checking to handle navigation within AiStudio
-      if (!this.urlCheckInterval) {
-        this.lastUrl = window.location.href;
-        this.urlCheckInterval = window.setInterval(() => {
-          const currentUrl = window.location.href;
-          
-          if (currentUrl !== this.lastUrl) {
-            logMessage(`URL changed from ${this.lastUrl} to ${currentUrl}`);
-            this.lastUrl = currentUrl;
-            
-            initChatGPTComponents();
-            // Check if we should show or hide the sidebar based on URL
-            this.checkCurrentUrl();
-          }
-        }, 1000); // Check every second
-      }
-      
+    // Start URL checking to handle navigation within AiStudio
+    if (!this.urlCheckInterval) {
+      this.lastUrl = window.location.href;
+      this.urlCheckInterval = window.setInterval(() => {
+        const currentUrl = window.location.href;
+
+        if (currentUrl !== this.lastUrl) {
+          logMessage(`URL changed from ${this.lastUrl} to ${currentUrl}`);
+          this.lastUrl = currentUrl;
+
+          initChatGPTComponents();
+          // Check if we should show or hide the sidebar based on URL
+          this.checkCurrentUrl();
+        }
+      }, 1000); // Check every second
+    }
   }
 
   cleanup(): void {
@@ -123,19 +118,18 @@ export class ChatGptAdapter extends BaseAdapter {
     logMessage('Forcing full document scan for ChatGPT');
   }
 
-
-    /**
+  /**
    * Check the current URL and show/hide sidebar accordingly
    */
-    private checkCurrentUrl(): void {
-      const currentUrl = window.location.href;
-      logMessage(`Checking current Chatgpt URL: ${currentUrl}`);
-      
-      // For AiStudio, we want to show the sidebar on all pages
-      // You can customize this with specific URL patterns if needed
-      if (this.sidebarManager && !this.sidebarManager.getIsVisible()) {
-        logMessage('Showing sidebar for Chatgpt URL');
-        this.sidebarManager.showWithToolOutputs();
-      }
+  private checkCurrentUrl(): void {
+    const currentUrl = window.location.href;
+    logMessage(`Checking current Chatgpt URL: ${currentUrl}`);
+
+    // For AiStudio, we want to show the sidebar on all pages
+    // You can customize this with specific URL patterns if needed
+    if (this.sidebarManager && !this.sidebarManager.getIsVisible()) {
+      logMessage('Showing sidebar for Chatgpt URL');
+      this.sidebarManager.showWithToolOutputs();
     }
+  }
 }

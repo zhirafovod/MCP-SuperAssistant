@@ -729,4 +729,4 @@ export const styles = `
   .function-block.theme-dark .function-reexecute-button:hover {
     background: #aecbfa;
   }
-`; 
+`;

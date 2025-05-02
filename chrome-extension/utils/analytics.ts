@@ -90,9 +90,16 @@ async function getOrCreateSessionId(): Promise<string> {
  */
 export async function sendAnalyticsEvent(name: string, params: { [key: string]: any }): Promise<void> {
   // Basic check for essential credentials
-  if (!MEASUREMENT_ID || !API_SECRET || MEASUREMENT_ID === 'G-XXXXXXXXXX' /* Check for placeholder */ || API_SECRET === 'YOUR_API_SECRET' /* Check for placeholder */) {
+  if (
+    !MEASUREMENT_ID ||
+    !API_SECRET ||
+    MEASUREMENT_ID === 'G-XXXXXXXXXX' /* Check for placeholder */ ||
+    API_SECRET === 'YOUR_API_SECRET' /* Check for placeholder */
+  ) {
     // Check if placeholders are still present or if env vars are missing
-    console.warn('[GA4] Analytics tracking is disabled. Ensure CEB_GA_MEASUREMENT_ID and CEB_GA_API_SECRET are set in your .env file and the build process is using them.');
+    console.warn(
+      '[GA4] Analytics tracking is disabled. Ensure CEB_GA_MEASUREMENT_ID and CEB_GA_API_SECRET are set in your .env file and the build process is using them.',
+    );
     return;
   }
 
@@ -119,16 +126,13 @@ export async function sendAnalyticsEvent(name: string, params: { [key: string]: 
     // logMessage(`[GA4] Sending event: ${name}`, params);
     console.debug(`[GA4] Sending event: ${name}`, JSON.stringify(params)); // Stringify params for better logging
 
-    const response = await fetch(
-      `${API_ENDPOINT}?measurement_id=${MEASUREMENT_ID}&api_secret=${API_SECRET}`,
-      {
-        method: 'POST',
-        body: JSON.stringify(requestBody),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const response = await fetch(`${API_ENDPOINT}?measurement_id=${MEASUREMENT_ID}&api_secret=${API_SECRET}`, {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
     // Check status code before attempting to parse body
     if (response.ok) {
@@ -156,7 +160,6 @@ export async function sendAnalyticsEvent(name: string, params: { [key: string]: 
         }
       }
     }
-
   } catch (error) {
     console.error('[GA4] Error sending analytics event:', error);
   }
@@ -186,4 +189,4 @@ export async function trackError(error: Error, context: string): Promise<void> {
     error_stack: error.stack?.substring(0, 500), // Limit stack trace length
     error_context: context,
   });
-} 
+}

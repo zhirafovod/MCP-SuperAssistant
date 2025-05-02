@@ -4,13 +4,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { MCPPopover } from '../../components/mcpPopover/mcpPopover';
-import {
-  initializeAdapter,
-  AdapterConfig,
-  ToggleStateManager,
-  SimpleSiteAdapter,
-  MCPToggleState
-} from './common';
+import type { AdapterConfig, SimpleSiteAdapter } from './common';
+import { initializeAdapter, ToggleStateManager, MCPToggleState } from './common';
 
 // Keep AI Studio-specific functions or overrides
 
@@ -19,14 +14,14 @@ function findAIStudioButtonInsertionPoint(): { container: Element; insertAfter: 
   // Find the main prompt input wrapper
   const promptInputWrapper = document.querySelector('.prompt-input-wrapper'); // Adjust selector if needed
   if (!promptInputWrapper) {
-      console.warn('[AIStudio Adapter] Could not find .prompt-input-wrapper');
-      // Add more specific fallbacks if the structure varies
-      const fallback = document.querySelector('footer .actions-container'); // Example fallback
-      if (fallback) {
-          console.debug('[AIStudio Adapter] Found fallback insertion point: footer .actions-container');
-          return { container: fallback, insertAfter: null }; // Append
-      }
-      return null;
+    console.warn('[AIStudio Adapter] Could not find .prompt-input-wrapper');
+    // Add more specific fallbacks if the structure varies
+    const fallback = document.querySelector('footer .actions-container'); // Example fallback
+    if (fallback) {
+      console.debug('[AIStudio Adapter] Found fallback insertion point: footer .actions-container');
+      return { container: fallback, insertAfter: null }; // Append
+    }
+    return null;
   }
   console.debug('[AIStudio Adapter] Found insertion point: .prompt-input-wrapper');
 
@@ -44,29 +39,28 @@ function findAIStudioButtonInsertionPoint(): { container: Element; insertAfter: 
 
 // AI Studio-specific sidebar handling (assuming similar to Gemini/common)
 function showAIStudioSidebar(adapter: SimpleSiteAdapter | null): void {
-    console.debug('[AIStudio Adapter] MCP Enabled - Showing sidebar');
-    if (adapter?.showSidebarWithToolOutputs) {
-        adapter.showSidebarWithToolOutputs();
-    } else if (adapter?.toggleSidebar) {
-        adapter.toggleSidebar(); // Fallback
-    } else {
-        console.warn('[AIStudio Adapter] No method found to show sidebar.');
-    }
+  console.debug('[AIStudio Adapter] MCP Enabled - Showing sidebar');
+  if (adapter?.showSidebarWithToolOutputs) {
+    adapter.showSidebarWithToolOutputs();
+  } else if (adapter?.toggleSidebar) {
+    adapter.toggleSidebar(); // Fallback
+  } else {
+    console.warn('[AIStudio Adapter] No method found to show sidebar.');
+  }
 }
 
 function hideAIStudioSidebar(adapter: SimpleSiteAdapter | null): void {
-    console.debug('[AIStudio Adapter] MCP Disabled - Hiding sidebar');
-     if (adapter?.hideSidebar) {
-        adapter.hideSidebar();
-     } else if (adapter?.sidebarManager?.hide) {
-         adapter.sidebarManager.hide();
-     } else if (adapter?.toggleSidebar) {
-        adapter.toggleSidebar(); // Fallback
-    } else {
-        console.warn('[AIStudio Adapter] No method found to hide sidebar.');
-    }
+  console.debug('[AIStudio Adapter] MCP Disabled - Hiding sidebar');
+  if (adapter?.hideSidebar) {
+    adapter.hideSidebar();
+  } else if (adapter?.sidebarManager?.hide) {
+    adapter.sidebarManager.hide();
+  } else if (adapter?.toggleSidebar) {
+    adapter.toggleSidebar(); // Fallback
+  } else {
+    console.warn('[AIStudio Adapter] No method found to hide sidebar.');
+  }
 }
-
 
 // AI Studio Adapter Configuration
 const aiStudioAdapterConfig: AdapterConfig = {
@@ -85,15 +79,15 @@ export function initAIStudioComponents(): void {
   const stateManager = initializeAdapter(aiStudioAdapterConfig);
 
   // Expose manual injection for debugging (optional)
-   window.injectMCPButtons = () => {
-       console.debug('Manual injection for AI Studio triggered');
-       const insertFn = (window as any)[`injectMCPButtons_${aiStudioAdapterConfig.adapterName}`];
-       if (insertFn) {
-           insertFn();
-       } else {
-           console.warn('Manual injection function not found.');
-       }
-   };
+  window.injectMCPButtons = () => {
+    console.debug('Manual injection for AI Studio triggered');
+    const insertFn = (window as any)[`injectMCPButtons_${aiStudioAdapterConfig.adapterName}`];
+    if (insertFn) {
+      insertFn();
+    } else {
+      console.warn('Manual injection function not found.');
+    }
+  };
 
   console.debug('AI Studio MCP components initialization complete.');
 }

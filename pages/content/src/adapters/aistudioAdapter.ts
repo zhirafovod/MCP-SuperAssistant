@@ -6,15 +6,10 @@
 
 import { BaseAdapter } from './common';
 import { logMessage } from '../utils/helpers';
-import {
-  insertToolResultToChatInput,
-} from '../components/websites/aistudio';
+import { insertToolResultToChatInput } from '../components/websites/aistudio';
 import { SidebarManager } from '../components/sidebar';
 import { attachFileToChatInput, submitChatInput } from '../components/websites/aistudio/chatInputHandler';
 import { initAIStudioComponents } from './adaptercomponents';
-
-
-
 
 export class AiStudioAdapter extends BaseAdapter {
   name = 'AiStudio';
@@ -36,24 +31,23 @@ export class AiStudioAdapter extends BaseAdapter {
     this.sidebarManager.initialize();
   }
 
-
   protected initializeObserver(forceReset: boolean = false): void {
     // Check the current URL immediately
     // this.checkCurrentUrl();
 
     // Initialize AI Studio components
     initAIStudioComponents();
-    
+
     // Start URL checking to handle navigation within AiStudio
     // if (!this.urlCheckInterval) {
     //   this.lastUrl = window.location.href;
     //   this.urlCheckInterval = window.setInterval(() => {
     //     const currentUrl = window.location.href;
-        
+
     //     if (currentUrl !== this.lastUrl) {
     //       logMessage(`URL changed from ${this.lastUrl} to ${currentUrl}`);
     //       this.lastUrl = currentUrl;
-          
+
     //       initAIStudioComponents();
     //       // Check if we should show or hide the sidebar based on URL
     //       this.checkCurrentUrl();
@@ -127,7 +121,7 @@ export class AiStudioAdapter extends BaseAdapter {
   private checkCurrentUrl(): void {
     const currentUrl = window.location.href;
     logMessage(`Checking current AiStudio URL: ${currentUrl}`);
-    
+
     // For AiStudio, we want to show the sidebar on all pages
     // You can customize this with specific URL patterns if needed
     if (this.sidebarManager && !this.sidebarManager.getIsVisible()) {

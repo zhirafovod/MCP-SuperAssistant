@@ -12,13 +12,15 @@ import type { SiteType } from './base/BaseSidebarManager';
 // Inject React error handlers to catch and log React errors
 if (typeof window !== 'undefined') {
   // Create a global error handler for React errors
-  window.addEventListener('error', (event) => {
-    if (event.error && event.error.message && 
-        (event.error.message.includes('React') || 
-         event.error.message.includes('Minified React error'))) {
+  window.addEventListener('error', event => {
+    if (
+      event.error &&
+      event.error.message &&
+      (event.error.message.includes('React') || event.error.message.includes('Minified React error'))
+    ) {
       // Log React errors for debugging
       console.error('[Sidebar] React error caught by global handler:', event.error);
-      
+
       // Prevent the sidebar from getting into an inconsistent state
       try {
         const activeSidebarManager = (window as any).activeSidebarManager;

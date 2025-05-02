@@ -28,7 +28,6 @@ export abstract class BaseAdapter implements SiteAdapter {
   abstract insertTextIntoInput(text: string): void;
   abstract triggerSubmission(): void;
 
-
   initialize(): void {
     logMessage(`Initializing ${this.name} adapter`);
 
@@ -53,7 +52,6 @@ export abstract class BaseAdapter implements SiteAdapter {
       this.sidebarManager = null;
     }
   }
-
 
   /**
    * Show the sidebar with tool outputs
@@ -83,7 +81,6 @@ export abstract class BaseAdapter implements SiteAdapter {
     //   this.overlayManager.updateConnectionStatus(isConnected);
     // }
   }
-
 
   /**
    * Force refresh the sidebar content

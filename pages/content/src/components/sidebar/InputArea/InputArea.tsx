@@ -1,5 +1,6 @@
 import type React from 'react';
-import { useState, KeyboardEvent } from 'react';
+import type { KeyboardEvent } from 'react';
+import { useState } from 'react';
 import { Typography, Icon, Button } from '../ui';
 import { cn } from '@src/lib/utils';
 import { Card, CardHeader, CardContent } from '@src/components/ui/card';

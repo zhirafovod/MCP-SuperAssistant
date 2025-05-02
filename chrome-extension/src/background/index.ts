@@ -24,7 +24,7 @@ const MAX_CONNECTION_ATTEMPTS = 3;
 async function initializeExtension() {
   sendAnalyticsEvent('extension_loaded', {});
   console.log('Extension initializing...');
-  
+
   // Initialize theme
   try {
     const theme = await exampleThemeStorage.get();
@@ -32,14 +32,14 @@ async function initializeExtension() {
   } catch (error) {
     console.warn('Error initializing theme, continuing with defaults:', error);
   }
-  
+
   // Initialize the MCP interface, but don't connect yet
   const serverUrl = await initializeServerUrl();
   mcpInterface.updateServerUrl(serverUrl);
   mcpInterface.updateConnectionStatus(false);
-  
+
   console.log('Extension initialized successfully');
-  
+
   // After initialization is complete, try connecting to the server asynchronously
   setTimeout(() => {
     tryConnectToServer(serverUrl).catch(() => {
@@ -75,11 +75,13 @@ async function tryConnectToServer(uri: string): Promise<void> {
   isConnecting = true;
   connectionAttemptCount++;
 
-  console.log(`Attempting to connect to MCP server (attempt ${connectionAttemptCount}/${MAX_CONNECTION_ATTEMPTS}): ${uri}`);
-  
+  console.log(
+    `Attempting to connect to MCP server (attempt ${connectionAttemptCount}/${MAX_CONNECTION_ATTEMPTS}): ${uri}`,
+  );
+
   try {
     await runWithSSE(uri);
-    
+
     console.log('MCP client connected successfully');
     mcpInterface.updateConnectionStatus(true);
     connectionAttemptCount = 0; // Reset counter on success
@@ -87,12 +89,12 @@ async function tryConnectToServer(uri: string): Promise<void> {
     console.warn(`MCP server unavailable: ${error.message || String(error)}`);
     console.log('Extension will continue to function with limited capabilities');
     mcpInterface.updateConnectionStatus(false);
-    
+
     // Schedule another attempt if we haven't reached the limit
     if (connectionAttemptCount < MAX_CONNECTION_ATTEMPTS) {
       const delayMs = Math.min(5000 * connectionAttemptCount, 15000); // Exponential backoff with cap
-      console.log(`Scheduling next connection attempt in ${delayMs/1000} seconds...`);
-      
+      console.log(`Scheduling next connection attempt in ${delayMs / 1000} seconds...`);
+
       setTimeout(() => {
         isConnecting = false; // Reset connecting flag
         tryConnectToServer(uri).catch(() => {}); // Try again
@@ -114,11 +116,11 @@ setInterval(async () => {
   if (isConnecting) {
     return; // Skip if already connecting
   }
-  
+
   // Check current connection status
   const isConnected = await checkMcpServerConnection();
   mcpInterface.updateConnectionStatus(isConnected);
-  
+
   // If not connected and we're not in the middle of connecting, try to connect
   if (!isConnected && !isConnecting) {
     connectionAttemptCount = 0; // Reset counter for periodic checks
@@ -188,16 +190,18 @@ chrome.runtime.onStartup.addListener(() => {
   console.log('Browser startup detected.');
   sendAnalyticsEvent('browser_startup', {});
   // Re-check connection on startup
-  initializeExtension().catch(err => console.error("Error initializing on startup:", err));
+  initializeExtension().catch(err => console.error('Error initializing on startup:', err));
 });
 
 // Start extension initialization
-initializeExtension().then(() => {
-  console.log('Extension startup complete');
-}).catch(error => {
-  console.error('Error during extension initialization:', error);
-  console.log('Extension will continue running with limited functionality');
-});
+initializeExtension()
+  .then(() => {
+    console.log('Extension startup complete');
+  })
+  .catch(error => {
+    console.error('Error during extension initialization:', error);
+    console.log('Extension will continue running with limited functionality');
+  });
 
 console.log('Background script loaded');
 console.log("Edit 'chrome-extension/src/background/index.ts' and save to reload.");

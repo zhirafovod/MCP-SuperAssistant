@@ -96,7 +96,9 @@ export const getToolPermissions = (): ToolPermission[] => {
     }
     return JSON.parse(storedData) as ToolPermission[];
   } catch (error) {
-    logMessage(`[Storage] Error retrieving tool permissions: ${error instanceof Error ? error.message : String(error)}`);
+    logMessage(
+      `[Storage] Error retrieving tool permissions: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return [];
   }
 };
@@ -108,26 +110,28 @@ export const getToolPermissions = (): ToolPermission[] => {
 export const saveToolPermission = (permission: ToolPermission): void => {
   // Skip saving if permission is 'once' or 'never'
   if (permission.permission === 'once' || permission.permission === 'never') {
-    logMessage(`[Storage] Skipping save for ${permission.permission} permission for ${permission.serverName}.${permission.toolName} on ${permission.url}`);
+    logMessage(
+      `[Storage] Skipping save for ${permission.permission} permission for ${permission.serverName}.${permission.toolName} on ${permission.url}`,
+    );
     return;
   }
-  
+
   try {
     const currentPermissions = getToolPermissions();
-    
+
     // Remove any existing permission for this tool and URL
     const filteredPermissions = currentPermissions.filter(
-      p => !(p.serverName === permission.serverName && 
-            p.toolName === permission.toolName && 
-            p.url === permission.url)
+      p => !(p.serverName === permission.serverName && p.toolName === permission.toolName && p.url === permission.url),
     );
-    
+
     // Only add the new permission if it's 'always'
     if (permission.permission === 'always') {
       filteredPermissions.push(permission);
-      logMessage(`[Storage] Saved 'always' permission for ${permission.serverName}.${permission.toolName} on URL: ${permission.url}`);
+      logMessage(
+        `[Storage] Saved 'always' permission for ${permission.serverName}.${permission.toolName} on URL: ${permission.url}`,
+      );
     }
-    
+
     localStorage.setItem(TOOL_PERMISSIONS_KEY, JSON.stringify(filteredPermissions));
   } catch (error) {
     logMessage(`[Storage] Error saving tool permission: ${error instanceof Error ? error.message : String(error)}`);
@@ -143,18 +147,16 @@ export const checkToolPermission = (serverName: string, toolName: string): 'alwa
   try {
     const permissions = getToolPermissions();
     const currentUrl = window.location.href;
-    
+
     // Find permission for this tool and exact URL
     const permission = permissions.find(
-      p => p.serverName === serverName && 
-           p.toolName === toolName && 
-           p.url === currentUrl
+      p => p.serverName === serverName && p.toolName === toolName && p.url === currentUrl,
     );
-    
+
     if (!permission) {
       return null;
     }
-    
+
     // Only 'always' permissions are stored, so we only return 'always'
     return permission.permission === 'always' ? 'always' : null;
   } catch (error) {
@@ -170,7 +172,7 @@ export const clearToolPermission = (serverName: string, toolName: string, url: s
   try {
     const permissions = getToolPermissions();
     const updatedPermissions = permissions.filter(
-      p => !(p.serverName === serverName && p.toolName === toolName && p.url === url)
+      p => !(p.serverName === serverName && p.toolName === toolName && p.url === url),
     );
     localStorage.setItem(TOOL_PERMISSIONS_KEY, JSON.stringify(updatedPermissions));
     logMessage(`[Storage] Cleared permission for ${serverName}.${toolName} on URL: ${url}`);

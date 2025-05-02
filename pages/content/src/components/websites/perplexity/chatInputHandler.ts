@@ -198,13 +198,11 @@ export const submitChatInput = async (maxWaitTime = 5000): Promise<boolean> => {
     }
 
     const findSubmitButton = (): HTMLButtonElement | null => {
-      return (
-        document.querySelector('button[aria-label="Submit"]') ??
+      return (document.querySelector('button[aria-label="Submit"]') ??
         document.querySelector('button[aria-label="Send"]') ??
         document.querySelector('button[type="submit"]') ??
         chatInput.parentElement?.querySelector('button') ??
-        document.querySelector('button svg[stroke="currentColor"]')?.closest('button')
-      ) as HTMLButtonElement | null;
+        document.querySelector('button svg[stroke="currentColor"]')?.closest('button')) as HTMLButtonElement | null;
     };
 
     const isDisabled = (btn: HTMLButtonElement) =>
@@ -234,9 +232,13 @@ export const submitChatInput = async (maxWaitTime = 5000): Promise<boolean> => {
     ['keydown', 'keypress', 'keyup'].forEach(type => {
       chatInput.dispatchEvent(
         new KeyboardEvent(type, {
-          key: 'Enter', code: 'Enter', keyCode: 13, which: 13,
-          bubbles: true, cancelable: true,
-        })
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true,
+        }),
       );
     });
 

@@ -235,8 +235,8 @@ class McpInterface {
       this.sendError(
         connectionId,
         'SERVER_UNAVAILABLE',
-        'MCP server is not available. Please check your connection settings.', 
-        requestId
+        'MCP server is not available. Please check your connection settings.',
+        requestId,
       );
       return;
     }
@@ -349,7 +349,9 @@ class McpInterface {
         requestId,
       });
 
-      console.log(`[MCP Interface] Tool details request ${requestId} completed successfully with ${tools.length} tools`);
+      console.log(
+        `[MCP Interface] Tool details request ${requestId} completed successfully with ${tools.length} tools`,
+      );
 
       // Update connection status after successful call
       this.isConnected = true;
@@ -494,7 +496,9 @@ class McpInterface {
           port.postMessage({
             type: 'CONNECTION_STATUS',
             isConnected: this.isConnected,
-            message: this.isConnected ? 'Connected to MCP server' : 'MCP server unavailable - extension running with limited capabilities',
+            message: this.isConnected
+              ? 'Connected to MCP server'
+              : 'MCP server unavailable - extension running with limited capabilities',
           });
         } catch (error) {
           console.error(`[MCP Interface] Error sending connection status to ${connectionId}:`, error);
@@ -764,7 +768,9 @@ class McpInterface {
         port.postMessage({
           type: 'CONNECTION_STATUS',
           isConnected: this.isConnected,
-          message: this.isConnected ? 'Connected to MCP server' : 'MCP server unavailable - extension running with limited capabilities',
+          message: this.isConnected
+            ? 'Connected to MCP server'
+            : 'MCP server unavailable - extension running with limited capabilities',
         });
         console.log(`[MCP Interface] Sent connection status to ${connectionId}: ${this.isConnected}`);
       } catch (error) {

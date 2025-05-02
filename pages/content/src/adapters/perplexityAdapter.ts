@@ -4,7 +4,7 @@
  * This file implements the site adapter for perplexity.ai
  *
  * Available functionalities when accessed globally:
- * 
+ *
  * 1. insertTextIntoInput(text: string): void
  *    - Inserts text into the Perplexity chat input field
  *
@@ -36,23 +36,23 @@
  * if (adapter && adapter.name === 'Perplexity') {
  *   // Insert text into the chat input
  *   adapter.insertTextIntoInput('Hello from MCP-SuperAssistant!');
- * 
+ *
  *   // Submit the form
  *   adapter.triggerSubmission();
- * 
+ *
  *   // Check if file upload is supported
  *   if (adapter.supportsFileUpload()) {
  *     // Create a file object (e.g., from a file input)
  *     const fileInput = document.getElementById('fileInput') as HTMLInputElement;
  *     const file = fileInput.files?.[0];
- * 
+ *
  *     // Attach the file if available
  *     if (file) {
  *       adapter.attachFile(file)
  *         .then(success => console.debug(`File attachment ${success ? 'succeeded' : 'failed'}`));
  *     }
  *   }
- * 
+ *
  *   // Toggle the sidebar
  *   adapter.toggleSidebar();
  * }
@@ -89,16 +89,16 @@ export class PerplexityAdapter extends BaseAdapter {
   protected initializeObserver(forceReset: boolean = false): void {
     // Check the current URL immediately
     // this.checkCurrentUrl();
-    
+
     // Initialize Perplexity UI components (toggle buttons)
     initPerplexityComponents();
-    
+
     // Start URL checking to handle navigation within Perplexity
     // if (!this.urlCheckInterval) {
     //   this.lastUrl = window.location.href;
     //   this.urlCheckInterval = window.setInterval(() => {
     //     const currentUrl = window.location.href;
-        
+
     //     if (currentUrl !== this.lastUrl) {
     //       logMessage(`URL changed from ${this.lastUrl} to ${currentUrl}`);
     //       this.lastUrl = currentUrl;
@@ -108,17 +108,17 @@ export class PerplexityAdapter extends BaseAdapter {
     //         'https://www.perplexity.ai/abcd',
     //         // 'https://www.perplexity.ai/library'
     //       ];
-          
+
     //       const includedPatterns = [
     //         /^https:\/\/www\.perplexity\.ai\/search\/.*/
     //       ];
-          
+
     //       // Check if current URL is excluded
     //       const isExcluded = excludedUrls.some(url => currentUrl === url);
-          
+
     //       // Check if current URL matches included patterns
     //       const isIncluded = includedPatterns.some(pattern => pattern.test(currentUrl));
-          
+
     //       if (isExcluded && !isIncluded) {
     //         // Keep sidebar visible but clear detected tools for excluded URLs
     //         if (this.sidebarManager) {
@@ -142,8 +142,6 @@ export class PerplexityAdapter extends BaseAdapter {
   }
 
   cleanup(): void {
- 
-
     // Clear the URL check interval
     if (this.urlCheckInterval) {
       window.clearInterval(this.urlCheckInterval);
@@ -216,23 +214,18 @@ export class PerplexityAdapter extends BaseAdapter {
   private checkCurrentUrl(): void {
     const currentUrl = window.location.href;
     logMessage(`Checking current Perplexity URL: ${currentUrl}`);
-    
+
     // Check if we should show or hide the sidebar based on URL
-    const excludedUrls = [
-      'https://www.perplexity.ai/',
-      'https://www.perplexity.ai/library'
-    ];
-    
-    const includedPatterns = [
-      /^https:\/\/www\.perplexity\.ai\/search\/.*/
-    ];
-    
+    const excludedUrls = ['https://www.perplexity.ai/', 'https://www.perplexity.ai/library'];
+
+    const includedPatterns = [/^https:\/\/www\.perplexity\.ai\/search\/.*/];
+
     // Check if current URL is excluded
     const isExcluded = excludedUrls.some(url => currentUrl === url);
-    
+
     // Check if current URL matches included patterns
     const isIncluded = includedPatterns.some(pattern => pattern.test(currentUrl));
-    
+
     if (isExcluded && !isIncluded) {
       // Keep sidebar visible but clear detected tools for excluded URLs
       if (this.sidebarManager) {
@@ -252,18 +245,18 @@ export class PerplexityAdapter extends BaseAdapter {
     }
   }
 
-//   /**
-//    * Handle auto insert of a tool result into the input.
-//    * @param text Text to insert when auto insert is enabled.
-//    */
-//   public handleAutoInsert(text: string): void {
-//     handlePerplexityAutoInsert(text);
-//   }
+  //   /**
+  //    * Handle auto insert of a tool result into the input.
+  //    * @param text Text to insert when auto insert is enabled.
+  //    */
+  //   public handleAutoInsert(text: string): void {
+  //     handlePerplexityAutoInsert(text);
+  //   }
 
-//   /**
-//    * Handle auto submit of the input after a tool execution.
-//    */
-//   public handleAutoSubmit(): void {
-//     handlePerplexityAutoSubmit();
-//   }
+  //   /**
+  //    * Handle auto submit of the input after a tool execution.
+  //    */
+  //   public handleAutoSubmit(): void {
+  //     handlePerplexityAutoSubmit();
+  //   }
 }

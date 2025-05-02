@@ -134,7 +134,13 @@ export async function attachFileToChatInput(file: File): Promise<boolean> {
       reader.readAsDataURL(file);
     });
     window.postMessage(
-      { type: 'MCP_DROP_FILE', fileName: file.name, fileType: file.type, lastModified: file.lastModified, fileData: dataUrl },
+      {
+        type: 'MCP_DROP_FILE',
+        fileName: file.name,
+        fileType: file.type,
+        lastModified: file.lastModified,
+        fileData: dataUrl,
+      },
       '*',
     );
   } catch (error) {
@@ -146,7 +152,7 @@ export async function attachFileToChatInput(file: File): Promise<boolean> {
 
 /** Helper function to check for file preview */
 async function checkFilePreview(method: string): Promise<boolean> {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     setTimeout(() => {
       const filePreview = document.querySelector('.file-preview, .xap-filed-upload-preview');
       if (filePreview) {

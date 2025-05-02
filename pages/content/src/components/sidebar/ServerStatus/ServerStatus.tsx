@@ -25,7 +25,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
 
   // Get communication methods with error handling
   const communicationMethods = useBackgroundCommunication();
-  
+
   // Destructure with fallbacks in case useBackgroundCommunication fails
   const forceReconnect = useCallback(async () => {
     try {
@@ -40,18 +40,21 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
     }
   }, [communicationMethods]);
 
-  const refreshTools = useCallback(async (forceRefresh = false) => {
-    try {
-      if (!communicationMethods.refreshTools) {
-        throw new Error('Communication method unavailable');
+  const refreshTools = useCallback(
+    async (forceRefresh = false) => {
+      try {
+        if (!communicationMethods.refreshTools) {
+          throw new Error('Communication method unavailable');
+        }
+        return await communicationMethods.refreshTools(forceRefresh);
+      } catch (error) {
+        logMessage(`[ServerStatus] Refresh tools error: ${error instanceof Error ? error.message : String(error)}`);
+        setHasBackgroundError(true);
+        return [];
       }
-      return await communicationMethods.refreshTools(forceRefresh);
-    } catch (error) {
-      logMessage(`[ServerStatus] Refresh tools error: ${error instanceof Error ? error.message : String(error)}`);
-      setHasBackgroundError(true);
-      return [];
-    }
-  }, [communicationMethods]);
+    },
+    [communicationMethods],
+  );
 
   const getServerConfig = useCallback(async () => {
     try {
@@ -66,18 +69,23 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
     }
   }, [communicationMethods]);
 
-  const updateServerConfig = useCallback(async (config: { uri: string }) => {
-    try {
-      if (!communicationMethods.updateServerConfig) {
-        throw new Error('Communication method unavailable');
+  const updateServerConfig = useCallback(
+    async (config: { uri: string }) => {
+      try {
+        if (!communicationMethods.updateServerConfig) {
+          throw new Error('Communication method unavailable');
+        }
+        return await communicationMethods.updateServerConfig(config);
+      } catch (error) {
+        logMessage(
+          `[ServerStatus] Update server config error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        setHasBackgroundError(true);
+        return false;
       }
-      return await communicationMethods.updateServerConfig(config);
-    } catch (error) {
-      logMessage(`[ServerStatus] Update server config error: ${error instanceof Error ? error.message : String(error)}`);
-      setHasBackgroundError(true);
-      return false;
-    }
-  }, [communicationMethods]);
+    },
+    [communicationMethods],
+  );
 
   // Update local status when props change
   useEffect(() => {
@@ -91,11 +99,11 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
     const checkBackgroundAvailability = () => {
       const methodsAvailable = !!(
         typeof communicationMethods.forceReconnect === 'function' &&
-        typeof communicationMethods.refreshTools === 'function' && 
+        typeof communicationMethods.refreshTools === 'function' &&
         typeof communicationMethods.getServerConfig === 'function' &&
         typeof communicationMethods.updateServerConfig === 'function'
       );
-      
+
       if (!methodsAvailable && !hasBackgroundError) {
         setHasBackgroundError(true);
         setStatus('error');
@@ -105,9 +113,9 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
         setHasBackgroundError(false);
       }
     };
-    
+
     checkBackgroundAvailability();
-    
+
     // Check less frequently to reduce excessive calls - reduced from 10s to 30s
     const intervalId = setInterval(checkBackgroundAvailability, 30000);
     return () => clearInterval(intervalId);
@@ -132,7 +140,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
         // Set default URI on error
         setServerUri('http://localhost:3006/sse');
         logMessage(
-          `[ServerStatus] Error fetching server config: ${error instanceof Error ? error.message : String(error)}`
+          `[ServerStatus] Error fetching server config: ${error instanceof Error ? error.message : String(error)}`,
         );
         isInitializedRef.current = true; // Mark as initialized even on error
       }
@@ -153,8 +161,8 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
   useEffect(() => {
     // If we have communicationMethods but initialization failed, try once more
     if (
-      !isInitializedRef.current && 
-      communicationMethods && 
+      !isInitializedRef.current &&
+      communicationMethods &&
       typeof communicationMethods.getServerConfig === 'function'
     ) {
       logMessage('[ServerStatus] Retrying server configuration fetch');
@@ -170,7 +178,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
           isInitializedRef.current = true;
         }
       };
-      
+
       retryFetch();
     }
   }, [communicationMethods, getServerConfig]);
@@ -209,12 +217,12 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
         logMessage('[ServerStatus] Attempting to recover background connection');
         // Wait a bit to see if background services become available
         await new Promise(resolve => setTimeout(resolve, 2000));
-        
+
         // Check again if background services are available
         if (!communicationMethods.forceReconnect) {
           throw new Error('Background services still unavailable');
         }
-        
+
         // If we got here, background services have been restored
         setHasBackgroundError(false);
       }
@@ -271,12 +279,12 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
   const handleSaveServerConfig = async () => {
     try {
       logMessage(`[ServerStatus] Saving server URI: ${serverUri}`);
-      
+
       // Handle case where background connection is unavailable
       if (hasBackgroundError) {
         throw new Error('Background services unavailable');
       }
-      
+
       await updateServerConfig({ uri: serverUri });
       logMessage('[ServerStatus] Server config updated successfully');
 
@@ -373,35 +381,35 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
           color: baseColors.emerald.text,
           bgColor: cn(baseColors.emerald.bg, baseColors.emerald.darkBg),
           icon: <Icon name="check" className={baseColors.emerald.text} />,
-          label: 'Connected'
+          label: 'Connected',
         };
       case 'reconnecting':
         return {
           color: baseColors.amber.text,
           bgColor: cn(baseColors.amber.bg, baseColors.amber.darkBg),
           icon: <Icon name="refresh" className={cn(baseColors.amber.text, 'animate-spin')} />,
-          label: 'Reconnecting'
+          label: 'Reconnecting',
         };
       case 'disconnected':
         return {
           color: baseColors.rose.text,
           bgColor: cn(baseColors.rose.bg, baseColors.rose.darkBg),
           icon: <Icon name="x" className={baseColors.rose.text} />,
-          label: 'Disconnected'
+          label: 'Disconnected',
         };
       case 'error':
         return {
           color: baseColors.rose.text,
           bgColor: cn(baseColors.rose.bg, baseColors.rose.darkBg),
           icon: <Icon name="info" className={baseColors.rose.text} />,
-          label: 'Error'
+          label: 'Error',
         };
       default: // Unknown status
         return {
           color: baseColors.slate.text,
           bgColor: cn(baseColors.slate.bg, baseColors.slate.darkBg),
           icon: <Icon name="info" className={baseColors.slate.text} />,
-          label: 'Unknown'
+          label: 'Unknown',
         };
     }
   };
@@ -413,11 +421,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
     <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div
-            className={cn(
-              'flex items-center justify-center w-6 h-6 rounded-full',
-              statusInfo.bgColor,
-            )}>
+          <div className={cn('flex items-center justify-center w-6 h-6 rounded-full', statusInfo.bgColor)}>
             {statusInfo.icon}
           </div>
           <Typography variant="body" className="font-medium text-slate-700 dark:text-slate-200">
@@ -453,9 +457,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
       </div>
 
       {/* Status message */}
-      <div className="mt-1 mb-1 text-xs text-slate-600 dark:text-slate-400">
-        {statusMessage}
-      </div>
+      <div className="mt-1 mb-1 text-xs text-slate-600 dark:text-slate-400">{statusMessage}</div>
 
       {/* Settings panel */}
       {showSettings && (
@@ -484,16 +486,16 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
               <Button onClick={() => setShowSettings(false)} variant="outline" size="sm" className="h-7 mr-2 text-xs">
                 Cancel
               </Button>
-              <Button 
-                onClick={handleSaveServerConfig} 
-                variant="default" 
-                size="sm" 
+              <Button
+                onClick={handleSaveServerConfig}
+                variant="default"
+                size="sm"
                 className="h-7 text-xs"
                 disabled={hasBackgroundError || isReconnecting}>
                 Save & Reconnect
               </Button>
             </div>
-            
+
             {hasBackgroundError && (
               <div className="mt-3 p-2 bg-rose-50 dark:bg-rose-900/20 rounded text-rose-800 dark:text-rose-200">
                 <p>Extension background services unavailable. Try reloading the page.</p>

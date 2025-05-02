@@ -5,20 +5,20 @@
  * @returns A debounced version of the function
  */
 export const debounce = <T extends (...args: any[]) => any>(
-    func: T,
-    wait: number
+  func: T,
+  wait: number,
 ): ((...args: Parameters<T>) => void) => {
-    let timeout: ReturnType<typeof setTimeout> | null = null;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
 
-    return (...args: Parameters<T>): void => {
-        const later = () => {
-            timeout = null;
-            func(...args);
-        };
-
-        if (timeout !== null) {
-            clearTimeout(timeout);
-        }
-        timeout = setTimeout(later, wait);
+  return (...args: Parameters<T>): void => {
+    const later = () => {
+      timeout = null;
+      func(...args);
     };
-}; 
+
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+    timeout = setTimeout(later, wait);
+  };
+};

@@ -4,11 +4,8 @@
 // import React from 'react';
 // import ReactDOM from 'react-dom/client';
 // import { MCPPopover } from '../../components/mcpPopover/mcpPopover';
-import {
-  initializeAdapter,
-  AdapterConfig,
-  SimpleSiteAdapter
-} from './common';
+import type { AdapterConfig, SimpleSiteAdapter } from './common';
+import { initializeAdapter } from './common';
 
 // Keep Gemini-specific functions or overrides
 
@@ -17,19 +14,19 @@ function findGeminiButtonInsertionPoint(): { container: Element; insertAfter: El
   // Try the primary selector first
   const wrapper = document.querySelector('.leading-actions-wrapper');
   if (wrapper) {
-      console.debug('[Gemini Adapter] Found insertion point: .leading-actions-wrapper');
-      // Try to insert after the second button for better placement
-      const btns = wrapper.querySelectorAll('button');
-      const after = btns.length > 1 ? btns[1] : (btns.length > 0 ? btns[0] : null);
-      return { container: wrapper, insertAfter: after };
+    console.debug('[Gemini Adapter] Found insertion point: .leading-actions-wrapper');
+    // Try to insert after the second button for better placement
+    const btns = wrapper.querySelectorAll('button');
+    const after = btns.length > 1 ? btns[1] : btns.length > 0 ? btns[0] : null;
+    return { container: wrapper, insertAfter: after };
   }
 
   // Fallback selector (example, adjust if needed)
   const fallbackContainer = document.querySelector('.input-area .actions');
-   if (fallbackContainer) {
-       console.debug('[Gemini Adapter] Found fallback insertion point: .input-area .actions');
-       return { container: fallbackContainer, insertAfter: null }; // Append
-   }
+  if (fallbackContainer) {
+    console.debug('[Gemini Adapter] Found fallback insertion point: .input-area .actions');
+    return { container: fallbackContainer, insertAfter: null }; // Append
+  }
 
   console.warn('[Gemini Adapter] Could not find a suitable insertion point.');
   return null;
@@ -37,25 +34,25 @@ function findGeminiButtonInsertionPoint(): { container: Element; insertAfter: El
 
 // Gemini-specific sidebar handling
 function showGeminiSidebar(adapter: SimpleSiteAdapter | null): void {
-    console.debug('[Gemini Adapter] MCP Enabled - Showing sidebar');
-    if (adapter?.showSidebarWithToolOutputs) {
-        adapter.showSidebarWithToolOutputs();
-    } else {
-        console.warn('[Gemini Adapter] No method found to show sidebar.');
-    }
+  console.debug('[Gemini Adapter] MCP Enabled - Showing sidebar');
+  if (adapter?.showSidebarWithToolOutputs) {
+    adapter.showSidebarWithToolOutputs();
+  } else {
+    console.warn('[Gemini Adapter] No method found to show sidebar.');
+  }
 }
 
 function hideGeminiSidebar(adapter: SimpleSiteAdapter | null): void {
-    console.debug('[Gemini Adapter] MCP Disabled - Hiding sidebar');
-     if (adapter?.hideSidebar) {
-        adapter.hideSidebar();
-     } else if (adapter?.sidebarManager?.hide) {
-         adapter.sidebarManager.hide();
-     } else if (adapter?.toggleSidebar) {
-        adapter.toggleSidebar(); // Fallback
-    } else {
-        console.warn('[Gemini Adapter] No method found to hide sidebar.');
-    }
+  console.debug('[Gemini Adapter] MCP Disabled - Hiding sidebar');
+  if (adapter?.hideSidebar) {
+    adapter.hideSidebar();
+  } else if (adapter?.sidebarManager?.hide) {
+    adapter.sidebarManager.hide();
+  } else if (adapter?.toggleSidebar) {
+    adapter.toggleSidebar(); // Fallback
+  } else {
+    console.warn('[Gemini Adapter] No method found to hide sidebar.');
+  }
 }
 
 // Gemini Adapter Configuration
@@ -75,15 +72,15 @@ export function initGeminiComponents(): void {
   const stateManager = initializeAdapter(geminiAdapterConfig);
 
   // Expose manual injection for debugging (optional)
-   window.injectMCPButtons = () => {
-       console.debug('Manual injection for Gemini triggered');
-       const insertFn = (window as any)[`injectMCPButtons_${geminiAdapterConfig.adapterName}`];
-       if (insertFn) {
-           insertFn();
-       } else {
-           console.warn('Manual injection function not found.');
-       }
-   };
+  window.injectMCPButtons = () => {
+    console.debug('Manual injection for Gemini triggered');
+    const insertFn = (window as any)[`injectMCPButtons_${geminiAdapterConfig.adapterName}`];
+    if (insertFn) {
+      insertFn();
+    } else {
+      console.warn('Manual injection function not found.');
+    }
+  };
 
   console.debug('Gemini MCP components initialization complete.');
 }

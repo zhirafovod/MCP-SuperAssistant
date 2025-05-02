@@ -1,6 +1,6 @@
 /**
  * Perplexity website components for MCP-SuperAssistant
- * 
+ *
  * This file implements the MCP popover button for Perplexity website with toggle functionality:
  * 1. MCP ON/OFF toggle
  * 2. Auto Insert toggle
@@ -11,13 +11,8 @@
 // import React from 'react';
 // import ReactDOM from 'react-dom/client';
 // import { MCPPopover } from '../../components/mcpPopover/mcpPopover';
-import {
-  initializeAdapter,
-  AdapterConfig,
-  ToggleStateManager,
-  SimpleSiteAdapter,
-  MCPToggleState
-} from './common'; // Import from the common file
+import type { AdapterConfig, SimpleSiteAdapter } from './common';
+import { initializeAdapter, ToggleStateManager, MCPToggleState } from './common'; // Import from the common file
 
 // Keep Perplexity-specific functions or overrides
 
@@ -35,7 +30,7 @@ function findPerplexityButtonInsertionPoint(): { container: Element; insertAfter
       const wrapperDiv = radioGroup.parentElement;
       return {
         container: container,
-        insertAfter: wrapperDiv // Insert after the radiogroup's wrapper div
+        insertAfter: wrapperDiv, // Insert after the radiogroup's wrapper div
       };
     }
   }
@@ -43,40 +38,40 @@ function findPerplexityButtonInsertionPoint(): { container: Element; insertAfter
   // Fallback: Look for the main input area's action buttons container
   const actionsContainer = document.querySelector('div.flex.items-end.gap-sm'); // Adjust selector if needed
   if (actionsContainer) {
-      console.debug('[Perplexity Adapter] Found actions container (fallback)');
-      // Try inserting after the file upload button if it exists
-      const fileUploadButton = actionsContainer.querySelector('button[aria-label*="Attach"]');
-      return { container: actionsContainer, insertAfter: fileUploadButton || null };
+    console.debug('[Perplexity Adapter] Found actions container (fallback)');
+    // Try inserting after the file upload button if it exists
+    const fileUploadButton = actionsContainer.querySelector('button[aria-label*="Attach"]');
+    return { container: actionsContainer, insertAfter: fileUploadButton || null };
   }
-
 
   console.warn('[Perplexity Adapter] Could not find a suitable insertion point.');
   return null;
 }
 
-
 // Perplexity-specific sidebar handling
 function showPerplexitySidebar(adapter: SimpleSiteAdapter | null): void {
-    console.debug('[Perplexity Adapter] MCP Enabled - Showing sidebar');
-    // Perplexity might have a specific way to show its sidebar or related UI
-    if (adapter && (adapter as any).sidebarManager?.show) {
-        (adapter as any).sidebarManager.show().catch((e: any) => console.error("Error showing Perplexity sidebar:", e));
-    } else if (adapter?.showSidebarWithToolOutputs) { // Generic fallback
-        adapter.showSidebarWithToolOutputs();
-    } else {
-        console.warn('[Perplexity Adapter] No specific method found to show sidebar.');
-    }
+  console.debug('[Perplexity Adapter] MCP Enabled - Showing sidebar');
+  // Perplexity might have a specific way to show its sidebar or related UI
+  if (adapter && (adapter as any).sidebarManager?.show) {
+    (adapter as any).sidebarManager.show().catch((e: any) => console.error('Error showing Perplexity sidebar:', e));
+  } else if (adapter?.showSidebarWithToolOutputs) {
+    // Generic fallback
+    adapter.showSidebarWithToolOutputs();
+  } else {
+    console.warn('[Perplexity Adapter] No specific method found to show sidebar.');
+  }
 }
 
 function hidePerplexitySidebar(adapter: SimpleSiteAdapter | null): void {
-    console.debug('[Perplexity Adapter] MCP Disabled - Hiding sidebar');
-    if (adapter && (adapter as any).sidebarManager?.hide) {
-        (adapter as any).sidebarManager.hide();
-    } else if (adapter?.hideSidebar) { // Generic fallback
-        adapter.hideSidebar();
-    } else {
-        console.warn('[Perplexity Adapter] No specific method found to hide sidebar.');
-    }
+  console.debug('[Perplexity Adapter] MCP Disabled - Hiding sidebar');
+  if (adapter && (adapter as any).sidebarManager?.hide) {
+    (adapter as any).sidebarManager.hide();
+  } else if (adapter?.hideSidebar) {
+    // Generic fallback
+    adapter.hideSidebar();
+  } else {
+    console.warn('[Perplexity Adapter] No specific method found to hide sidebar.');
+  }
 }
 
 // Perplexity-specific URL key generation
@@ -92,7 +87,6 @@ function getPerplexityURLKey(): string {
   return 'generic'; // Default key
 }
 
-
 // Perplexity Adapter Configuration
 const perplexityAdapterConfig: AdapterConfig = {
   adapterName: 'Perplexity',
@@ -106,26 +100,24 @@ const perplexityAdapterConfig: AdapterConfig = {
   // updateUI: customUpdateUI, // Optional: If specific UI updates needed
 };
 
-
 // Initialize Perplexity components using the common initializer
 export function initPerplexityComponents(): void {
   console.debug('Initializing Perplexity MCP components using common framework');
   const stateManager = initializeAdapter(perplexityAdapterConfig);
 
   // Expose manual injection for debugging (optional)
-   window.injectMCPButtons = () => {
-       console.debug('Manual injection for Perplexity triggered');
-       const insertFn = (window as any)[`injectMCPButtons_${perplexityAdapterConfig.adapterName}`];
-       if (insertFn) {
-           insertFn();
-       } else {
-           console.warn('Manual injection function not found.');
-       }
-   };
+  window.injectMCPButtons = () => {
+    console.debug('Manual injection for Perplexity triggered');
+    const insertFn = (window as any)[`injectMCPButtons_${perplexityAdapterConfig.adapterName}`];
+    if (insertFn) {
+      insertFn();
+    } else {
+      console.warn('Manual injection function not found.');
+    }
+  };
 
   console.debug('Perplexity MCP components initialization complete.');
 }
-
 
 // --- Removed Code ---
 // - SimpleSiteAdapter interface (moved to common)

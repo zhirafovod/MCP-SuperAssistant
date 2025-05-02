@@ -435,15 +435,15 @@ async function isServerAvailable(url: string): Promise<boolean> {
     // Create an abort controller with timeout to prevent long waits
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
-    
+
     try {
       // Use fetch with HEAD method to check if server is available
       await fetch(url, {
         method: 'HEAD',
         mode: 'no-cors', // Use no-cors to avoid CORS issues during check
-        signal: controller.signal
+        signal: controller.signal,
       });
-      
+
       // If we get here, the server is available
       console.log(`Server at ${url} appears to be available`);
       return true;
@@ -647,7 +647,7 @@ export async function runWithSSE(uri: string): Promise<void> {
     const baseUrl = new URL(uri);
     const serverUrl = `${baseUrl.protocol}//${baseUrl.host}`;
     const isAvailable = await isServerAvailable(serverUrl);
-    
+
     if (!isAvailable) {
       throw new Error(`Server at ${serverUrl} is not available`);
     }

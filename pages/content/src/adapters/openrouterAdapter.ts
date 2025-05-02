@@ -6,11 +6,7 @@
 
 import { BaseAdapter } from './common';
 import { logMessage } from '../utils/helpers';
-import {
-  insertToolResultToChatInput,
-  attachFileToChatInput,
-  submitChatInput,
-} from '../components/websites/openrouter';
+import { insertToolResultToChatInput, attachFileToChatInput, submitChatInput } from '../components/websites/openrouter';
 import { SidebarManager } from '../components/sidebar';
 import { initOpenRouterComponents } from './adaptercomponents/openrouter';
 
@@ -20,7 +16,7 @@ import { initOpenRouterComponents } from './adaptercomponents/openrouter';
 export class OpenRouterAdapter extends BaseAdapter {
   name = 'OpenRouter';
   hostname = ['openrouter.ai'];
-  
+
   // Properties to track navigation
   private lastUrl: string = '';
   private urlCheckInterval: number | null = null;
@@ -37,9 +33,7 @@ export class OpenRouterAdapter extends BaseAdapter {
     this.sidebarManager.initialize();
   }
 
-  protected initializeObserver(forceReset: boolean = false): void {
-    
-  }
+  protected initializeObserver(forceReset: boolean = false): void {}
 
   cleanup(): void {
     // Clear interval for URL checking

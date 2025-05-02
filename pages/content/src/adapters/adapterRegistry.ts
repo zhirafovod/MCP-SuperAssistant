@@ -3,7 +3,7 @@
  *
  * This file defines a registry for managing site adapters and provides a hook
  * to access the appropriate adapter based on the current hostname and URL.
- * 
+ *
  * It also exposes the current adapter globally for any component to access.
  */
 
@@ -30,7 +30,7 @@ class AdapterRegistryImpl implements AdapterRegistry {
     for (const hostname of hostnames) {
       this.adapters.set(hostname, adapter);
     }
-    
+
     // Clear the cache when a new adapter is registered
     this.hostnameCache.clear();
   }
@@ -48,7 +48,7 @@ class AdapterRegistryImpl implements AdapterRegistry {
 
     // 1. Try direct hostname match first (fastest path)
     let adapter = this.adapters.get(hostname);
-    
+
     // 2. If direct match found, check URL patterns
     if (adapter && adapter.urlPatterns && adapter.urlPatterns.length > 0) {
       const matchesUrlPattern = adapter.urlPatterns.some(pattern => pattern.test(url));
@@ -56,38 +56,37 @@ class AdapterRegistryImpl implements AdapterRegistry {
         adapter = undefined; // URL pattern didn't match
       }
     }
-    
+
     // 3. If no direct match or URL pattern didn't match, try flexible matching
     if (!adapter) {
       adapter = this.findAdapterWithFlexibleMatching(hostname, url);
     }
-    
+
     // Cache the result
     if (!hostnameCache) {
       this.hostnameCache.set(hostname, new Map());
     }
     this.hostnameCache.get(hostname)?.set(url, adapter || null);
-    
+
     return adapter;
   }
-  
+
   // Helper method for flexible hostname matching
   private findAdapterWithFlexibleMatching(hostname: string, url: string): SiteAdapter | undefined {
     // Remove 'www.' from the hostname for comparison
     const hostnameNoWww = hostname.replace(/^www\./, '');
-    
+
     // Try to find an adapter that matches the hostname with flexible rules
     for (const [adapterHostname, adapterInstance] of this.adapters.entries()) {
       const adapterHostnameNoWww = adapterHostname.replace(/^www\./, '');
-      
+
       // Check if hostnames match with various patterns
-      const hostnameMatches = (
+      const hostnameMatches =
         hostname.includes(adapterHostname) ||
         hostname.includes(adapterHostnameNoWww) ||
         hostnameNoWww.includes(adapterHostname) ||
-        hostnameNoWww.includes(adapterHostnameNoWww)
-      );
-      
+        hostnameNoWww.includes(adapterHostnameNoWww);
+
       if (hostnameMatches) {
         // Check URL patterns if they exist
         if (adapterInstance.urlPatterns && adapterInstance.urlPatterns.length > 0) {
@@ -96,11 +95,11 @@ class AdapterRegistryImpl implements AdapterRegistry {
             continue; // Skip this adapter if URL pattern doesn't match
           }
         }
-        
+
         return adapterInstance;
       }
     }
-    
+
     return undefined;
   }
 }

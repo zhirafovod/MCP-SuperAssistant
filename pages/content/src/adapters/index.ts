@@ -31,7 +31,7 @@ const adapterInfos: AdapterInfo[] = [
   { AdapterClass: ChatGptAdapter, hostnames: ['chat.openai.com', 'chatgpt.com'] },
   { AdapterClass: GrokAdapter, hostnames: ['grok.x.ai'] },
   { AdapterClass: GeminiAdapter, hostnames: ['gemini.google.com'] },
-  { AdapterClass: OpenRouterAdapter, hostnames: ['openrouter.ai'] }
+  { AdapterClass: OpenRouterAdapter, hostnames: ['openrouter.ai'] },
 ];
 
 // Map of adapter instances that will be lazily initialized
@@ -60,7 +60,7 @@ function getCurrentUrl(): string {
  */
 function initializeAdapter(AdapterClass: AdapterConstructor): SiteAdapter {
   const adapterName = AdapterClass.name;
-  
+
   if (adapterInstances.has(adapterName)) {
     return adapterInstances.get(adapterName)!;
   }
@@ -71,7 +71,7 @@ function initializeAdapter(AdapterClass: AdapterConstructor): SiteAdapter {
     registerSiteAdapter(adapter);
     adapterRegistry.registerAdapter(adapter);
     logMessage(`Registered adapter for hostname: ${adapter.hostname}`);
-    
+
     adapterInstances.set(adapterName, adapter);
     return adapter;
   } catch (error) {
@@ -101,10 +101,10 @@ async function initializeRelevantAdapters(): Promise<void> {
       }, 100);
     });
   }
-  
+
   // Set initialization flag
   isInitializing = true;
-  
+
   try {
     const currentHostname = getCurrentHostname();
     const currentUrl = getCurrentUrl();
@@ -121,10 +121,12 @@ async function initializeRelevantAdapters(): Promise<void> {
       const mightMatch = hostnames.some(hostname => {
         const hostnameNoWww = hostname.replace(/^www\./, '');
         const currentHostnameNoWww = currentHostname.replace(/^www\./, '');
-        
-        return currentHostname.includes(hostname) || 
-          currentHostname.includes(hostnameNoWww) || 
-          currentHostnameNoWww.includes(hostname);
+
+        return (
+          currentHostname.includes(hostname) ||
+          currentHostname.includes(hostnameNoWww) ||
+          currentHostnameNoWww.includes(hostname)
+        );
       });
 
       if (mightMatch) {
@@ -146,7 +148,7 @@ async function initializeRelevantAdapters(): Promise<void> {
           primaryAdapter = adapter;
         }
       }
-      
+
       // For sites without a specific adapter, use Perplexity adapter as fallback
       // since it has the most generic implementation
       primaryAdapter = initializeAdapter(PerplexityAdapter);
@@ -157,7 +159,7 @@ async function initializeRelevantAdapters(): Promise<void> {
       logMessage('No primary adapter found. Using Perplexity adapter as fallback.');
       primaryAdapter = initializeAdapter(PerplexityAdapter);
     }
-    
+
     // Ensure DOM is ready before initialization completes
     if (document.readyState !== 'complete') {
       await new Promise<void>(resolve => {
@@ -171,7 +173,9 @@ async function initializeRelevantAdapters(): Promise<void> {
       logMessage('Falling back to Perplexity adapter only');
       initializeAdapter(PerplexityAdapter);
     } catch (fallbackError) {
-      logMessage(`Critical error: Even fallback adapter failed: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`);
+      logMessage(
+        `Critical error: Even fallback adapter failed: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`,
+      );
     }
   } finally {
     // Set initialization complete flag
@@ -195,7 +199,9 @@ try {
     initializeAdapter(PerplexityAdapter);
     initializationComplete = true;
   } catch (fallbackError) {
-    logMessage(`Critical error: Even fallback adapter failed: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`);
+    logMessage(
+      `Critical error: Even fallback adapter failed: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`,
+    );
   }
 }
 

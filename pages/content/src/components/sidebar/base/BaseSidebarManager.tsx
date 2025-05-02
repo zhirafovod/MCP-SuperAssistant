@@ -110,7 +110,7 @@ export abstract class BaseSidebarManager {
       } else {
         document.documentElement.classList.remove('sidebar-collapsed');
       }
-      
+
       // When push mode is enabled, ensure the sidebar is visible
       if (!this._isVisible || (this.shadowHost && this.shadowHost.style.display !== 'block')) {
         logMessage('[BaseSidebarManager] Push mode enabled but sidebar not visible, showing sidebar');
@@ -143,26 +143,26 @@ export abstract class BaseSidebarManager {
       logMessage('[BaseSidebarManager] Cannot force visibility: not initialized');
       return;
     }
-    
+
     if (!this.shadowHost) {
       logMessage('[BaseSidebarManager] Cannot force visibility: no shadow host');
       return;
     }
-    
+
     this._isVisible = true;
     this.shadowHost.style.display = 'block';
     this.shadowHost.style.opacity = '1';
     this.shadowHost.classList.add('initialized');
-    
+
     // Remove any transition classes to ensure immediate visibility
     this.shadowHost.classList.remove('showing');
-    
+
     // Force browser reflow
     void this.shadowHost.offsetHeight;
-    
+
     // Render content
     this.render();
-    
+
     logMessage('[BaseSidebarManager] Forced sidebar visibility');
   }
 
@@ -381,37 +381,38 @@ export abstract class BaseSidebarManager {
       // Add a class to help with smooth transitions
       this.shadowHost.classList.add('showing');
       this.shadowHost.style.display = 'block';
-      
+
       // Forcefully ensure opacity is set to 1 to guarantee visibility
       this.shadowHost.style.opacity = '1';
       this.shadowHost.classList.add('initialized');
-      
+
       // Force browser to update the display property before continuing
       void this.shadowHost.offsetHeight;
-      
+
       // Wait a short time before rendering to ensure the DOM is ready
       await new Promise<void>(resolve => setTimeout(resolve, 50));
-      
+
       // Now render the content
       this.render();
-      
+
       // Remove the showing class after a short delay
       setTimeout(() => {
         if (this.shadowHost) {
           this.shadowHost.classList.remove('showing');
-          
+
           // Double-check that we're visible after a short delay
           setTimeout(() => {
-            if (this.shadowHost && 
-                (this.shadowHost.style.display !== 'block' || 
-                 this.shadowHost.style.opacity !== '1')) {
+            if (
+              this.shadowHost &&
+              (this.shadowHost.style.display !== 'block' || this.shadowHost.style.opacity !== '1')
+            ) {
               // Force visibility if something went wrong
               this.shadowHost.style.display = 'block';
               this.shadowHost.style.opacity = '1';
               logMessage('[BaseSidebarManager] Forced visibility after check');
             }
           }, 300);
-          
+
           logMessage('Sidebar shown and rendered');
         }
       }, 50);

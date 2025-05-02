@@ -12,7 +12,7 @@ import Ajv from 'ajv';
 export const useBackgroundCommunication = (): BackgroundCommunication => {
   // Default config as a constant
   const DEFAULT_CONFIG: ServerConfig = { uri: 'http://localhost:3006/sse' };
-  
+
   // State for server connection status
   const [serverStatus, setServerStatus] = useState<'connected' | 'disconnected' | 'error' | 'reconnecting'>(
     'disconnected',
@@ -43,7 +43,9 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
         setServerConfigCache(config);
         lastConfigFetchRef.current = Date.now();
       } catch (error) {
-        logMessage(`[Background Communication] Error in initial config fetch: ${error instanceof Error ? error.message : String(error)}`);
+        logMessage(
+          `[Background Communication] Error in initial config fetch: ${error instanceof Error ? error.message : String(error)}`,
+        );
         // Keep using the default config that was set in useState
       } finally {
         setIsInitComplete(true);
@@ -53,7 +55,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
 
     // Start initialization but don't await it
     initializeConfig();
-    
+
     // Force completion after a timeout
     const timeoutId = setTimeout(() => {
       if (!isInitializedRef.current) {
@@ -62,7 +64,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
         setIsInitComplete(true);
       }
     }, 2000);
-    
+
     return () => clearTimeout(timeoutId);
   }, []);
 
@@ -129,33 +131,38 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
   }, []);
 
   // Function to call an MCP tool
-  const callTool = useCallback(async (toolName: string, args: { [key: string]: unknown }): Promise<any> => {
-    // Schema validation for tool arguments
-    const toolEntry = availableTools.find(t => t.name === toolName);
-    if (toolEntry) {
-      try {
-        const schemaObj = JSON.parse(toolEntry.schema);
-        const validate = ajv.compile(schemaObj);
-        if (!validate(args)) {
-          const errorText = ajv.errorsText(validate.errors);
-          throw new Error(`Invalid arguments for ${toolName}: ${errorText}`);
+  const callTool = useCallback(
+    async (toolName: string, args: { [key: string]: unknown }): Promise<any> => {
+      // Schema validation for tool arguments
+      const toolEntry = availableTools.find(t => t.name === toolName);
+      if (toolEntry) {
+        try {
+          const schemaObj = JSON.parse(toolEntry.schema);
+          const validate = ajv.compile(schemaObj);
+          if (!validate(args)) {
+            const errorText = ajv.errorsText(validate.errors);
+            throw new Error(`Invalid arguments for ${toolName}: ${errorText}`);
+          }
+        } catch (e) {
+          logMessage(
+            `[Background Communication] Schema validation error for ${toolName}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+          throw e;
         }
-      } catch (e) {
-        logMessage(`[Background Communication] Schema validation error for ${toolName}: ${e instanceof Error ? e.message : String(e)}`);
-        throw e;
       }
-    }
 
-    return new Promise((resolve, reject) => {
-      mcpHandler.callTool(toolName, args, (result, error) => {
-        if (error) {
-          reject(new Error(error));
-        } else {
-          resolve(result);
-        }
+      return new Promise((resolve, reject) => {
+        mcpHandler.callTool(toolName, args, (result, error) => {
+          if (error) {
+            reject(new Error(error));
+          } else {
+            resolve(result);
+          }
+        });
       });
-    });
-  }, [availableTools, ajv]);
+    },
+    [availableTools, ajv],
+  );
 
   // Function to fetch available tools from the MCP server
   const getAvailableTools = useCallback(async (): Promise<Tool[]> => {
@@ -186,16 +193,16 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
     if (!isInitComplete) {
       return serverConfigCache;
     }
-    
+
     // If we have a cached config and it's been less than 5 minutes since the last fetch, return it
     const now = Date.now();
     const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
-    
+
     if (now - lastConfigFetchRef.current < CACHE_TTL) {
       // logMessage('[Background Communication] Using cached server configuration');
       return serverConfigCache;
     }
-    
+
     // If there's already a request in progress, wait for it to complete
     if (configRequestInProgressRef.current) {
       // Wait for the current request to finish and update the cache
@@ -204,11 +211,11 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
         await new Promise(resolve => setTimeout(resolve, 100));
         retryCount++;
       }
-      
+
       // Return current cache regardless
       return serverConfigCache;
     }
-    
+
     try {
       const config = await fetchServerConfig();
       return config;
@@ -217,20 +224,20 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
       return serverConfigCache;
     }
   }, [serverConfigCache, isInitComplete]);
-  
+
   // Extract the actual fetch logic to a separate function
   const fetchServerConfig = useCallback(async (): Promise<ServerConfig> => {
     // Mark that we're starting a request
     configRequestInProgressRef.current = true;
-    
+
     try {
       // Set up a timeout promise to ensure we don't wait too long
-      const timeoutPromise = new Promise<ServerConfig>((resolve) => {
+      const timeoutPromise = new Promise<ServerConfig>(resolve => {
         setTimeout(() => {
           resolve(serverConfigCache); // Resolve with current cache on timeout
         }, 3000); // 3 second timeout
       });
-      
+
       // Actual fetch promise
       const fetchPromise = new Promise<ServerConfig>((resolve, reject) => {
         try {
@@ -247,10 +254,10 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
           reject(innerError);
         }
       });
-      
+
       // Race between the fetch and the timeout
       const config = await Promise.race([fetchPromise, timeoutPromise]);
-      
+
       // Update cache and timestamp
       setServerConfigCache(config);
       lastConfigFetchRef.current = Date.now();
@@ -328,7 +335,9 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
             }
           }, forceRefresh); // Pass forceRefresh parameter
 
-          logMessage(`[Background Communication] Sent fresh tools request with ID: ${uniqueRequestId} (forceRefresh: ${forceRefresh})`);
+          logMessage(
+            `[Background Communication] Sent fresh tools request with ID: ${uniqueRequestId} (forceRefresh: ${forceRefresh})`,
+          );
         });
 
         logMessage(`[Background Communication] Tools refreshed successfully, found ${tools.length} tools`);
@@ -406,7 +415,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
         // Handle both standard tools and MCPTools
         let toolName = tool.name;
         let toolArgs = tool.args || {};
-        
+
         // If it's an MCPTool (has toolName and rawArguments properties)
         if (tool.toolName && tool.rawArguments !== undefined) {
           toolName = tool.toolName;
@@ -418,7 +427,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
             return `Error: Invalid JSON arguments: ${errorMessage}`;
           }
         }
-        
+
         const result = await callTool(toolName, toolArgs);
         return typeof result === 'string' ? result : JSON.stringify(result);
       } catch (error) {

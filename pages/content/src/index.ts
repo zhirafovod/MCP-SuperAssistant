@@ -17,7 +17,7 @@ import {
   stopDirectMonitoring,
   processFunctionCalls as renderFunctionCalls, // Expose a function to trigger rendering
   checkForUnprocessedFunctionCalls, // Allow checking for missed calls
-  configureFunctionCallRenderer // Allow configuration from sidebar/background
+  configureFunctionCallRenderer, // Allow configuration from sidebar/background
 } from '@src/render_prescript/src/index';
 
 // Import the adapter registry
@@ -34,31 +34,32 @@ function setupSidebarRecovery(): void {
       // Check if there's an active sidebar manager
       const sidebarManager = (window as any).activeSidebarManager;
       if (!sidebarManager) return;
-      
+
       // Get HTML element to check for push-mode-enabled class
       const htmlElement = document.documentElement;
-      
+
       // Check if push mode is enabled but host is invisible or missing
       if (htmlElement.classList.contains('push-mode-enabled')) {
         const shadowHost = sidebarManager.getShadowHost();
-        
+
         // If shadow host exists but is not visible, force it
         if (shadowHost) {
-          if (shadowHost.style.display !== 'block' || 
-              window.getComputedStyle(shadowHost).display === 'none' ||
-              shadowHost.style.opacity !== '1' ||
-              parseFloat(window.getComputedStyle(shadowHost).opacity) < 0.9) {
-            
+          if (
+            shadowHost.style.display !== 'block' ||
+            window.getComputedStyle(shadowHost).display === 'none' ||
+            shadowHost.style.opacity !== '1' ||
+            parseFloat(window.getComputedStyle(shadowHost).opacity) < 0.9
+          ) {
             logMessage('[SidebarRecovery] Detected invisible sidebar with push mode enabled, forcing visibility');
             shadowHost.style.display = 'block';
             shadowHost.style.opacity = '1';
             shadowHost.classList.add('initialized');
-            
+
             // Also force a re-render
             sidebarManager.refreshContent();
           }
         } else {
-          // If shadow host doesn't exist but push mode is enabled, 
+          // If shadow host doesn't exist but push mode is enabled,
           // try to re-initialize the sidebar
           logMessage('[SidebarRecovery] Push mode enabled but shadow host missing, re-initializing sidebar');
           sidebarManager.initialize().then(() => {
@@ -70,12 +71,12 @@ function setupSidebarRecovery(): void {
       console.error('[SidebarRecovery] Error:', error);
     }
   }, 1000); // Check every second
-  
+
   // Clean up when navigating away
   window.addEventListener('unload', () => {
     clearInterval(recoveryInterval);
   });
-  
+
   logMessage('[SidebarRecovery] Sidebar recovery mechanism set up');
 }
 
@@ -100,7 +101,10 @@ try {
 } catch (error) {
   // This catch block is primarily for the rare case where the background script context is invalidated
   // during the sendMessage call (e.g., extension update/reload). It won't catch errors in the background handler.
-  console.error('[ContentScript] Error sending analytics tracking message:', error instanceof Error ? error.message : String(error));
+  console.error(
+    '[ContentScript] Error sending analytics tracking message:',
+    error instanceof Error ? error.message : String(error),
+  );
 }
 
 // Add this call right before your existing script loads
@@ -124,19 +128,19 @@ setupSidebarRecovery();
   try {
     const currentHostname = window.location.hostname;
     const adapter = adapterRegistry.getAdapter(currentHostname);
-    
+
     if (adapter) {
       const adapterId = adapter.name;
-      
+
       if (!initializedAdapters.has(adapterId)) {
         logMessage(`Initializing site adapter for ${adapter.name} (regardless of MCP connection)`);
-        
+
         // Always initialize the adapter to ensure UI is visible
         adapter.initialize();
-        
+
         // Mark this adapter as initialized
         initializedAdapters.add(adapterId);
-        
+
         // Set the adapter globally
         window.mcpAdapter = adapter;
         logMessage(`Exposed adapter ${adapter.name} to global window.mcpAdapter`);
@@ -161,7 +165,7 @@ mcpHandler.onConnectionStatusChanged(isConnected => {
   if (adapter) {
     // Update connection status regardless of initialization state
     adapter.updateConnectionStatus(isConnected);
-    
+
     // Ensure the adapter is always set globally
     window.mcpAdapter = adapter;
   }
@@ -173,13 +177,13 @@ let rendererInitialized = false;
 // More robust initialization with retries if immediate initialization failed
 const initRendererWithRetry = (retries = 3, delay = 300) => {
   if (rendererInitialized) return; // Don't try again if already initialized
-  
+
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
     try {
       initializeRenderer();
       rendererInitialized = true;
       logMessage('Function call renderer initialized successfully on retry.');
-      
+
       // Process any function calls that might have been missed
       setTimeout(() => {
         if (rendererInitialized) {
@@ -187,7 +191,6 @@ const initRendererWithRetry = (retries = 3, delay = 300) => {
           checkForUnprocessedFunctionCalls();
         }
       }, 500);
-      
     } catch (error) {
       console.error('Error initializing function call renderer:', error);
       if (retries > 0) {
@@ -224,7 +227,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const currentHostname = window.location.hostname;
   const adapter = adapterRegistry.getAdapter(currentHostname);
 
-if (message.command === 'getStats') {
+  if (message.command === 'getStats') {
     sendResponse({
       success: true,
       stats: {
@@ -271,8 +274,7 @@ if (message.command === 'getStats') {
     } else {
       sendResponse({ success: false, error: 'No active site adapter' });
     }
-  } 
-  else if (message.command === 'setFunctionCallRendering') {
+  } else if (message.command === 'setFunctionCallRendering') {
     // Handle toggling function call rendering
     const { enabled } = message;
     if (rendererInitialized) {
@@ -326,7 +328,7 @@ window.addEventListener('beforeunload', () => {
   if (adapter) {
     adapter.cleanup();
   }
-  
+
   // Clear the initialized adapters set
   initializedAdapters.clear();
 });

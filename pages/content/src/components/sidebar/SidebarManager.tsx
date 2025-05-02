@@ -101,10 +101,10 @@ export class SidebarManager extends BaseSidebarManager {
     if (this.isFirstLoad) {
       // Prevent multiple initialization attempts in quick succession
       this.isFirstLoad = false;
-      
+
       // First ensure initialization is complete
       logMessage('[SidebarManager] First load, initializing with progressive reveal');
-      
+
       // Use promise chaining with explicit error handling for better race condition management
       this.initialize()
         .then(() => {
@@ -116,7 +116,7 @@ export class SidebarManager extends BaseSidebarManager {
             this.shadowHost.classList.add('initialized');
           }
           this._isVisible = true;
-          
+
           // Now load preferences
           return getSidebarPreferences();
         })
@@ -124,38 +124,42 @@ export class SidebarManager extends BaseSidebarManager {
           const wasMinimized = preferences.isMinimized ?? false;
           const isPushMode = preferences.isPushMode ?? false;
           const sidebarWidth = preferences.sidebarWidth || 320;
-          
+
           // First apply push content mode with correct width but no visibility yet
           if (isPushMode) {
             this.setPushContentMode(true, wasMinimized ? 56 : sidebarWidth, wasMinimized);
           }
-          
+
           // Start rendering process with proper error handling
           logMessage('[SidebarManager] Rendering with current preferences');
           try {
             this.render();
-            
+
             // Trigger a layout reflow before revealing the sidebar
             void this.shadowHost?.offsetHeight;
           } catch (renderError) {
-            logMessage(`[SidebarManager] Initial render error: ${renderError instanceof Error ? renderError.message : String(renderError)}`);
+            logMessage(
+              `[SidebarManager] Initial render error: ${renderError instanceof Error ? renderError.message : String(renderError)}`,
+            );
             // Try one more render after a short delay
             setTimeout(() => {
               try {
                 this.render();
               } catch (retryError) {
-                logMessage(`[SidebarManager] Retry render failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`);
+                logMessage(
+                  `[SidebarManager] Retry render failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`,
+                );
                 // Continue with reveal anyway
               }
             }, 100);
           }
-          
+
           // Now reveal the sidebar by setting opacity to 1 with transition
           if (this.shadowHost) {
             setTimeout(() => {
               if (this.shadowHost) {
                 this.shadowHost.style.opacity = '1';
-                
+
                 // Double-check visibility after a delay to ensure it's displayed
                 setTimeout(() => {
                   if (this.shadowHost && this.shadowHost.style.opacity !== '1') {
@@ -164,41 +168,47 @@ export class SidebarManager extends BaseSidebarManager {
                     logMessage('[SidebarManager] Forced sidebar visibility after delay check');
                   }
                 }, 500);
-                
+
                 logMessage('[SidebarManager] Sidebar revealed after all preparations');
               }
             }, 100);
           }
         })
         .catch(error => {
-          logMessage(`[SidebarManager] Error during initialization flow: ${error instanceof Error ? error.message : String(error)}`);
+          logMessage(
+            `[SidebarManager] Error during initialization flow: ${error instanceof Error ? error.message : String(error)}`,
+          );
           this.isFirstLoad = true; // Reset so we can try again
           // Fallback to simple show
           try {
             this.show();
           } catch (showError) {
-            logMessage(`[SidebarManager] Even fallback show failed: ${showError instanceof Error ? showError.message : String(showError)}`);
+            logMessage(
+              `[SidebarManager] Even fallback show failed: ${showError instanceof Error ? showError.message : String(showError)}`,
+            );
           }
         });
     } else {
       // Not first load, use normal show and refresh
       // We still need to ensure no flickering, so use a modified approach
-      this.show().then(() => {
-        // Ensure opacity is set correctly
-        if (this.shadowHost) {
-          this.shadowHost.classList.add('initialized');
-          this.shadowHost.style.opacity = '1';
-          
-          // Force visibility if needed
-          if (getComputedStyle(this.shadowHost).opacity !== '1') {
+      this.show()
+        .then(() => {
+          // Ensure opacity is set correctly
+          if (this.shadowHost) {
+            this.shadowHost.classList.add('initialized');
             this.shadowHost.style.opacity = '1';
-            logMessage('[SidebarManager] Forced sidebar visibility');
+
+            // Force visibility if needed
+            if (getComputedStyle(this.shadowHost).opacity !== '1') {
+              this.shadowHost.style.opacity = '1';
+              logMessage('[SidebarManager] Forced sidebar visibility');
+            }
           }
-        }
-        this.refreshContent();
-      }).catch(error => {
-        logMessage(`[SidebarManager] Error in show: ${error instanceof Error ? error.message : String(error)}`);
-      });
+          this.refreshContent();
+        })
+        .catch(error => {
+          logMessage(`[SidebarManager] Error in show: ${error instanceof Error ? error.message : String(error)}`);
+        });
     }
   }
 
@@ -216,31 +226,31 @@ export class SidebarManager extends BaseSidebarManager {
    */
   private async initializeCollapsedState(): Promise<void> {
     this.isFirstLoad = false;
-    
+
     // First show the sidebar in a guaranteed collapsed state
     await this.initialize();
-    
+
     // Check stored preferences to determine if sidebar should be expanded
     try {
       const preferences = await getSidebarPreferences();
       const wasMinimized = preferences.isMinimized ?? false;
       const isPushMode = preferences.isPushMode ?? false;
       const sidebarWidth = preferences.sidebarWidth || 320;
-      
+
       // Show sidebar initially in minimized state
       if (this.shadowHost) {
         this.shadowHost.style.display = 'block';
       }
       this._isVisible = true;
-      
+
       // Set push content mode with minimized width first
       if (isPushMode) {
         this.setPushContentMode(true, 56, true);
       }
-      
+
       // Render the content
       this.render();
-      
+
       // If it was not minimized before, schedule the expansion after a short delay
       if (!wasMinimized) {
         setTimeout(() => {
@@ -253,10 +263,14 @@ export class SidebarManager extends BaseSidebarManager {
           logMessage('[SidebarManager] Sidebar expanded after initial collapsed state');
         }, 100);
       }
-      
-      logMessage(`[SidebarManager] Sidebar initialized with preferences: minimized=${wasMinimized}, pushMode=${isPushMode}`);
+
+      logMessage(
+        `[SidebarManager] Sidebar initialized with preferences: minimized=${wasMinimized}, pushMode=${isPushMode}`,
+      );
     } catch (error) {
-      logMessage(`[SidebarManager] Error loading preferences: ${error instanceof Error ? error.message : String(error)}`);
+      logMessage(
+        `[SidebarManager] Error loading preferences: ${error instanceof Error ? error.message : String(error)}`,
+      );
       this.show();
     }
   }

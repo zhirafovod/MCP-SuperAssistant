@@ -15,9 +15,7 @@ let lastFoundInputElement: HTMLElement | null = null;
  */
 export const findChatInputElement = (): HTMLElement | null => {
   // Try to find OpenRouter's contenteditable div
-  const chatInput = document.querySelector(
-    'textarea[name="Chat Input"][placeholder="Start a message..."].w-full',
-  );
+  const chatInput = document.querySelector('textarea[name="Chat Input"][placeholder="Start a message..."].w-full');
 
   if (chatInput) {
     logMessage('Found OpenRouter input element');
@@ -249,7 +247,7 @@ export const attachFileToChatInput = async (file: File): Promise<boolean> => {
 
     if (!chatInput) {
       logMessage('Could not find OpenRouter input element for file attachment');
-      return false; 
+      return false;
     }
 
     // Create a DataTransfer object

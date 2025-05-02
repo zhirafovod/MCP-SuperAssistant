@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import type React from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { generateInstructions } from '../sidebar/Instructions/instructionGenerator';
 import PopoverPortal from './PopoverPortal';
 import { instructionsState } from '../sidebar/Instructions/InstructionManager';
@@ -13,7 +14,7 @@ export interface MCPToggleState {
 // Hook to detect dark mode
 const useThemeDetector = () => {
   const [isDarkMode, setIsDarkMode] = useState(
-    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches,
   );
 
   useEffect(() => {
@@ -443,7 +444,7 @@ const ToggleItem: React.FC<ToggleItemProps> = ({ id, label, checked, disabled, o
     labelColor: isDarkMode ? '#e8eaed' : '#202124',
     toggleBackground: isDarkMode ? '#444' : '#dadce0',
     toggleBackgroundChecked: isDarkMode ? '#8ab4f8' : '#1a73e8',
-    toggleBackgroundDisabled: isDarkMode ? '#444' : '#dadce0'
+    toggleBackgroundDisabled: isDarkMode ? '#444' : '#dadce0',
   };
 
   return (
@@ -451,9 +452,8 @@ const ToggleItem: React.FC<ToggleItemProps> = ({ id, label, checked, disabled, o
       className={`mcp-toggle-item${disabled ? ' disabled' : ''}`}
       style={{
         borderBottom: `1px solid ${toggleTheme.itemBorderColor}`,
-        backgroundColor: toggleTheme.itemBackground
-      }}
-    >
+        backgroundColor: toggleTheme.itemBackground,
+      }}>
       <div style={{ display: 'flex', alignItems: 'center' }}>
         <label className="mcp-toggle-checkbox">
           <input
@@ -461,7 +461,7 @@ const ToggleItem: React.FC<ToggleItemProps> = ({ id, label, checked, disabled, o
             id={id}
             checked={checked}
             disabled={disabled}
-            onChange={(e) => onChange(e.target.checked)}
+            onChange={e => onChange(e.target.checked)}
           />
           <span
             className="mcp-toggle-slider"
@@ -470,18 +470,16 @@ const ToggleItem: React.FC<ToggleItemProps> = ({ id, label, checked, disabled, o
                 ? toggleTheme.toggleBackgroundDisabled
                 : checked
                   ? toggleTheme.toggleBackgroundChecked
-                  : toggleTheme.toggleBackground
-            }}
-          ></span>
+                  : toggleTheme.toggleBackground,
+            }}></span>
         </label>
         <label
           htmlFor={id}
           className="mcp-toggle-label"
           style={{
             cursor: disabled ? 'not-allowed' : 'pointer',
-            color: toggleTheme.labelColor
-          }}
-        >
+            color: toggleTheme.labelColor,
+          }}>
           {label}
         </label>
       </div>
@@ -517,9 +515,7 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
     boxShadow: isDarkMode
       ? '0 6px 24px rgba(20,20,20,0.25), 0 2px 8px rgba(20,20,20,0.15)'
       : '0 6px 24px rgba(60,64,67,0.10), 0 2px 8px rgba(60,64,67,0.06)',
-    innerShadow: isDarkMode
-      ? 'inset 0 1px 2px rgba(20,20,20,0.10)'
-      : 'inset 0 1px 2px rgba(60,64,67,0.03)'
+    innerShadow: isDarkMode ? 'inset 0 1px 2px rgba(20,20,20,0.10)' : 'inset 0 1px 2px rgba(60,64,67,0.03)',
   };
   useInjectStyles();
   const [state, setState] = useState<MCPToggleState>(toggleStateManager.getState());
@@ -541,13 +537,13 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
   // Subscribe to global instructions state changes
   useEffect(() => {
     // Subscribe to changes in the global instructions state
-    const unsubscribe = instructionsState.subscribe((newInstructions) => {
+    const unsubscribe = instructionsState.subscribe(newInstructions => {
       // Only update if different from current instructions
       if (newInstructions !== instructions) {
         setInstructions(newInstructions);
       }
     });
-    
+
     // Clean up subscription on unmount
     return () => {
       unsubscribe();
@@ -559,7 +555,7 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
     // Only update if different from current instructions
     if (newInstructions !== instructions) {
       setInstructions(newInstructions);
-      
+
       // Don't update global state if we're already processing an update
       if (!instructionsState.updating) {
         instructionsState.setInstructions(newInstructions);
@@ -570,16 +566,20 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
   // Poll for availableTools changes
   useEffect(() => {
     function getCurrentInstructions() {
-      const tools = ((window as any).availableTools || []) as Array<{ name: string; schema: string; description: string }>;
+      const tools = ((window as any).availableTools || []) as Array<{
+        name: string;
+        schema: string;
+        description: string;
+      }>;
       return generateInstructions(tools);
     }
-    
+
     // Only set generated instructions if customInstructions is not provided and instructionsState is empty
     if (!customInstructions && !instructionsState.instructions) {
       const newInstructions = getCurrentInstructions();
       updateInstructions(newInstructions);
     }
-    
+
     pollRef.current = window.setInterval(() => {
       const currentToolsJson = JSON.stringify((window as any).availableTools || []);
       if (currentToolsJson !== lastToolsJson.current && !customInstructions && !instructionsState.instructions) {
@@ -702,25 +702,17 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
   const autoExecuteDisabled = !state.mcpEnabled;
 
   return (
-    <div
-      className="mcp-popover-container"
-      id="mcp-popover-container"
-      ref={containerRef}
-    >
+    <div className="mcp-popover-container" id="mcp-popover-container" ref={containerRef}>
       <button
         className={`mcp-main-button${state.mcpEnabled ? '' : ' inactive'}`}
         aria-label="MCP Settings"
         title="MCP Settings"
         type="button"
         ref={buttonRef}
-        onClick={() => setIsPopoverOpen(!isPopoverOpen)}
-      >
+        onClick={() => setIsPopoverOpen(!isPopoverOpen)}>
         MCP
       </button>
-      <PopoverPortal
-        isOpen={isPopoverOpen}
-        triggerRef={buttonRef}
-      >
+      <PopoverPortal isOpen={isPopoverOpen} triggerRef={buttonRef}>
         <div
           className="mcp-popover position-above"
           ref={popoverRef}
@@ -735,9 +727,8 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
             boxShadow: theme.boxShadow,
             overflow: 'hidden',
             backgroundColor: theme.mainBackground,
-            border: `1px solid ${theme.borderColor}`
-          }}
-        >
+            border: `1px solid ${theme.borderColor}`,
+          }}>
           <button
             className="mcp-close-button"
             onClick={() => setIsPopoverOpen(false)}
@@ -746,8 +737,7 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
             type="button"
             style={{
               color: theme.secondaryText,
-            }}
-          >
+            }}>
             ✕
           </button>
           {/* Toggles column */}
@@ -761,12 +751,29 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
               borderRight: `1px solid ${theme.dividerColor}`,
               background: theme.mainBackground,
               boxSizing: 'border-box',
-            }}
-          >
+            }}>
             <ToggleItem id="mcp-toggle" label="MCP" checked={state.mcpEnabled} disabled={false} onChange={handleMCP} />
-            <ToggleItem id="auto-insert-toggle" label="Auto Insert" checked={state.autoInsert} disabled={autoInsertDisabled} onChange={handleAutoInsert} />
-            <ToggleItem id="auto-submit-toggle" label="Auto Submit" checked={state.autoSubmit} disabled={autoSubmitDisabled} onChange={handleAutoSubmit} />
-            <ToggleItem id="auto-execute-toggle" label="Auto Execute" checked={state.autoExecute} disabled={autoExecuteDisabled} onChange={handleAutoExecute} />
+            <ToggleItem
+              id="auto-insert-toggle"
+              label="Auto Insert"
+              checked={state.autoInsert}
+              disabled={autoInsertDisabled}
+              onChange={handleAutoInsert}
+            />
+            <ToggleItem
+              id="auto-submit-toggle"
+              label="Auto Submit"
+              checked={state.autoSubmit}
+              disabled={autoSubmitDisabled}
+              onChange={handleAutoSubmit}
+            />
+            <ToggleItem
+              id="auto-execute-toggle"
+              label="Auto Execute"
+              checked={state.autoExecute}
+              disabled={autoExecuteDisabled}
+              onChange={handleAutoExecute}
+            />
           </div>
           {/* Instruction panel column */}
           <div
@@ -777,8 +784,7 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
               padding: '20px 20px 16px 20px',
               background: theme.mainBackground,
               boxSizing: 'border-box',
-            }}
-          >
+            }}>
             <div
               style={{
                 fontWeight: '600',
@@ -788,8 +794,7 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
                 color: theme.primaryText,
                 paddingBottom: 4,
                 borderBottom: `1px solid ${theme.dividerColor}`,
-              }}
-            >
+              }}>
               Instructions
             </div>
             <div
@@ -808,8 +813,7 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
                 color: theme.primaryText,
                 border: `1px solid ${theme.borderColor}`,
                 boxShadow: theme.innerShadow,
-              }}
-            >
+              }}>
               {instructions}
             </div>
             <div
@@ -821,8 +825,7 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
                 marginTop: 0,
                 marginBottom: 16,
                 paddingRight: 16,
-              }}
-            >
+              }}>
               <button
                 className="mcp-instruction-btn"
                 style={{
@@ -834,13 +837,12 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
                   border: `1px solid ${theme.borderColor}`,
                   background: theme.secondaryBackground,
                   cursor: 'pointer',
-                  color: theme.primaryText
+                  color: theme.primaryText,
                 }}
                 onClick={handleCopy}
                 onMouseEnter={e => (e.currentTarget.style.background = theme.buttonBackground)}
                 onMouseLeave={e => (e.currentTarget.style.background = theme.secondaryBackground)}
-                type="button"
-              >
+                type="button">
                 {copyStatus}
               </button>
               <button
@@ -854,13 +856,12 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
                   border: `1px solid ${theme.borderColor}`,
                   background: theme.secondaryBackground,
                   cursor: 'pointer',
-                  color: theme.primaryText
+                  color: theme.primaryText,
                 }}
                 onClick={handleInsert}
                 onMouseEnter={e => (e.currentTarget.style.background = theme.buttonBackground)}
                 onMouseLeave={e => (e.currentTarget.style.background = theme.secondaryBackground)}
-                type="button"
-              >
+                type="button">
                 {insertStatus}
               </button>
               <button
@@ -874,13 +875,12 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
                   border: `1px solid ${theme.borderColor}`,
                   background: theme.secondaryBackground,
                   cursor: 'pointer',
-                  color: theme.primaryText
+                  color: theme.primaryText,
                 }}
                 onClick={handleAttach}
                 onMouseEnter={e => (e.currentTarget.style.background = theme.buttonBackground)}
                 onMouseLeave={e => (e.currentTarget.style.background = theme.secondaryBackground)}
-                type="button"
-              >
+                type="button">
                 {attachStatus}
               </button>
             </div>

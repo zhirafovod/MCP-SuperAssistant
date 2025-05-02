@@ -10,6 +10,5 @@ import './chatInputHandler';
 // Export sidebar components from common
 export { SidebarManager } from '@src/components/sidebar';
 
-
 // Export all functions from the grok module
 export * from './chatInputHandler';
