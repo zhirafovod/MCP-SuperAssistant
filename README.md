@@ -1,6 +1,17 @@
-# MCP SuperAssistant Chrome Extension
 
-![MCP SuperAssistant](chrome-extension/public/Cover3.jpg)
+<div align="center">
+   <!-- <img src="chrome-extension/public/icon-34.png" alt="MCP SuperAssistant Logo" width="100" height="100"> -->
+   <h1>MCP SuperAssistant Chrome Extension</h1>
+</div>
+
+<p align="center">
+Brings MCP to ChatGPT, Perplexity, Grok, Gemini, Google AI Studio, OpenRouter and more...
+</p>
+
+<!-- ![MCP SuperAssistant](chrome-extension/public/Cover3.jpg) -->
+<div align="center">
+ <img src="chrome-extension/public/Cover3.jpg" alt="MCP SuperAssistant Cover" width="800">
+</div>
 
 ## Overview
 
