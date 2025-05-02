@@ -18,7 +18,7 @@ import {
   processFunctionCalls as renderFunctionCalls, // Expose a function to trigger rendering
   checkForUnprocessedFunctionCalls, // Allow checking for missed calls
   configureFunctionCallRenderer // Allow configuration from sidebar/background
-} from '@src/render_prescript/src/index';
+} from '@src/render_prescript/src/index.ts'; // Added .ts extension
 
 // Import the adapter registry
 import { adapterRegistry, getCurrentAdapter } from '@src/adapters/adapterRegistry';
