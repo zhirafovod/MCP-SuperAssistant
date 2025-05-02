@@ -10,7 +10,7 @@ import './tailwind-input.css';
 import { logMessage } from '@src/utils/helpers';
 import { mcpHandler } from '@src/utils/mcpHandler';
 
-// Import the render script functions
+// Import the render script functions using a relative path
 import {
   initialize as initializeRenderer,
   startDirectMonitoring,
@@ -18,7 +18,7 @@ import {
   processFunctionCalls as renderFunctionCalls, // Expose a function to trigger rendering
   checkForUnprocessedFunctionCalls, // Allow checking for missed calls
   configureFunctionCallRenderer // Allow configuration from sidebar/background
-} from '@src/render_prescript/src/index.ts'; // Added .ts extension
+} from './render_prescript/src/index'; // Changed to relative path
 
 // Import the adapter registry
 import { adapterRegistry, getCurrentAdapter } from '@src/adapters/adapterRegistry';
