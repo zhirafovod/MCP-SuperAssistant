@@ -1,0 +1,26 @@
+{
+  "name": "function-call-renderer",
+  "version": "1.0.0",
+  "description": "Renders function call blocks from preformatted text",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "bundle": "rollup -c",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.3",
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "@rollup/plugin-typescript": "^12.1.2",
+    "@types/trusted-types": "^2.0.7",
+    "rollup": "^2.79.2",
+    "rollup-plugin-terser": "^7.0.2",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "author": "",
+  "license": "ISC"
+}
