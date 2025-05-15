@@ -40,7 +40,9 @@ const manifest = {
     '*://*.aistudio.google.com/*',
     '*://*.openrouter.ai/*',
     '*://*.google-analytics.com/*',
+    '*://*.chat.deepseek.com/*',
   ],
+
   permissions: ['storage', 'clipboardWrite'],
   // permissions: ['storage', 'scripting', 'clipboardWrite'],
   // options_page: 'options/index.html',
@@ -102,6 +104,12 @@ const manifest = {
     // Specific content script for OpenRouter tool call parsing
     {
       matches: ['*://*.openrouter.ai/*'],
+      js: ['content/index.iife.js'],
+      run_at: 'document_idle',
+    },
+    // Specific content script for DeepSeek tool call parsing
+    {
+      matches: ['*://*.chat.deepseek.com/*'],
       js: ['content/index.iife.js'],
       run_at: 'document_idle',
     },
