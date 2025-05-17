@@ -19,6 +19,99 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
   );
   // State for list of available tools
   const [availableTools, setAvailableTools] = useState<Tool[]>([]);
+  // Keep a ref in sync with availableTools so we can access the latest value
+  const availableToolsRef = useRef<Tool[]>([]);
+  
+  // Function to fetch available tools from the MCP server - declare early to avoid reference errors
+  const getAvailableTools = useCallback(async (): Promise<Tool[]> => {
+    return new Promise((resolve, reject) => {
+      // Use getAvailableToolPrimitives instead of getAvailableTools
+      mcpHandler.getAvailableToolPrimitives((result, error) => {
+        if (error) {
+          reject(new Error(error));
+        } else {
+          // Transform the result into an array of Tool objects
+          // Filter to only include primitives of type 'tool'
+          const tools: Tool[] = result
+            .filter((primitive: Primitive) => primitive.type === 'tool')
+            .map((primitive: Primitive) => ({
+              name: primitive.value.name,
+              description: primitive.value.description || '',
+              schema: JSON.stringify(primitive.value.inputSchema || {}),
+            }));
+          resolve(tools);
+        }
+      });
+    });
+  }, []);
+  
+  // Function to refresh the tools list
+  const refreshTools = useCallback(
+    async (forceRefresh: boolean = false): Promise<Tool[]> => {
+      logMessage(`[Background Communication] Refreshing tools list (forceRefresh: ${forceRefresh})`);
+
+      try {
+        if (forceRefresh) {
+          // If force refresh is requested, we'll first try to reconnect to ensure a fresh connection
+          logMessage('[Background Communication] Force refresh requested, checking connection first');
+
+          // Check if we're already connected
+          const isConnected = mcpHandler.getConnectionStatus();
+          if (!isConnected) {
+            logMessage('[Background Communication] Not connected, attempting to reconnect before refreshing tools');
+            // We don't want to use forceReconnect here as it would cause a loop
+            // Just wait a moment and continue with the refresh
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        }
+
+        // Get available tools from the server with a fresh request
+        logMessage('[Background Communication] Fetching tools from server with fresh request');
+
+        // Use a new promise to ensure we get a fresh request
+        const tools = await new Promise<Tool[]>((resolve, reject) => {
+          // Generate a unique request ID to avoid any caching
+          const uniqueRequestId = mcpHandler.getAvailableToolPrimitives((result, error) => {
+            if (error) {
+              logMessage(`[Background Communication] Error fetching tools: ${error}`);
+              reject(new Error(error));
+            } else {
+              // Transform the result into an array of Tool objects
+              // Filter to only include primitives of type 'tool'
+              const tools: Tool[] = result
+                .filter((primitive: Primitive) => primitive.type === 'tool')
+                .map((primitive: Primitive) => ({
+                  name: primitive.value.name,
+                  description: primitive.value.description || '',
+                  schema: JSON.stringify(primitive.value.inputSchema || {}),
+                }));
+              resolve(tools);
+            }
+          }, forceRefresh); // Pass forceRefresh parameter
+
+          logMessage(
+            `[Background Communication] Sent fresh tools request with ID: ${uniqueRequestId} (forceRefresh: ${forceRefresh})`,
+          );
+        });
+
+        logMessage(`[Background Communication] Tools refreshed successfully, found ${tools.length} tools`);
+
+        // Update the state with the new tools
+        setAvailableTools(tools);
+        return tools;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logMessage(`[Background Communication] Error refreshing tools: ${errorMessage}`);
+        throw error;
+      }
+    },
+    [getAvailableTools],
+  );
+
+  // Sync ref on each tools update
+  useEffect(() => {
+    availableToolsRef.current = availableTools;
+  }, [availableTools]);
   // State to track if we're currently reconnecting
   const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
   // Initialize server config with default value to prevent loading issues
@@ -73,7 +166,20 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
     const handleConnectionStatus = (isConnected: boolean) => {
       // Only update if we're not in the middle of a manual reconnect
       if (!isReconnecting) {
-        setServerStatus(isConnected ? 'connected' : 'disconnected');
+        setServerStatus(prev => {
+          const newStatus = isConnected ? 'connected' : 'disconnected';
+          return prev !== newStatus ? newStatus : prev;
+        });
+
+        // If we just (re)connected and currently have no tools cached, fetch them
+        if (isConnected && availableToolsRef.current.length === 0) {
+          logMessage('[Background Communication] Reconnected with empty tool cache, refreshing tools');
+          refreshTools(true).catch(err => {
+            logMessage(
+              `[Background Communication] Error refreshing tools after reconnection: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          });
+        }
       }
     };
 
@@ -84,7 +190,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
     return () => {
       mcpHandler.offConnectionStatusChanged(handleConnectionStatus);
     };
-  }, [isReconnecting]);
+  }, [isReconnecting, refreshTools]);
 
   // Fetch available tools when the connection status changes to 'connected'
   useEffect(() => {
@@ -164,28 +270,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
     [availableTools, ajv],
   );
 
-  // Function to fetch available tools from the MCP server
-  const getAvailableTools = useCallback(async (): Promise<Tool[]> => {
-    return new Promise((resolve, reject) => {
-      // Use getAvailableToolPrimitives instead of getAvailableTools
-      mcpHandler.getAvailableToolPrimitives((result, error) => {
-        if (error) {
-          reject(new Error(error));
-        } else {
-          // Transform the result into an array of Tool objects
-          // Filter to only include primitives of type 'tool'
-          const tools: Tool[] = result
-            .filter((primitive: Primitive) => primitive.type === 'tool')
-            .map((primitive: Primitive) => ({
-              name: primitive.value.name,
-              description: primitive.value.description || '',
-              schema: JSON.stringify(primitive.value.inputSchema || {}),
-            }));
-          resolve(tools);
-        }
-      });
-    });
-  }, []);
+  // Function declaration moved up to fix reference error
 
   // Function to get server configuration with caching
   const getServerConfig = useCallback(async (): Promise<ServerConfig> => {
@@ -291,68 +376,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
     });
   }, []);
 
-  // Function to refresh the tools list
-  const refreshTools = useCallback(
-    async (forceRefresh: boolean = false): Promise<Tool[]> => {
-      logMessage(`[Background Communication] Refreshing tools list (forceRefresh: ${forceRefresh})`);
-
-      try {
-        if (forceRefresh) {
-          // If force refresh is requested, we'll first try to reconnect to ensure a fresh connection
-          logMessage('[Background Communication] Force refresh requested, checking connection first');
-
-          // Check if we're already connected
-          const isConnected = mcpHandler.getConnectionStatus();
-          if (!isConnected) {
-            logMessage('[Background Communication] Not connected, attempting to reconnect before refreshing tools');
-            // We don't want to use forceReconnect here as it would cause a loop
-            // Just wait a moment and continue with the refresh
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-        }
-
-        // Get available tools from the server with a fresh request
-        logMessage('[Background Communication] Fetching tools from server with fresh request');
-
-        // Use a new promise to ensure we get a fresh request
-        const tools = await new Promise<Tool[]>((resolve, reject) => {
-          // Generate a unique request ID to avoid any caching
-          const uniqueRequestId = mcpHandler.getAvailableToolPrimitives((result, error) => {
-            if (error) {
-              logMessage(`[Background Communication] Error fetching tools: ${error}`);
-              reject(new Error(error));
-            } else {
-              // Transform the result into an array of Tool objects
-              // Filter to only include primitives of type 'tool'
-              const tools: Tool[] = result
-                .filter((primitive: Primitive) => primitive.type === 'tool')
-                .map((primitive: Primitive) => ({
-                  name: primitive.value.name,
-                  description: primitive.value.description || '',
-                  schema: JSON.stringify(primitive.value.inputSchema || {}),
-                }));
-              resolve(tools);
-            }
-          }, forceRefresh); // Pass forceRefresh parameter
-
-          logMessage(
-            `[Background Communication] Sent fresh tools request with ID: ${uniqueRequestId} (forceRefresh: ${forceRefresh})`,
-          );
-        });
-
-        logMessage(`[Background Communication] Tools refreshed successfully, found ${tools.length} tools`);
-
-        // Update the state with the new tools
-        setAvailableTools(tools);
-        return tools;
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logMessage(`[Background Communication] Error refreshing tools: ${errorMessage}`);
-        throw error;
-      }
-    },
-    [getAvailableTools],
-  );
+  // Function declaration moved up to fix reference error
 
   // Function to force reconnect to the MCP server
   const forceReconnect = useCallback(async (): Promise<boolean> => {
