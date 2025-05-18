@@ -171,7 +171,7 @@ const styles = `
   margin-right: 10px;
   vertical-align: middle;
   border-radius: 34px;
-  overflow: hidden;
+  
 }
 
 .mcp-toggle-checkbox input {
@@ -348,7 +348,7 @@ input:checked + .mcp-toggle-slider:before {
 
   .mcp-toggle-item {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
     border-bottom: 1px solid #444;
     background: #2d2d2d;
@@ -466,25 +466,31 @@ const ToggleItem: React.FC<ToggleItemProps> = ({ id, label, checked, disabled, o
         borderBottom: `1px solid ${toggleTheme.itemBorderColor}`,
         backgroundColor: toggleTheme.itemBackground,
       }}>
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <label className="mcp-toggle-checkbox">
-          <input
-            type="checkbox"
-            id={id}
-            checked={checked}
-            disabled={disabled}
-            onChange={e => onChange(e.target.checked)}
-          />
-          <span
-            className="mcp-toggle-slider"
-            style={{
-              backgroundColor: disabled
-                ? toggleTheme.toggleBackgroundDisabled
-                : checked
-                  ? toggleTheme.toggleBackgroundChecked
-                  : toggleTheme.toggleBackground,
-            }}></span>
-        </label>
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center',
+        justifyContent: 'flex-start'
+      }}>
+        <div style={{ width: '36px', marginRight: '10px' }}>
+          <label className="mcp-toggle-checkbox" style={{ display: 'block' }}>
+            <input
+              type="checkbox"
+              id={id}
+              checked={checked}
+              disabled={disabled}
+              onChange={e => onChange(e.target.checked)}
+            />
+            <span
+              className="mcp-toggle-slider"
+              style={{
+                backgroundColor: disabled
+                  ? toggleTheme.toggleBackgroundDisabled
+                  : checked
+                    ? toggleTheme.toggleBackgroundChecked
+                    : toggleTheme.toggleBackground,
+              }}></span>
+          </label>
+        </div>
         <label
           htmlFor={id}
           className="mcp-toggle-label"
