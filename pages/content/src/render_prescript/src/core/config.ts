@@ -104,7 +104,7 @@ export const WEBSITE_CONFIGS: Array<{
   {
     urlPattern: 'kagi.com',
     config: {
-      targetSelectors: ['pre'],
+      targetSelectors: ['.codehilite'],
       streamingContainerSelectors: ['pre'],
     },
   },
