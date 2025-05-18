@@ -41,6 +41,7 @@ const manifest = {
     '*://*.openrouter.ai/*',
     '*://*.google-analytics.com/*',
     '*://*.chat.deepseek.com/*',
+    '*://*.kagi.com/*',
   ],
 
   permissions: ['storage', 'clipboardWrite'],
@@ -110,6 +111,12 @@ const manifest = {
     // Specific content script for DeepSeek tool call parsing
     {
       matches: ['*://*.chat.deepseek.com/*'],
+      js: ['content/index.iife.js'],
+      run_at: 'document_idle',
+    },
+    // Specific content script for Kagi tool call parsing
+    {
+      matches: ['*://*.kagi.com/*'],
       js: ['content/index.iife.js'],
       run_at: 'document_idle',
     },

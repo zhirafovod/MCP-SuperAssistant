@@ -170,6 +170,8 @@ const styles = `
   display: inline-block;
   margin-right: 10px;
   vertical-align: middle;
+  border-radius: 34px;
+  overflow: hidden;
 }
 
 .mcp-toggle-checkbox input {
@@ -234,9 +236,14 @@ input:checked + .mcp-toggle-slider:before {
 .mcp-toggle-item.disabled .mcp-toggle-slider {
   background-color: #dadce0;
   cursor: not-allowed;
+  border-radius: 34px;
+  overflow: hidden;
 }
 
 .mcp-instruction-btn {
+  display: flex;
+  justify-content: center;
+  align-items: center;
   border-radius: 8px;
   font-weight: 500;
   transition: all 0.2s ease;
@@ -340,6 +347,9 @@ input:checked + .mcp-toggle-slider:before {
   }
 
   .mcp-toggle-item {
+    display: flex;
+    justify-content: center;
+    align-items: center;
     border-bottom: 1px solid #444;
     background: #2d2d2d;
   }
@@ -366,6 +376,8 @@ input:checked + .mcp-toggle-slider:before {
 
   .mcp-toggle-item.disabled .mcp-toggle-slider {
     background-color: #444;
+    border-radius: 34px;
+    overflow: hidden;
   }
 
   .mcp-instructions-container {

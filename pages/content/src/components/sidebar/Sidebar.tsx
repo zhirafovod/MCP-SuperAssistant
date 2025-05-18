@@ -3,7 +3,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSiteAdapter } from '@src/adapters/adapterRegistry';
 import ServerStatus from './ServerStatus/ServerStatus';
 import AvailableTools from './AvailableTools/AvailableTools';
-import DetectedTools from './DetectedTools/DetectedTools';
 import InstructionManager from './Instructions/InstructionManager';
 import InputArea from './InputArea/InputArea';
 import { useBackgroundCommunication } from './hooks/backgroundCommunication';

@@ -101,6 +101,13 @@ export const WEBSITE_CONFIGS: Array<{
       streamingContainerSelectors: ['pre'],
     },
   },
+  {
+    urlPattern: 'kagi.com',
+    config: {
+      targetSelectors: ['pre'],
+      streamingContainerSelectors: ['pre'],
+    },
+  },
   // Add more website-specific configurations as needed
   // Example:
   // {
