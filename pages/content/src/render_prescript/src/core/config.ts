@@ -108,6 +108,13 @@ export const WEBSITE_CONFIGS: Array<{
       streamingContainerSelectors: ['pre'],
     },
   },
+  {
+    urlPattern: 't3.chat',
+    config: {
+      targetSelectors: ['pre'],
+      streamingContainerSelectors: ['pre'],
+    },
+  },
   // Add more website-specific configurations as needed
   // Example:
   // {

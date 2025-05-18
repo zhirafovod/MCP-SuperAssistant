@@ -42,6 +42,7 @@ const manifest = {
     '*://*.google-analytics.com/*',
     '*://*.chat.deepseek.com/*',
     '*://*.kagi.com/*',
+    '*://*.t3.chat/*',
   ],
 
   permissions: ['storage', 'clipboardWrite'],
@@ -117,6 +118,12 @@ const manifest = {
     // Specific content script for Kagi tool call parsing
     {
       matches: ['*://*.kagi.com/*'],
+      js: ['content/index.iife.js'],
+      run_at: 'document_idle',
+    },
+    // Specific content script for T3 Chat tool call parsing
+    {
+      matches: ['*://*.t3.chat/*'],
       js: ['content/index.iife.js'],
       run_at: 'document_idle',
     },

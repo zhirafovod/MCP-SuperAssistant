@@ -25,6 +25,7 @@ export class SidebarManager extends BaseSidebarManager {
   private static openrouterInstance: SidebarManager | null = null;
   private static deepseekInstance: SidebarManager | null = null;
   private static kagiInstance: SidebarManager | null = null;
+  private static t3chatInstance: SidebarManager | null = null;
   private lastToolOutputsHash: string = '';
   private lastMcpToolsHash: string = '';
   private isFirstLoad: boolean = true;
@@ -91,6 +92,11 @@ export class SidebarManager extends BaseSidebarManager {
           SidebarManager.kagiInstance = new SidebarManager(siteType);
         }
         return SidebarManager.kagiInstance;
+      case 't3chat':
+        if (!SidebarManager.t3chatInstance) {
+          SidebarManager.t3chatInstance = new SidebarManager(siteType);
+        }
+        return SidebarManager.t3chatInstance;
       default:
         // For any unexpected site type, create and return a new instance
         logMessage(`Creating new SidebarManager for unknown site type: ${siteType}`);

@@ -16,6 +16,7 @@ import { OpenRouterAdapter } from './openrouterAdapter';
 import type { SiteAdapter } from '../utils/siteAdapter';
 import { DeepSeekAdapter } from './deepseekAdapter';
 import { KagiAdapter } from './kagiAdapter';
+import { T3ChatAdapter } from './t3chatAdapter';
 
 // Define type for adapter constructor
 type AdapterConstructor = new () => SiteAdapter;
@@ -36,6 +37,7 @@ const adapterInfos: AdapterInfo[] = [
   { AdapterClass: OpenRouterAdapter, hostnames: ['openrouter.ai'] },
   { AdapterClass: DeepSeekAdapter, hostnames: ['chat.deepseek.com'] },
   { AdapterClass: KagiAdapter, hostnames: ['kagi.com'] },
+  { AdapterClass: T3ChatAdapter, hostnames: ['t3.chat'] },
 ];
 
 // Map of adapter instances that will be lazily initialized
@@ -218,4 +220,5 @@ export const geminiAdapter = () => initializeAdapter(GeminiAdapter);
 export const openrouterAdapter = () => initializeAdapter(OpenRouterAdapter);
 export const deepseekAdapter = () => initializeAdapter(DeepSeekAdapter);
 export const kagiAdapter = () => initializeAdapter(KagiAdapter);
+export const t3chatAdapter = () => initializeAdapter(T3ChatAdapter);
 
