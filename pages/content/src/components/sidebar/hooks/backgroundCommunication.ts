@@ -13,6 +13,12 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
   // Default config as a constant
   const DEFAULT_CONFIG: ServerConfig = { uri: 'http://localhost:3006/sse' };
 
+  // Connection management constants
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  const BASE_RETRY_DELAY_MS = 5000; // 5 seconds
+  const MAX_RETRY_DELAY_MS = 5 * 60 * 1000; // 5 minutes
+  const CIRCUIT_BREAKER_RESET_MS = 15 * 60 * 1000; // 15 minutes
+
   // State for server connection status
   const [serverStatus, setServerStatus] = useState<'connected' | 'disconnected' | 'error' | 'reconnecting'>(
     'disconnected',
@@ -21,6 +27,14 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
   const [availableTools, setAvailableTools] = useState<Tool[]>([]);
   // Keep a ref in sync with availableTools so we can access the latest value
   const availableToolsRef = useRef<Tool[]>([]);
+  
+  // Connection management state
+  const [retryCount, setRetryCount] = useState<number>(0);
+  const retryTimeoutRef = useRef<number | null>(null);
+  const lastConnectionAttemptRef = useRef<number>(0);
+  const [circuitBreakerOpen, setCircuitBreakerOpen] = useState<boolean>(false);
+  const circuitBreakerTimeoutRef = useRef<number | null>(null);
+  const logThrottleRef = useRef<{[key: string]: number}>({});
   
   // Function to fetch available tools from the MCP server - declare early to avoid reference errors
   const getAvailableTools = useCallback(async (): Promise<Tool[]> => {
@@ -161,24 +175,201 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
     return () => clearTimeout(timeoutId);
   }, []);
 
+  /**
+   * Helper function to throttle log messages to reduce logging frequency
+   * Only logs if the specified time has passed since the last log with the same key
+   */
+  const throttledLogMessage = useCallback((message: string, key: string, minIntervalMs: number = 10000) => {
+    const now = Date.now();
+    const lastLog = logThrottleRef.current[key] || 0;
+    
+    if (now - lastLog >= minIntervalMs) {
+      logMessage(message);
+      logThrottleRef.current[key] = now;
+    }
+  }, []);
+
+  /**
+   * Calculate the exponential backoff delay based on retry count
+   * Uses a more aggressive exponential factor (2.0) with a maximum cap
+   */
+  const calculateBackoffDelay = useCallback((retryAttempt: number): number => {
+    // Use exponential backoff: BASE_DELAY * (2^retryAttempt)
+    const delay = BASE_RETRY_DELAY_MS * Math.pow(2, retryAttempt);
+    // Cap the delay at the maximum value
+    return Math.min(delay, MAX_RETRY_DELAY_MS);
+  }, []);
+
+  /**
+   * Reset the connection state and clear any pending timeouts
+   */
+  const resetConnectionState = useCallback(() => {
+    // Clear any pending retry timeout
+    if (retryTimeoutRef.current !== null) {
+      window.clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+    
+    // Clear any pending circuit breaker timeout
+    if (circuitBreakerTimeoutRef.current !== null) {
+      window.clearTimeout(circuitBreakerTimeoutRef.current);
+      circuitBreakerTimeoutRef.current = null;
+    }
+    
+    // Reset retry count and circuit breaker state
+    setRetryCount(0);
+    setCircuitBreakerOpen(false);
+  }, []);
+
+  /**
+   * Attempt to connect to the server with exponential backoff
+   */
+  const connectToServer = useCallback(() => {
+    // Don't attempt to connect if the circuit breaker is open
+    if (circuitBreakerOpen) {
+      throttledLogMessage(
+        '[Background Communication] Circuit breaker open, skipping automatic reconnection',
+        'circuit-breaker',
+        30000
+      );
+      return;
+    }
+    
+    // Record the connection attempt time
+    lastConnectionAttemptRef.current = Date.now();
+    
+    // Attempt to connect using mcpHandler
+    mcpHandler.forceReconnect((result, error) => {
+      if (error) {
+        // Connection failed
+        throttledLogMessage(
+          `[Background Communication] Connection attempt ${retryCount + 1}/${MAX_RECONNECT_ATTEMPTS} failed: ${error}`,
+          'connection-failed',
+          10000
+        );
+        
+        // Increment retry count
+        const newRetryCount = retryCount + 1;
+        setRetryCount(newRetryCount);
+        
+        // Check if we've reached the maximum retry attempts
+        if (newRetryCount >= MAX_RECONNECT_ATTEMPTS) {
+          // Open the circuit breaker
+          throttledLogMessage(
+            '[Background Communication] Maximum retry attempts reached, opening circuit breaker',
+            'circuit-breaker-open',
+            60000
+          );
+          setCircuitBreakerOpen(true);
+          
+          // Schedule circuit breaker reset
+          circuitBreakerTimeoutRef.current = window.setTimeout(() => {
+            throttledLogMessage(
+              '[Background Communication] Circuit breaker reset after timeout',
+              'circuit-breaker-reset',
+              60000
+            );
+            setCircuitBreakerOpen(false);
+            setRetryCount(0);
+            circuitBreakerTimeoutRef.current = null;
+          }, CIRCUIT_BREAKER_RESET_MS);
+        } else {
+          // Schedule next retry with exponential backoff
+          const delay = calculateBackoffDelay(newRetryCount);
+          throttledLogMessage(
+            `[Background Communication] Scheduling next connection attempt in ${delay}ms`,
+            'retry-scheduled',
+            30000
+          );
+          
+          retryTimeoutRef.current = window.setTimeout(() => {
+            retryTimeoutRef.current = null;
+            connectToServer();
+          }, delay);
+        }
+      } else {
+        // Connection successful
+        const isConnected = result?.isConnected || false;
+        if (isConnected) {
+          throttledLogMessage(
+            '[Background Communication] Connection successful',
+            'connection-success',
+            10000
+          );
+          // Reset connection state on successful connection
+          resetConnectionState();
+          // Refresh tools
+          refreshTools(true).catch(err => {
+            throttledLogMessage(
+              `[Background Communication] Error refreshing tools after connection: ${err instanceof Error ? err.message : String(err)}`,
+              'refresh-error',
+              30000
+            );
+          });
+        }
+      }
+    });
+  }, [retryCount, circuitBreakerOpen, calculateBackoffDelay, resetConnectionState, refreshTools, throttledLogMessage]);
+
   // Subscribe to connection status changes
   useEffect(() => {
     const handleConnectionStatus = (isConnected: boolean) => {
       // Only update if we're not in the middle of a manual reconnect
       if (!isReconnecting) {
-        setServerStatus(prev => {
-          const newStatus = isConnected ? 'connected' : 'disconnected';
-          return prev !== newStatus ? newStatus : prev;
-        });
-
-        // If we just (re)connected and currently have no tools cached, fetch them
-        if (isConnected && availableToolsRef.current.length === 0) {
-          logMessage('[Background Communication] Reconnected with empty tool cache, refreshing tools');
-          refreshTools(true).catch(err => {
-            logMessage(
-              `[Background Communication] Error refreshing tools after reconnection: ${err instanceof Error ? err.message : String(err)}`,
-            );
-          });
+        const prevStatus = serverStatus;
+        const newStatus = isConnected ? 'connected' : 'disconnected';
+        
+        // Only update if the status has changed
+        if (prevStatus !== newStatus) {
+          setServerStatus(newStatus);
+          
+          // If we've connected, reset connection state and refresh tools if needed
+          if (newStatus === 'connected') {
+            resetConnectionState();
+            
+            // If we have no tools cached, fetch them
+            if (availableToolsRef.current.length === 0) {
+              throttledLogMessage(
+                '[Background Communication] Connected with empty tool cache, refreshing tools',
+                'refresh-on-connect',
+                10000
+              );
+              refreshTools(true).catch(err => {
+                throttledLogMessage(
+                  `[Background Communication] Error refreshing tools after connection: ${err instanceof Error ? err.message : String(err)}`,
+                  'refresh-error',
+                  30000
+                );
+              });
+            }
+          } else if (newStatus === 'disconnected' || newStatus === 'error') {
+            // Only attempt automatic reconnection if not in a user-initiated reconnect
+            // and if we haven't attempted too many times recently
+            const now = Date.now();
+            const timeSinceLastAttempt = now - lastConnectionAttemptRef.current;
+            
+            // Only attempt automatic reconnection if it's been a while since the last attempt
+            // and we're not in circuit breaker mode
+            if (!circuitBreakerOpen && timeSinceLastAttempt > BASE_RETRY_DELAY_MS) {
+              throttledLogMessage(
+                '[Background Communication] Disconnected, scheduling reconnection attempt',
+                'auto-reconnect',
+                30000
+              );
+              
+              // Clear any existing timeout
+              if (retryTimeoutRef.current !== null) {
+                window.clearTimeout(retryTimeoutRef.current);
+                retryTimeoutRef.current = null;
+              }
+              
+              // Schedule reconnection attempt with initial delay
+              retryTimeoutRef.current = window.setTimeout(() => {
+                retryTimeoutRef.current = null;
+                connectToServer();
+              }, BASE_RETRY_DELAY_MS);
+            }
+          }
         }
       }
     };
@@ -378,33 +569,43 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
 
   // Function declaration moved up to fix reference error
 
-  // Function to force reconnect to the MCP server
+  // Function to force reconnect to the MCP server (user-initiated)
   const forceReconnect = useCallback(async (): Promise<boolean> => {
-    logMessage('[Background Communication] Forcing reconnection to MCP server');
+    throttledLogMessage('[Background Communication] User-initiated reconnection to MCP server', 'force-reconnect', 1000);
+    
+    // Reset connection state before attempting reconnection
+    resetConnectionState();
+    
+    // Update UI state
     setIsReconnecting(true);
     setServerStatus('reconnecting');
 
     return new Promise((resolve, reject) => {
+      // Record the connection attempt time
+      lastConnectionAttemptRef.current = Date.now();
+      
       mcpHandler.forceReconnect((result, error) => {
         setIsReconnecting(false);
 
         if (error) {
-          logMessage(`[Background Communication] Reconnection failed: ${error}`);
+          throttledLogMessage(`[Background Communication] User-initiated reconnection failed: ${error}`, 'force-reconnect-failed', 1000);
           setServerStatus('error');
           reject(new Error(error));
         } else {
           const isConnected = result?.isConnected || false;
-          logMessage(`[Background Communication] Reconnection completed, connected: ${isConnected}`);
+          throttledLogMessage(`[Background Communication] User-initiated reconnection completed, connected: ${isConnected}`, 'force-reconnect-complete', 1000);
           setServerStatus(isConnected ? 'connected' : 'disconnected');
 
           // If connected, refresh the tools list with force refresh to ensure we get fresh data
           if (isConnected) {
-            logMessage('[Background Communication] Connection successful, forcing tools refresh');
+            throttledLogMessage('[Background Communication] Connection successful, forcing tools refresh', 'force-reconnect-refresh', 1000);
             getAvailableTools()
               .then(tools => {
                 setAvailableTools(tools);
-                logMessage(
+                throttledLogMessage(
                   `[Background Communication] Successfully refreshed ${tools.length} tools after reconnection`,
+                  'force-reconnect-refresh-success',
+                  1000
                 );
 
                 // Force a second refresh to ensure we have the latest tools from the new server
@@ -412,12 +613,18 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
               })
               .then(tools => {
                 setAvailableTools(tools);
-                logMessage(`[Background Communication] Second refresh completed, found ${tools.length} tools`);
+                throttledLogMessage(
+                  `[Background Communication] Second refresh completed, found ${tools.length} tools`,
+                  'force-reconnect-second-refresh',
+                  1000
+                );
                 resolve(true);
               })
               .catch(refreshError => {
-                logMessage(
+                throttledLogMessage(
                   `[Background Communication] Error refreshing tools: ${refreshError instanceof Error ? refreshError.message : String(refreshError)}`,
+                  'force-reconnect-refresh-error',
+                  1000
                 );
                 setServerStatus('error');
                 setAvailableTools([]);
@@ -430,7 +637,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
         }
       });
     });
-  }, [getAvailableTools, refreshTools]);
+  }, [getAvailableTools, refreshTools, resetConnectionState, throttledLogMessage]);
 
   // Function to send a message to execute a tool (used by sidebar components)
   const sendMessage = useCallback(

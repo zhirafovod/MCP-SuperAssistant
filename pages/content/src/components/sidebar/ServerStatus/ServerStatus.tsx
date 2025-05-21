@@ -429,28 +429,28 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
           </Typography>
         </div>
         <div className="flex items-center gap-2">
-          {/* Always show reconnect button for better UX unless connected and not reconnecting */}
-          {(status !== 'connected' || isReconnecting) && (
-            <Button
-              onClick={handleReconnect}
-              disabled={isReconnecting}
-              size="sm"
-              variant={isReconnecting ? 'outline' : 'default'}
-              className="h-7 text-xs">
-              {isReconnecting ? 'Reconnecting...' : 'Reconnect'}
-            </Button>
-          )}
+          {/* Always show reconnect button for better UX */}
+          <button
+            onClick={handleReconnect}
+            disabled={isReconnecting}
+            className={`p-1 rounded transition-colors ${isReconnecting ? 'opacity-50 cursor-not-allowed' : ''} text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/30`}
+            aria-label="Reconnect to server"
+            title="Reconnect to server">
+            <Icon name="refresh" size="sm" className={isReconnecting ? 'animate-spin' : ''} />
+          </button>
           {/* Settings and Details buttons already have dark mode styles */}
           <button
             onClick={handleSettings}
             className="p-1 text-slate-500 hover:text-slate-700 rounded hover:bg-slate-100 transition-colors dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-slate-800"
-            aria-label="Server settings">
+            aria-label="Server settings"
+            title="Server settings">
             <Icon name="settings" size="sm" />
           </button>
           <button
             onClick={handleDetails}
             className="p-1 text-slate-500 hover:text-slate-700 rounded hover:bg-slate-100 transition-colors dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-slate-800"
-            aria-label="Show details">
+            aria-label="Show details"
+            title="Show details">
             <Icon name="info" size="sm" />
           </button>
         </div>
