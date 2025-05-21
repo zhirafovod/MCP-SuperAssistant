@@ -87,21 +87,25 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
     [communicationMethods],
   );
 
-  // Update local status when props change - always update for disconnected state
+  // CRITICAL FIX: Force the component to ALWAYS use the initialStatus prop directly
+  // This ensures the UI always reflects the actual server status without any conditions
   useEffect(() => {
-    if (initialStatus) {
-      // Always update when disconnected is detected, regardless of reconnecting state
-      if (initialStatus === 'disconnected' && status !== 'disconnected') {
-        logMessage('[ServerStatus] Disconnection detected from props, updating UI immediately');
-        setStatus('disconnected');
-      }
-      // For other status changes, only update if not reconnecting
-      else if (initialStatus !== status && !isReconnecting) {
-        logMessage(`[ServerStatus] Status prop changed from ${status} to ${initialStatus}, updating UI`);
-        setStatus(initialStatus);
+    // Always log the status for debugging
+    logMessage(`[ServerStatus] Props received initialStatus: "${initialStatus}", current UI status: "${status}", isReconnecting: ${isReconnecting}`);
+    
+    // ALWAYS update the status from props, regardless of any other conditions
+    if (initialStatus && initialStatus !== status) {
+      logMessage(`[ServerStatus] FORCE UPDATING status from "${status}" to "${initialStatus}"`);
+      setStatus(initialStatus);
+      
+      // Update status message based on the new status
+      if (initialStatus === 'disconnected') {
+        setStatusMessage('Server disconnected. Click the refresh button to reconnect.');
+      } else if (initialStatus === 'connected') {
+        setStatusMessage('Connected to MCP server');
       }
     }
-  }, [initialStatus, status, isReconnecting]);
+  }, [initialStatus]); // Only depend on initialStatus to prevent circular dependencies
 
   // Check for background communication issues
   useEffect(() => {

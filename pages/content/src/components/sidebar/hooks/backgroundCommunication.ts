@@ -311,67 +311,45 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
   // Subscribe to connection status changes
   useEffect(() => {
     const handleConnectionStatus = (isConnected: boolean) => {
-      const prevStatus = serverStatus;
-      const newStatus = isConnected ? 'connected' : 'disconnected';
+    const prevStatus = serverStatus;
+    const newStatus = isConnected ? 'connected' : 'disconnected';
+    
+    // CRITICAL FIX: Always log connection status changes for debugging
+    logMessage(`[Background Communication] Connection status change received: ${isConnected ? 'Connected' : 'Disconnected'}, current UI status: ${prevStatus}`);
+    
+    // CRITICAL FIX: ALWAYS update the UI status to match the actual connection status
+    // This ensures the UI always reflects the actual server status, regardless of any conditions
+    logMessage(`[Background Communication] FORCE UPDATING status from ${prevStatus} to ${newStatus} (isReconnecting: ${isReconnecting})`);
+    setServerStatus(newStatus);
+    
+    // Handle disconnection
+    if (newStatus === 'disconnected') {
+      logMessage('[Background Communication] Server disconnected. User can manually reconnect via the UI.');
       
-      // Log connection status changes with reduced frequency
-      throttledLogMessage(
-        `[Background Communication] Connection status change received: ${isConnected ? 'Connected' : 'Disconnected'}, current UI status: ${prevStatus}`,
-        'connection-status-change',
-        60000
-      );
-      
-      // Critical: Always update the status when disconnected is detected, regardless of isReconnecting
-      // This ensures the UI always reflects the actual server status
-      if (!isConnected && prevStatus !== 'disconnected') {
-        throttledLogMessage(
-          '[Background Communication] Disconnection detected, updating UI status immediately',
-          'disconnection-detected',
-          60000
-        );
-        setServerStatus('disconnected');
-        
-        // We no longer automatically attempt reconnection
-        // This makes reconnection primarily user-driven through the UI
-        throttledLogMessage(
-          '[Background Communication] Server disconnected. User can manually reconnect via the UI.',
-          'manual-reconnect-required',
-          60000
-        );
-      }
-      // For other status changes, only update if we're not in the middle of a manual reconnect
-      else if ((prevStatus !== newStatus) && (!isReconnecting || !isConnected)) {
-        throttledLogMessage(
-          `[Background Communication] Updating status from ${prevStatus} to ${newStatus}`,
-          'status-update',
-          60000
-        );
-        setServerStatus(newStatus);
-        
-        // If we've connected, reset connection state and refresh tools if needed
-        if (newStatus === 'connected') {
-          resetConnectionState();
-          
-          // If we have no tools cached, fetch them
-          if (availableToolsRef.current.length === 0) {
-            throttledLogMessage(
-              '[Background Communication] Connected with empty tool cache, refreshing tools',
-              'refresh-on-connect',
-              60000
-            );
-            refreshTools(true).catch(err => {
-              throttledLogMessage(
-                `[Background Communication] Error refreshing tools after connection: ${err instanceof Error ? err.message : String(err)}`,
-                'refresh-error',
-                60000
-              );
-            });
-          }
+      // Force a state update to ensure the UI reflects the disconnected state
+      setTimeout(() => {
+        if (serverStatus !== 'disconnected') {
+          logMessage('[Background Communication] Forcing disconnected state update after timeout');
+          setServerStatus('disconnected');
         }
-        // We no longer attempt automatic reconnection for disconnected/error states
-        // This is now handled through the UI's reconnect button
+      }, 500);
+    }
+    // Handle connection
+    else if (newStatus === 'connected') {
+      resetConnectionState();
+      
+      // If we have no tools cached, fetch them
+      if (availableToolsRef.current.length === 0) {
+        logMessage('[Background Communication] Connected with empty tool cache, refreshing tools');
+        refreshTools(true).catch(err => {
+          logMessage(`[Background Communication] Error refreshing tools after connection: ${err instanceof Error ? err.message : String(err)}`);
+        });
       }
-    };
+    }
+    
+    // We no longer attempt automatic reconnection for disconnected states
+    // This is now handled through the UI's reconnect button
+  };
 
     // Register the callback with mcpHandler
     mcpHandler.onConnectionStatusChanged(handleConnectionStatus);
@@ -669,6 +647,11 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
     },
     [callTool],
   );
+
+  // Debug logging for serverStatus changes
+  useEffect(() => {
+    logMessage(`[Background Communication] serverStatus changed to: ${serverStatus}`);
+  }, [serverStatus]);
 
   // Return the communication interface
   return {

@@ -599,17 +599,24 @@ class McpHandler {
 
     logMessage(`[MCP Handler] Error: ${errorType} - ${errorMessage}`);
 
-    // Update connection status for server-related errors
-    if (errorType === 'RECONNECT_ERROR' || 
-        errorType === 'CONNECTION_ERROR' || 
-        errorMessage.includes('Server at') || 
-        errorMessage.includes('not available')) {
-      // If we get a server-related error, update connection status to disconnected
-      if (this.isConnected) {
-        logMessage('[MCP Handler] Server-related error detected, updating connection status to disconnected');
-        this.isConnected = false;
-        this.notifyConnectionStatus();
-      }
+    // ENHANCED: Improved detection of server-related errors to ensure connection status is always updated
+    const isServerRelatedError = 
+      errorType === 'RECONNECT_ERROR' || 
+      errorType === 'CONNECTION_ERROR' || 
+      errorType === 'SERVER_ERROR' || 
+      errorType === 'TIMEOUT_ERROR' || 
+      errorMessage.includes('Server') || 
+      errorMessage.includes('server') || 
+      errorMessage.includes('not available') || 
+      errorMessage.includes('connection') || 
+      errorMessage.includes('timeout') || 
+      errorMessage.includes('unavailable');
+    
+    // If we get any server-related error, always update connection status to disconnected
+    if (isServerRelatedError) {
+      logMessage(`[MCP Handler] Server-related error detected (${errorType}), updating connection status to disconnected`);
+      this.isConnected = false;
+      this.notifyConnectionStatus();
     }
 
     if (requestId) {
@@ -625,9 +632,15 @@ class McpHandler {
    * Notify all registered callbacks about connection status changes
    */
   private notifyConnectionStatus(): void {
-    // logMessage(`[MCP Handler] Connection status changed: ${this.isConnected}`);
+    logMessage(`[MCP Handler] Connection status changed: ${this.isConnected}, notifying ${this.connectionStatusCallbacks.size} callbacks`);
+    
+    if (this.connectionStatusCallbacks.size === 0) {
+      logMessage('[MCP Handler] WARNING: No connection status callbacks registered!');
+    }
+    
     this.connectionStatusCallbacks.forEach(callback => {
       try {
+        logMessage(`[MCP Handler] Calling connection status callback with isConnected=${this.isConnected}`);
         callback(this.isConnected);
       } catch (error) {
         logMessage(
@@ -826,9 +839,11 @@ class McpHandler {
    */
   public onConnectionStatusChanged(callback: ConnectionStatusCallback): void {
     this.connectionStatusCallbacks.add(callback);
+    logMessage(`[MCP Handler] Registered connection status callback, total: ${this.connectionStatusCallbacks.size}`);
 
     // Immediately notify about current status
     try {
+      logMessage(`[MCP Handler] Immediately calling new callback with current status: ${this.isConnected}`);
       callback(this.isConnected);
     } catch (error) {
       logMessage(
