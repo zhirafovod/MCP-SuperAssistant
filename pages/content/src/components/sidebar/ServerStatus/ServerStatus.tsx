@@ -87,10 +87,19 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
     [communicationMethods],
   );
 
-  // Update local status when props change
+  // Update local status when props change - always update for disconnected state
   useEffect(() => {
-    if (initialStatus && initialStatus !== status && !isReconnecting) {
-      setStatus(initialStatus);
+    if (initialStatus) {
+      // Always update when disconnected is detected, regardless of reconnecting state
+      if (initialStatus === 'disconnected' && status !== 'disconnected') {
+        logMessage('[ServerStatus] Disconnection detected from props, updating UI immediately');
+        setStatus('disconnected');
+      }
+      // For other status changes, only update if not reconnecting
+      else if (initialStatus !== status && !isReconnecting) {
+        logMessage(`[ServerStatus] Status prop changed from ${status} to ${initialStatus}, updating UI`);
+        setStatus(initialStatus);
+      }
     }
   }, [initialStatus, status, isReconnecting]);
 

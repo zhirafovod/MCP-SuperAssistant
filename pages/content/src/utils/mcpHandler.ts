@@ -454,6 +454,7 @@ class McpHandler {
 
       case 'CONNECTION_STATUS':
         this.isConnected = message.isConnected;
+        logMessage(`[MCP Handler] Connection status updated to: ${message.isConnected ? 'Connected' : 'Disconnected'}`);
         this.notifyConnectionStatus();
         break;
 
@@ -463,6 +464,15 @@ class McpHandler {
 
       case 'TOOL_CALL_STATUS':
         // Could handle intermediate status updates here
+        break;
+
+      case 'RECONNECT_STATUS':
+        // Handle reconnect status updates
+        if (message.hasOwnProperty('isConnected')) {
+          this.isConnected = message.isConnected;
+          logMessage(`[MCP Handler] Reconnect status updated connection to: ${message.isConnected ? 'Connected' : 'Disconnected'}`);
+          this.notifyConnectionStatus();
+        }
         break;
 
       case 'TOOL_DETAILS_RESULT':
@@ -588,6 +598,19 @@ class McpHandler {
     const { errorType, errorMessage, requestId } = message;
 
     logMessage(`[MCP Handler] Error: ${errorType} - ${errorMessage}`);
+
+    // Update connection status for server-related errors
+    if (errorType === 'RECONNECT_ERROR' || 
+        errorType === 'CONNECTION_ERROR' || 
+        errorMessage.includes('Server at') || 
+        errorMessage.includes('not available')) {
+      // If we get a server-related error, update connection status to disconnected
+      if (this.isConnected) {
+        logMessage('[MCP Handler] Server-related error detected, updating connection status to disconnected');
+        this.isConnected = false;
+        this.notifyConnectionStatus();
+      }
+    }
 
     if (requestId) {
       const request = this.pendingRequests.get(requestId);

@@ -59,25 +59,18 @@ class McpInterface {
   }
 
   /**
-   * Start periodic connection check
+   * Start connection check - only run once on initialization
    */
   private startConnectionCheck(): void {
-    // Clear any existing interval
-    if (this.connectionCheckInterval !== null) {
+    if (this.connectionCheckInterval) {
       clearInterval(this.connectionCheckInterval);
+      this.connectionCheckInterval = null;
     }
 
-    // Set up new interval
-    this.connectionCheckInterval = setInterval(() => {
-      this.checkServerConnection().then(isConnected => {
-        // Only broadcast if the status has changed
-        if (isConnected !== this.isConnected) {
-          console.log(`[MCP Interface] Connection status changed: ${isConnected}`);
-          this.isConnected = isConnected;
-          this.broadcastConnectionStatus();
-        }
-      });
-    }, this.connectionCheckIntervalTime);
+    // Only do an initial check, no periodic checks
+    // This ensures we only check once during page load
+    console.log('[MCP Interface] Performing initial connection check');
+    this.checkServerConnection();
   }
 
   /**

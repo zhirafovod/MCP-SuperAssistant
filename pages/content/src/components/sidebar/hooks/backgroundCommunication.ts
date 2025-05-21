@@ -179,7 +179,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
    * Helper function to throttle log messages to reduce logging frequency
    * Only logs if the specified time has passed since the last log with the same key
    */
-  const throttledLogMessage = useCallback((message: string, key: string, minIntervalMs: number = 10000) => {
+  const throttledLogMessage = useCallback((message: string, key: string, minIntervalMs: number = 60000) => {
     const now = Date.now();
     const lastLog = logThrottleRef.current[key] || 0;
     
@@ -223,6 +223,8 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
 
   /**
    * Attempt to connect to the server with exponential backoff
+   * This function is now primarily user-driven and will only be called
+   * when explicitly requested by the user or in very limited automatic scenarios
    */
   const connectToServer = useCallback(() => {
     // Don't attempt to connect if the circuit breaker is open
@@ -230,7 +232,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
       throttledLogMessage(
         '[Background Communication] Circuit breaker open, skipping automatic reconnection',
         'circuit-breaker',
-        30000
+        60000
       );
       return;
     }
@@ -245,7 +247,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
         throttledLogMessage(
           `[Background Communication] Connection attempt ${retryCount + 1}/${MAX_RECONNECT_ATTEMPTS} failed: ${error}`,
           'connection-failed',
-          10000
+          60000
         );
         
         // Increment retry count
@@ -274,18 +276,13 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
             circuitBreakerTimeoutRef.current = null;
           }, CIRCUIT_BREAKER_RESET_MS);
         } else {
-          // Schedule next retry with exponential backoff
-          const delay = calculateBackoffDelay(newRetryCount);
+          // We no longer automatically schedule retries
+          // This makes reconnection primarily user-driven
           throttledLogMessage(
-            `[Background Communication] Scheduling next connection attempt in ${delay}ms`,
-            'retry-scheduled',
-            30000
+            `[Background Communication] Connection failed. User can manually reconnect via the UI.`,
+            'manual-reconnect-required',
+            60000
           );
-          
-          retryTimeoutRef.current = window.setTimeout(() => {
-            retryTimeoutRef.current = null;
-            connectToServer();
-          }, delay);
         }
       } else {
         // Connection successful
@@ -294,7 +291,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
           throttledLogMessage(
             '[Background Communication] Connection successful',
             'connection-success',
-            10000
+            60000
           );
           // Reset connection state on successful connection
           resetConnectionState();
@@ -303,7 +300,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
             throttledLogMessage(
               `[Background Communication] Error refreshing tools after connection: ${err instanceof Error ? err.message : String(err)}`,
               'refresh-error',
-              30000
+              60000
             );
           });
         }
@@ -314,63 +311,65 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
   // Subscribe to connection status changes
   useEffect(() => {
     const handleConnectionStatus = (isConnected: boolean) => {
-      // Only update if we're not in the middle of a manual reconnect
-      if (!isReconnecting) {
-        const prevStatus = serverStatus;
-        const newStatus = isConnected ? 'connected' : 'disconnected';
+      const prevStatus = serverStatus;
+      const newStatus = isConnected ? 'connected' : 'disconnected';
+      
+      // Log connection status changes with reduced frequency
+      throttledLogMessage(
+        `[Background Communication] Connection status change received: ${isConnected ? 'Connected' : 'Disconnected'}, current UI status: ${prevStatus}`,
+        'connection-status-change',
+        60000
+      );
+      
+      // Critical: Always update the status when disconnected is detected, regardless of isReconnecting
+      // This ensures the UI always reflects the actual server status
+      if (!isConnected && prevStatus !== 'disconnected') {
+        throttledLogMessage(
+          '[Background Communication] Disconnection detected, updating UI status immediately',
+          'disconnection-detected',
+          60000
+        );
+        setServerStatus('disconnected');
         
-        // Only update if the status has changed
-        if (prevStatus !== newStatus) {
-          setServerStatus(newStatus);
+        // We no longer automatically attempt reconnection
+        // This makes reconnection primarily user-driven through the UI
+        throttledLogMessage(
+          '[Background Communication] Server disconnected. User can manually reconnect via the UI.',
+          'manual-reconnect-required',
+          60000
+        );
+      }
+      // For other status changes, only update if we're not in the middle of a manual reconnect
+      else if ((prevStatus !== newStatus) && (!isReconnecting || !isConnected)) {
+        throttledLogMessage(
+          `[Background Communication] Updating status from ${prevStatus} to ${newStatus}`,
+          'status-update',
+          60000
+        );
+        setServerStatus(newStatus);
+        
+        // If we've connected, reset connection state and refresh tools if needed
+        if (newStatus === 'connected') {
+          resetConnectionState();
           
-          // If we've connected, reset connection state and refresh tools if needed
-          if (newStatus === 'connected') {
-            resetConnectionState();
-            
-            // If we have no tools cached, fetch them
-            if (availableToolsRef.current.length === 0) {
+          // If we have no tools cached, fetch them
+          if (availableToolsRef.current.length === 0) {
+            throttledLogMessage(
+              '[Background Communication] Connected with empty tool cache, refreshing tools',
+              'refresh-on-connect',
+              60000
+            );
+            refreshTools(true).catch(err => {
               throttledLogMessage(
-                '[Background Communication] Connected with empty tool cache, refreshing tools',
-                'refresh-on-connect',
-                10000
+                `[Background Communication] Error refreshing tools after connection: ${err instanceof Error ? err.message : String(err)}`,
+                'refresh-error',
+                60000
               );
-              refreshTools(true).catch(err => {
-                throttledLogMessage(
-                  `[Background Communication] Error refreshing tools after connection: ${err instanceof Error ? err.message : String(err)}`,
-                  'refresh-error',
-                  30000
-                );
-              });
-            }
-          } else if (newStatus === 'disconnected' || newStatus === 'error') {
-            // Only attempt automatic reconnection if not in a user-initiated reconnect
-            // and if we haven't attempted too many times recently
-            const now = Date.now();
-            const timeSinceLastAttempt = now - lastConnectionAttemptRef.current;
-            
-            // Only attempt automatic reconnection if it's been a while since the last attempt
-            // and we're not in circuit breaker mode
-            if (!circuitBreakerOpen && timeSinceLastAttempt > BASE_RETRY_DELAY_MS) {
-              throttledLogMessage(
-                '[Background Communication] Disconnected, scheduling reconnection attempt',
-                'auto-reconnect',
-                30000
-              );
-              
-              // Clear any existing timeout
-              if (retryTimeoutRef.current !== null) {
-                window.clearTimeout(retryTimeoutRef.current);
-                retryTimeoutRef.current = null;
-              }
-              
-              // Schedule reconnection attempt with initial delay
-              retryTimeoutRef.current = window.setTimeout(() => {
-                retryTimeoutRef.current = null;
-                connectToServer();
-              }, BASE_RETRY_DELAY_MS);
-            }
+            });
           }
         }
+        // We no longer attempt automatic reconnection for disconnected/error states
+        // This is now handled through the UI's reconnect button
       }
     };
 
