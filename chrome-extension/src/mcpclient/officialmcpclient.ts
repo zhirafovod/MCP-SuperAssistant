@@ -175,31 +175,24 @@ class PersistentMcpClient {
 
   /**
    * Schedule a reconnection attempt
+   * CRITICAL: No automatic reconnection - all reconnection is user-driven
    */
   private scheduleReconnect(): void {
+    // Clear any existing reconnect timeout
     if (this.reconnectTimeoutId) {
       clearTimeout(this.reconnectTimeoutId);
       this.reconnectTimeoutId = null;
     }
-
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('[PersistentMcpClient] Maximum reconnect attempts reached, giving up');
-      return;
-    }
-
-    this.reconnectAttempts++;
-    const delay = this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1);
-
-    console.log(
-      `[PersistentMcpClient] Scheduling reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`,
-    );
-
-    this.reconnectTimeoutId = setTimeout(() => {
-      this.reconnectTimeoutId = null;
-      if (this.serverUrl) {
-        this.connectionPromise = this.createConnection(this.serverUrl);
-      }
-    }, delay);
+    
+    // Log that we're not automatically reconnecting
+    console.log('[PersistentMcpClient] No automatic reconnection - reconnection is user-driven only');
+    
+    // Reset reconnect attempts counter to ensure we don't hit the max limit
+    // This allows user-initiated reconnects to always work
+    this.reconnectAttempts = 0;
+    
+    // Do not schedule any automatic reconnection
+    // All reconnection must be explicitly initiated by the user through the UI
   }
 
   /**

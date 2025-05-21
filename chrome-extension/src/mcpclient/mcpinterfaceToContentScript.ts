@@ -60,6 +60,7 @@ class McpInterface {
 
   /**
    * Start connection check - only run once on initialization
+   * CRITICAL: No automatic reconnection - all reconnection is user-driven
    */
   private startConnectionCheck(): void {
     if (this.connectionCheckInterval) {
@@ -68,9 +69,19 @@ class McpInterface {
     }
 
     // Only do an initial check, no periodic checks
-    // This ensures we only check once during page load
-    console.log('[MCP Interface] Performing initial connection check');
-    this.checkServerConnection();
+    // This ensures we only check once during page load and never automatically reconnect
+    console.log('[MCP Interface] Performing initial connection check (one-time only)');
+    this.checkServerConnection().then(isConnected => {
+      console.log(`[MCP Interface] Initial connection check result: ${isConnected ? 'Connected' : 'Disconnected'}`);
+      this.isConnected = isConnected;
+      this.broadcastConnectionStatus();
+    }).catch(error => {
+      console.error('[MCP Interface] Error during initial connection check:', error);
+      this.isConnected = false;
+      this.broadcastConnectionStatus();
+    });
+    
+    // No interval is set - reconnection will only happen when explicitly requested by the user
   }
 
   /**
