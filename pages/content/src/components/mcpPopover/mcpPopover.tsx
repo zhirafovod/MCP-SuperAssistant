@@ -802,6 +802,7 @@ export const MCPPopover: React.FC<MCPPopoverProps> = ({ toggleStateManager, cust
               padding: '20px 20px 16px 20px',
               background: theme.mainBackground,
               boxSizing: 'border-box',
+              overflow: 'auto',
             }}>
             <div
               style={{
