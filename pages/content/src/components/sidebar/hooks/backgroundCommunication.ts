@@ -59,65 +59,103 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
     });
   }, []);
   
-  // Function to refresh the tools list
+  // Track tool fetch requests to prevent duplicates
+  const toolFetchRequestRef = useRef<{ inProgress: boolean; lastFetch: number; promise: Promise<Tool[]> | null }>({ 
+    inProgress: false, 
+    lastFetch: 0,
+    promise: null
+  });
+  
+  // Function to refresh the tools list with caching and debouncing
   const refreshTools = useCallback(
     async (forceRefresh: boolean = false): Promise<Tool[]> => {
+      // Check if we already have tools and if a recent fetch was made (within last 30 seconds)
+      const now = Date.now();
+      const CACHE_TTL = 30000; // 30 seconds cache
+      
+      // If we have tools and it's not a force refresh, use the cache
+      if (!forceRefresh && availableToolsRef.current.length > 0 && (now - toolFetchRequestRef.current.lastFetch < CACHE_TTL)) {
+        logMessage('[Background Communication] Using cached tools list (recent fetch)');
+        return availableToolsRef.current;
+      }
+      
+      // If there's already a request in progress, return the existing promise
+      if (toolFetchRequestRef.current.inProgress && toolFetchRequestRef.current.promise) {
+        logMessage('[Background Communication] Tool fetch already in progress, reusing request');
+        return toolFetchRequestRef.current.promise;
+      }
+      
       logMessage(`[Background Communication] Refreshing tools list (forceRefresh: ${forceRefresh})`);
 
-      try {
-        if (forceRefresh) {
-          // If force refresh is requested, we'll first try to reconnect to ensure a fresh connection
-          logMessage('[Background Communication] Force refresh requested, checking connection first');
-
-          // Check if we're already connected
+      // Create a new promise for this fetch request
+      const fetchPromise = (async () => {
+        try {
+          // Check connection status first
           const isConnected = mcpHandler.getConnectionStatus();
           if (!isConnected) {
-            logMessage('[Background Communication] Not connected, attempting to reconnect before refreshing tools');
-            // We don't want to use forceReconnect here as it would cause a loop
-            // Just wait a moment and continue with the refresh
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-        }
-
-        // Get available tools from the server with a fresh request
-        logMessage('[Background Communication] Fetching tools from server with fresh request');
-
-        // Use a new promise to ensure we get a fresh request
-        const tools = await new Promise<Tool[]>((resolve, reject) => {
-          // Generate a unique request ID to avoid any caching
-          const uniqueRequestId = mcpHandler.getAvailableToolPrimitives((result, error) => {
-            if (error) {
-              logMessage(`[Background Communication] Error fetching tools: ${error}`);
-              reject(new Error(error));
-            } else {
-              // Transform the result into an array of Tool objects
-              // Filter to only include primitives of type 'tool'
-              const tools: Tool[] = result
-                .filter((primitive: Primitive) => primitive.type === 'tool')
-                .map((primitive: Primitive) => ({
-                  name: primitive.value.name,
-                  description: primitive.value.description || '',
-                  schema: JSON.stringify(primitive.value.inputSchema || {}),
-                }));
-              resolve(tools);
+            logMessage('[Background Communication] Not connected, using cached tools if available');
+            if (availableToolsRef.current.length > 0) {
+              return availableToolsRef.current;
             }
-          }, forceRefresh); // Pass forceRefresh parameter
+            // If no cached tools, continue with the fetch attempt
+          }
 
+          // Get available tools from the server
+          logMessage('[Background Communication] Fetching tools from server');
+
+          // Use a new promise to ensure we get a fresh request
+          const tools = await new Promise<Tool[]>((resolve, reject) => {
+            // Generate a unique request ID
+            const uniqueRequestId = mcpHandler.getAvailableToolPrimitives((result, error) => {
+              if (error) {
+                logMessage(`[Background Communication] Error fetching tools: ${error}`);
+                reject(new Error(error));
+              } else {
+                // Transform the result into an array of Tool objects
+                // Filter to only include primitives of type 'tool'
+                const tools: Tool[] = result
+                  .filter((primitive: Primitive) => primitive.type === 'tool')
+                  .map((primitive: Primitive) => ({
+                    name: primitive.value.name,
+                    description: primitive.value.description || '',
+                    schema: JSON.stringify(primitive.value.inputSchema || {}),
+                  }));
+                resolve(tools);
+              }
+            }, forceRefresh); // Pass forceRefresh parameter
+
+            logMessage(
+              `[Background Communication] Sent tools request with ID: ${uniqueRequestId} (forceRefresh: ${forceRefresh})`,
+            );
+          });
+
+          logMessage(`[Background Communication] Tools refreshed successfully, found ${tools.length} tools`);
+
+          // Update the tools list
+          setAvailableTools(tools);
+          availableToolsRef.current = tools;
+          
+          // Update the last fetch time
+          toolFetchRequestRef.current.lastFetch = Date.now();
+
+          return tools;
+        } catch (error) {
           logMessage(
-            `[Background Communication] Sent fresh tools request with ID: ${uniqueRequestId} (forceRefresh: ${forceRefresh})`,
+            `[Background Communication] Error refreshing tools: ${error instanceof Error ? error.message : String(error)}`,
           );
-        });
-
-        logMessage(`[Background Communication] Tools refreshed successfully, found ${tools.length} tools`);
-
-        // Update the state with the new tools
-        setAvailableTools(tools);
-        return tools;
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logMessage(`[Background Communication] Error refreshing tools: ${errorMessage}`);
-        throw error;
-      }
+          // Return current tools on error
+          return availableToolsRef.current;
+        } finally {
+          // Mark request as complete
+          toolFetchRequestRef.current.inProgress = false;
+        }
+      })();
+      
+      // Store the promise and mark request as in progress
+      toolFetchRequestRef.current.promise = fetchPromise;
+      toolFetchRequestRef.current.inProgress = true;
+      
+      return fetchPromise;
     },
     [getAvailableTools],
   );
