@@ -37,50 +37,18 @@ const Sidebar: React.FC = () => {
   // Get communication methods with fallback for failed initialization
   const communicationMethods = useBackgroundCommunication();
   
-  // CRITICAL FIX: Get server status directly from mcpHandler as a backup
-  // This ensures we always have the most up-to-date connection status
-  const [directMcpStatus, setDirectMcpStatus] = useState<string>('disconnected');
-  
-  // Get status from both sources and use the most reliable one
-  const serverStatus = communicationMethods?.serverStatus || directMcpStatus;
+  // Use a single source of truth for server status from the useBackgroundCommunication hook
+  // This is the most reliable source as it's already set up to handle all connection status updates
+  const serverStatus = communicationMethods?.serverStatus || 'disconnected';
   const availableTools = communicationMethods?.availableTools || [];
   const sendMessage = communicationMethods?.sendMessage || (async () => 'Error: Communication unavailable');
   const refreshTools = communicationMethods?.refreshTools || (async () => []);
+  const forceReconnect = communicationMethods?.forceReconnect || (async () => false);
   
   // Debug logging for serverStatus changes
   useEffect(() => {
     logMessage(`[Sidebar] serverStatus changed to: "${serverStatus}", passing to ServerStatus component`);
   }, [serverStatus]);
-  
-  // Direct connection to mcpHandler for more reliable status updates
-  useEffect(() => {
-    // Import dynamically to avoid circular dependencies
-    import('../../utils/mcpHandler').then(({ mcpHandler }) => {
-      // Get initial connection status
-      const isConnected = mcpHandler.getConnectionStatus();
-      const initialStatus = isConnected ? 'connected' : 'disconnected';
-      setDirectMcpStatus(initialStatus);
-      
-      logMessage(`[Sidebar] Direct mcpHandler connection status: ${initialStatus}`);
-      
-      // Register for direct connection status updates
-      const handleDirectConnectionStatus = (isConnected: boolean) => {
-        const newStatus = isConnected ? 'connected' : 'disconnected';
-        logMessage(`[Sidebar] Direct connection status update: ${newStatus}`);
-        setDirectMcpStatus(newStatus);
-      };
-      
-      // Register the callback
-      mcpHandler.onConnectionStatusChanged(handleDirectConnectionStatus);
-      
-      // Cleanup on unmount
-      return () => {
-        mcpHandler.offConnectionStatusChanged(handleDirectConnectionStatus);
-      };
-    }).catch(error => {
-      logMessage(`[Sidebar] Error setting up direct mcpHandler connection: ${error instanceof Error ? error.message : String(error)}`);
-    });
-  }, []);
 
   const [isMinimized, setIsMinimized] = useState(false);
   const [detectedTools, setDetectedTools] = useState<DetectedTool[]>([]);

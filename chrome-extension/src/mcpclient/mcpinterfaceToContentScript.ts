@@ -352,9 +352,9 @@ class McpInterface {
     console.log(`[MCP Interface] Getting available tools for request ${requestId} (forceRefresh: ${!!forceRefresh})`);
     
     try {
-      // Check if we can use the cache (cache is valid for 30 seconds)
+      // Check if we can use the cache (cache is valid for 20 seconds)
       const now = Date.now();
-      const CACHE_TTL = 30000; // 30 seconds
+      const CACHE_TTL = 20000; // 20 seconds
       
       // Use cache if available and not force refreshing and cache is fresh
       if (!forceRefresh && 

@@ -59,16 +59,64 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
     });
   }, []);
   
-  // Track tool fetch requests to prevent duplicates
-  const toolFetchRequestRef = useRef<{ inProgress: boolean; lastFetch: number; promise: Promise<Tool[]> | null }>({ 
+  // Track tool fetch requests to prevent duplicates with improved locking mechanism
+  const toolFetchRequestRef = useRef<{ 
+    inProgress: boolean; 
+    lastFetch: number; 
+    promise: Promise<Tool[]> | null;
+    lockAcquired: boolean;
+    lockTimestamp: number;
+    toolsHash: string; // Hash to detect changes in tool list
+  }>({ 
     inProgress: false, 
     lastFetch: 0,
-    promise: null
+    promise: null,
+    lockAcquired: false,
+    lockTimestamp: 0,
+    toolsHash: ''
   });
   
-  // Function to refresh the tools list with caching and debouncing
+  // Function to calculate a simple hash of the tools list to detect changes
+  const calculateToolsHash = useCallback((tools: Tool[]): string => {
+    // Sort tools by name to ensure consistent hash
+    const sortedTools = [...tools].sort((a, b) => a.name.localeCompare(b.name));
+    // Create a string with tool names and descriptions
+    const toolsString = sortedTools.map(tool => `${tool.name}:${tool.description}`).join('|');
+    // Return a simple hash of the string
+    return String(toolsString.split('').reduce((a, b) => (a * 31 + b.charCodeAt(0)) | 0, 0));
+  }, []);
+  
+  // Function to refresh the tools list with smarter caching and better locking
   const refreshTools = useCallback(
     async (forceRefresh: boolean = false): Promise<Tool[]> => {
+      // Acquire lock with timeout to prevent deadlocks
+      const acquireLock = (): boolean => {
+        const now = Date.now();
+        // If lock is already acquired by this request, return true
+        if (toolFetchRequestRef.current.lockAcquired) {
+          return true;
+        }
+        // If another request has the lock but it's older than 10 seconds, consider it stale and take over
+        if (now - toolFetchRequestRef.current.lockTimestamp > 10000) {
+          toolFetchRequestRef.current.lockAcquired = true;
+          toolFetchRequestRef.current.lockTimestamp = now;
+          return true;
+        }
+        // If lock is not acquired and not stale, try to acquire it
+        if (!toolFetchRequestRef.current.inProgress) {
+          toolFetchRequestRef.current.lockAcquired = true;
+          toolFetchRequestRef.current.lockTimestamp = now;
+          return true;
+        }
+        // Lock is held by another request
+        return false;
+      };
+
+      // Release lock
+      const releaseLock = () => {
+        toolFetchRequestRef.current.lockAcquired = false;
+      };
+
       // Check if we already have tools and if a recent fetch was made (within last 30 seconds)
       const now = Date.now();
       const CACHE_TTL = 30000; // 30 seconds cache
@@ -83,6 +131,26 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
       if (toolFetchRequestRef.current.inProgress && toolFetchRequestRef.current.promise) {
         logMessage('[Background Communication] Tool fetch already in progress, reusing request');
         return toolFetchRequestRef.current.promise;
+      }
+      
+      // Try to acquire lock
+      if (!acquireLock()) {
+        // If we couldn't acquire the lock, wait for the existing request
+        logMessage('[Background Communication] Waiting for lock to be released');
+        // Wait for up to 5 seconds for the lock to be released
+        for (let i = 0; i < 50; i++) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          if (!toolFetchRequestRef.current.inProgress) {
+            // Lock was released, return the cached tools
+            logMessage('[Background Communication] Lock released, using cached tools');
+            return availableToolsRef.current;
+          }
+        }
+        // If we still couldn't acquire the lock after waiting, use cached tools or continue with a new request
+        if (availableToolsRef.current.length > 0) {
+          logMessage('[Background Communication] Lock timeout, using cached tools');
+          return availableToolsRef.current;
+        }
       }
       
       logMessage(`[Background Communication] Refreshing tools list (forceRefresh: ${forceRefresh})`);
@@ -131,6 +199,16 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
 
           logMessage(`[Background Communication] Tools refreshed successfully, found ${tools.length} tools`);
 
+          // Calculate hash of the new tools list
+          const newToolsHash = calculateToolsHash(tools);
+          const hashChanged = newToolsHash !== toolFetchRequestRef.current.toolsHash;
+          
+          if (hashChanged) {
+            logMessage('[Background Communication] Tool list has changed, updating cache');
+            // Update the tools hash
+            toolFetchRequestRef.current.toolsHash = newToolsHash;
+          }
+
           // Update the tools list
           setAvailableTools(tools);
           availableToolsRef.current = tools;
@@ -148,6 +226,8 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
         } finally {
           // Mark request as complete
           toolFetchRequestRef.current.inProgress = false;
+          // Release the lock
+          releaseLock();
         }
       })();
       
