@@ -22,7 +22,7 @@ class McpHandler {
   private connectionCheckInterval: number = 15000;
   private connectionCheckTimeoutId: number | null = null;
   private heartbeatInterval: number | null = null;
-  private heartbeatFrequency: number = 5000;
+  private heartbeatFrequency: number = 10000;
   private lastHeartbeatResponse: number = 0;
   private heartbeatTimeoutThreshold: number = 15000;
   private pendingRequestTimeoutMs: number = 30000;
