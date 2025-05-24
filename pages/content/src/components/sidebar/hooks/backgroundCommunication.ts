@@ -10,8 +10,12 @@ import Ajv from 'ajv';
  * Custom hook to handle communication with the background script via mcpHandler
  */
 export const useBackgroundCommunication = (): BackgroundCommunication => {
-  // Default config as a constant
-  const DEFAULT_CONFIG: ServerConfig = { uri: 'http://localhost:3006/sse' };
+  // No default config - always fetch from background storage
+  
+  // Always start as initialized to ensure immediate rendering
+  const [isInitialized, setIsInitialized] = useState(true);
+  const [initializationError, setInitializationError] = useState<string | null>(null);
+  const initializationAttemptedRef = useRef(false);
 
   // Connection management constants
   const MAX_RECONNECT_ATTEMPTS = 5;
@@ -246,52 +250,8 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
   }, [availableTools]);
   // State to track if we're currently reconnecting
   const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
-  // Initialize server config with default value to prevent loading issues
-  const [serverConfigCache, setServerConfigCache] = useState<ServerConfig>(DEFAULT_CONFIG);
-  // Track if a config request is in progress
-  const configRequestInProgressRef = useRef<boolean>(false);
-  // Last fetch timestamp for throttling
-  const lastConfigFetchRef = useRef<number>(0);
-  // Track initialization status
-  const isInitializedRef = useRef<boolean>(false);
-  // Initialization complete
-  const [isInitComplete, setIsInitComplete] = useState<boolean>(false);
-
+  
   const ajv = useMemo(() => new Ajv(), []);
-
-  // Preload the config on mount to ensure components can load
-  useEffect(() => {
-    const initializeConfig = async () => {
-      try {
-        logMessage('[Background Communication] Starting initial server config fetch');
-        const config = await fetchServerConfig();
-        setServerConfigCache(config);
-        lastConfigFetchRef.current = Date.now();
-      } catch (error) {
-        logMessage(
-          `[Background Communication] Error in initial config fetch: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        // Keep using the default config that was set in useState
-      } finally {
-        setIsInitComplete(true);
-        isInitializedRef.current = true;
-      }
-    };
-
-    // Start initialization but don't await it
-    initializeConfig();
-
-    // Force completion after a timeout
-    const timeoutId = setTimeout(() => {
-      if (!isInitializedRef.current) {
-        logMessage('[Background Communication] Force completing initialization after timeout');
-        isInitializedRef.current = true;
-        setIsInitComplete(true);
-      }
-    }, 2000);
-
-    return () => clearTimeout(timeoutId);
-  }, []);
 
   /**
    * Helper function to throttle log messages to reduce logging frequency
@@ -558,55 +518,25 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
 
   // Function declaration moved up to fix reference error
 
-  // Function to get server configuration with caching
-  const getServerConfig = useCallback(async (): Promise<ServerConfig> => {
-    // If initialization hasn't completed, return the current cache (which at minimum has the default)
-    if (!isInitComplete) {
-      return serverConfigCache;
-    }
-
-    // If we have a cached config and it's been less than 5 minutes since the last fetch, return it
-    const now = Date.now();
-    const CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
-
-    if (now - lastConfigFetchRef.current < CACHE_TTL) {
-      // logMessage('[Background Communication] Using cached server configuration');
-      return serverConfigCache;
-    }
-
-    // If there's already a request in progress, wait for it to complete
-    if (configRequestInProgressRef.current) {
-      // Wait for the current request to finish and update the cache
-      let retryCount = 0;
-      while (configRequestInProgressRef.current && retryCount < 10) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        retryCount++;
-      }
-
-      // Return current cache regardless
-      return serverConfigCache;
-    }
-
+  // Function to get server configuration - always fetch fresh from background storage
+  const getServerConfig = useCallback(async (forceRefresh: boolean = false): Promise<ServerConfig> => {
     try {
-      const config = await fetchServerConfig();
-      return config;
+      logMessage('[Background Communication] Fetching fresh server configuration from background storage');
+      return await fetchServerConfig();
     } catch (error) {
-      logMessage(`[Background Communication] Error fetching config, using current cache`);
-      return serverConfigCache;
+      logMessage(`[Background Communication] Error fetching config: ${error instanceof Error ? error.message : String(error)}`);
+      throw error; // Don't fallback to default, let the caller handle the error
     }
-  }, [serverConfigCache, isInitComplete]);
+  }, []);
 
-  // Extract the actual fetch logic to a separate function
+  // Always fetch fresh from background storage - no caching on UI side
   const fetchServerConfig = useCallback(async (): Promise<ServerConfig> => {
-    // Mark that we're starting a request
-    configRequestInProgressRef.current = true;
-
     try {
       // Set up a timeout promise to ensure we don't wait too long
-      const timeoutPromise = new Promise<ServerConfig>(resolve => {
+      const timeoutPromise = new Promise<ServerConfig>((resolve, reject) => {
         setTimeout(() => {
-          resolve(serverConfigCache); // Resolve with current cache on timeout
-        }, 3000); // 3 second timeout
+          reject(new Error('Timeout waiting for server config from background storage'));
+        }, 5000); // 5 second timeout - increased to give background more time
       });
 
       // Actual fetch promise
@@ -617,8 +547,12 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
               logMessage(`[Background Communication] Error getting server config: ${error}`);
               reject(new Error(error));
             } else {
-              logMessage(`[Background Communication] Server config retrieved successfully`);
-              resolve(result || DEFAULT_CONFIG);
+              logMessage(`[Background Communication] Server config retrieved successfully: ${JSON.stringify(result)}`);
+              if (result && result.uri) {
+                resolve(result);
+              } else {
+                reject(new Error('No valid server config received from background storage'));
+              }
             }
           });
         } catch (innerError) {
@@ -628,19 +562,13 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
 
       // Race between the fetch and the timeout
       const config = await Promise.race([fetchPromise, timeoutPromise]);
-
-      // Update cache and timestamp
-      setServerConfigCache(config);
-      lastConfigFetchRef.current = Date.now();
       return config;
     } catch (error) {
-      // If fetch fails, return current cache
-      return serverConfigCache;
-    } finally {
-      // Mark request as complete
-      configRequestInProgressRef.current = false;
+      logMessage(`[Background Communication] Error in fetchServerConfig: ${error instanceof Error ? error.message : String(error)}`);
+      // Don't fallback to default - throw the error so caller knows fetch failed
+      throw error;
     }
-  }, [serverConfigCache]);
+  }, []);
 
   // Function to update server configuration
   const updateServerConfig = useCallback(async (config: ServerConfig): Promise<boolean> => {
@@ -653,9 +581,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
           reject(new Error(error));
         } else {
           logMessage(`[Background Communication] Server config updated successfully`);
-          // Update cache when config is successfully updated
-          setServerConfigCache(config);
-          lastConfigFetchRef.current = Date.now();
+          // No caching on UI side - config is always fetched fresh from background storage
           resolve(result?.success || false);
         }
       });
@@ -771,6 +697,46 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
     logMessage(`[Background Communication] serverStatus changed to: ${serverStatus}`);
   }, [serverStatus]);
 
+  // Initialize the hook with non-blocking error handling
+  useEffect(() => {
+    const initializeHook = async () => {
+      if (initializationAttemptedRef.current) return;
+      initializationAttemptedRef.current = true;
+
+      try {
+        logMessage('[Background Communication] Initializing hook...');
+        
+        // Test if mcpHandler is available and functional
+        if (typeof mcpHandler === 'undefined') {
+          throw new Error('mcpHandler is not available');
+        }
+
+        // Test basic connectivity - but don't fail if this doesn't work
+        try {
+          const connectionStatus = mcpHandler.getConnectionStatus();
+          logMessage(`[Background Communication] Initial connection status: ${connectionStatus}`);
+        } catch (statusError) {
+          logMessage(`[Background Communication] Could not get connection status: ${statusError instanceof Error ? statusError.message : String(statusError)}`);
+          // Continue anyway
+        }
+        
+        // Always mark as initialized - failures are handled gracefully
+        setIsInitialized(true);
+        setInitializationError(null);
+        logMessage('[Background Communication] Hook initialized successfully');
+        
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logMessage(`[Background Communication] Initialization failed but continuing: ${errorMessage}`);
+        // Still mark as initialized but note the error
+        setIsInitialized(true);
+        setInitializationError(errorMessage);
+      }
+    };
+
+    initializeHook();
+  }, []);
+
   // Return the communication interface
   return {
     serverStatus,
@@ -783,5 +749,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
     isReconnecting,
     getServerConfig,
     updateServerConfig,
+    isInitialized,
+    initializationError,
   };
 };

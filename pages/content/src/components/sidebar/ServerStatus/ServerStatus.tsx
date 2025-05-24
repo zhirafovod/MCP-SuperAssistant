@@ -20,8 +20,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
   const [serverUri, setServerUri] = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [hasBackgroundError, setHasBackgroundError] = useState<boolean>(false);
-  // Add ref to track initialization status
-  const isInitializedRef = useRef<boolean>(false);
+  const [isEditingUri, setIsEditingUri] = useState<boolean>(false); // Track if user is actively editing the URI
 
   // Get communication methods with error handling
   const communicationMethods = useBackgroundCommunication();
@@ -56,16 +55,16 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
     [communicationMethods],
   );
 
-  const getServerConfig = useCallback(async () => {
+  const getServerConfig = useCallback(async (forceRefresh: boolean = false) => {
     try {
       if (!communicationMethods.getServerConfig) {
         throw new Error('Communication method unavailable');
       }
-      return await communicationMethods.getServerConfig();
+      return await communicationMethods.getServerConfig(forceRefresh);
     } catch (error) {
       logMessage(`[ServerStatus] Get server config error: ${error instanceof Error ? error.message : String(error)}`);
       setHasBackgroundError(true);
-      return { uri: '' };
+      throw error; // Don't fallback to default, let caller handle the error
     }
   }, [communicationMethods]);
 
@@ -137,66 +136,40 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
   }, [communicationMethods, hasBackgroundError]);
 
   useEffect(() => {
-    // Fetch current server configuration on component mount
-    const fetchServerConfig = async () => {
+    // Only fetch server configuration on initial mount - don't refetch while user is editing
+    const fetchInitialServerConfig = async () => {
       try {
-        logMessage('[ServerStatus] Fetching initial server configuration');
+        logMessage('[ServerStatus] Fetching initial server configuration from background storage');
         const config = await getServerConfig();
         if (config && config.uri) {
           setServerUri(config.uri);
-          isInitializedRef.current = true;
-          logMessage('[ServerStatus] Initial server configuration loaded successfully');
+          logMessage(`[ServerStatus] Initial server configuration loaded: ${config.uri}`);
         } else {
-          // Handle empty URI case - set a default or placeholder
-          setServerUri('http://localhost:3006/sse');
-          logMessage('[ServerStatus] Using default server URI as config returned empty value');
+          logMessage('[ServerStatus] No valid server configuration received from background storage');
+          setServerUri(''); // Set empty string to indicate no config loaded
         }
       } catch (error) {
-        // Set default URI on error
-        setServerUri('http://localhost:3006/sse');
         logMessage(
           `[ServerStatus] Error fetching server config: ${error instanceof Error ? error.message : String(error)}`,
         );
-        isInitializedRef.current = true; // Mark as initialized even on error
+        setServerUri(''); // Set empty string to indicate fetch failed
       }
     };
 
-    // Always fetch on mount, but only once
-    if (!isInitializedRef.current) {
-      fetchServerConfig().catch(() => {
-        // Set default URI as last resort
-        setServerUri('http://localhost:3006/sse');
-        logMessage('[ServerStatus] Setting default URI after fetch failure');
-        isInitializedRef.current = true;
+    // Only fetch if we have communication methods, no server URI is set yet, and user is not editing
+    // This prevents refetching while the user is actively editing the URI
+    if (
+      communicationMethods && 
+      typeof communicationMethods.getServerConfig === 'function' && 
+      !serverUri && 
+      !isEditingUri
+    ) {
+      fetchInitialServerConfig().catch(() => {
+        logMessage('[ServerStatus] Failed to fetch server configuration');
+        setServerUri(''); // Set empty string as last resort
       });
     }
-  }, [getServerConfig]); // Keep dependency
-
-  // Add a secondary effect that checks if we need to retry initialization
-  useEffect(() => {
-    // If we have communicationMethods but initialization failed, try once more
-    if (
-      !isInitializedRef.current &&
-      communicationMethods &&
-      typeof communicationMethods.getServerConfig === 'function'
-    ) {
-      logMessage('[ServerStatus] Retrying server configuration fetch');
-      const retryFetch = async () => {
-        try {
-          const config = await getServerConfig();
-          if (config && config.uri) {
-            setServerUri(config.uri);
-          }
-        } catch (error) {
-          logMessage(`[ServerStatus] Retry fetch error: ${error instanceof Error ? error.message : String(error)}`);
-        } finally {
-          isInitializedRef.current = true;
-        }
-      };
-
-      retryFetch();
-    }
-  }, [communicationMethods, getServerConfig]);
+  }, [communicationMethods, isEditingUri, getServerConfig]); // Add getServerConfig dependency
 
   // Set status message based on connection state
   useEffect(() => {
@@ -289,6 +262,15 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
 
   const handleServerUriChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setServerUri(e.target.value);
+    setIsEditingUri(true); // Mark as editing when user types
+  };
+
+  const handleServerUriFocus = () => {
+    setIsEditingUri(true); // Mark as editing when user focuses the input
+  };
+
+  const handleServerUriBlur = () => {
+    // Don't immediately clear editing flag - wait for save or cancel
   };
 
   const handleSaveServerConfig = async () => {
@@ -302,6 +284,22 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
 
       await updateServerConfig({ uri: serverUri });
       logMessage('[ServerStatus] Server config updated successfully');
+      
+      // Clear the editing flag since we successfully saved
+      setIsEditingUri(false);
+
+      // After updating server config, fetch the fresh config to ensure consistency
+      // This ensures we display exactly what was stored
+      try {
+        const freshConfig = await getServerConfig(true); // Force refresh to get latest
+        if (freshConfig && freshConfig.uri) {
+          setServerUri(freshConfig.uri);
+          logMessage(`[ServerStatus] Updated serverUri to stored value: ${freshConfig.uri}`);
+        }
+      } catch (fetchError) {
+        logMessage(`[ServerStatus] Error fetching fresh config after save: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
+        // Keep the current serverUri value since we just saved it
+      }
 
       // Reconnect to apply new settings and refresh tools
       setIsReconnecting(true);
@@ -542,13 +540,18 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
                 type="text"
                 value={serverUri}
                 onChange={handleServerUriChange}
+                onFocus={handleServerUriFocus}
+                onBlur={handleServerUriBlur}
                 placeholder="Enter server URI"
                 className="w-full px-2 py-1 text-sm border border-slate-300 rounded bg-white dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-600 outline-none"
               />
             </div>
             <div className="flex justify-end">
               {/* Assuming Button component handles dark mode variants */}
-              <Button onClick={() => setShowSettings(false)} variant="outline" size="sm" className="h-7 mr-2 text-xs">
+              <Button onClick={() => {
+                setShowSettings(false);
+                setIsEditingUri(false);
+              }} variant="outline" size="sm" className="h-7 mr-2 text-xs">
                 Cancel
               </Button>
               <Button

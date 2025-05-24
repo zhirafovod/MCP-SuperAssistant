@@ -29,7 +29,7 @@ type Primitive = {
 class McpInterface {
   private static instance: McpInterface | null = null;
   private connections: Map<string, chrome.runtime.Port> = new Map();
-  private serverUrl: string = 'http://localhost:3006/sse';
+  private serverUrl: string = 'http://localhost:3006/sse'; // Default fallback, will be loaded from storage
   private isConnected: boolean = false;
   private connectionCheckInterval: NodeJS.Timeout | null = null;
   private connectionCheckIntervalTime: number = 10000; // Reduced from 30000 to 10000ms
@@ -37,15 +37,37 @@ class McpInterface {
   private connectionActivityCheckInterval: NodeJS.Timeout | null = null;
   private connectionActivityCheckTime: number = 15000; // 15 seconds
   private connectionTimeoutThreshold: number = 30000; // 30 seconds of inactivity before considered stale
+  private isInitialized: boolean = false;
 
   /**
    * Private constructor to enforce singleton pattern
    */
   private constructor() {
     this.setupConnectionListener();
-    this.startConnectionCheck();
-    this.startConnectionActivityCheck();
-    console.log('[MCP Interface] Initialized');
+    this.initializeServerUrl().then(() => {
+      this.startConnectionCheck();
+      this.startConnectionActivityCheck();
+      this.isInitialized = true;
+      console.log('[MCP Interface] Initialized with server URL:', this.serverUrl);
+    });
+  }
+
+  /**
+   * Initialize server URL from storage
+   */
+  private async initializeServerUrl(): Promise<void> {
+    try {
+      const result = await chrome.storage.local.get('mcpServerUrl');
+      if (result.mcpServerUrl) {
+        this.serverUrl = result.mcpServerUrl;
+        console.log(`[MCP Interface] Loaded server URL from storage: ${this.serverUrl}`);
+      } else {
+        console.log(`[MCP Interface] No stored server URL found, using default: ${this.serverUrl}`);
+      }
+    } catch (error) {
+      console.error('[MCP Interface] Error loading server URL from storage:', error);
+      console.log(`[MCP Interface] Using default server URL: ${this.serverUrl}`);
+    }
   }
 
   /**
@@ -56,6 +78,32 @@ class McpInterface {
       McpInterface.instance = new McpInterface();
     }
     return McpInterface.instance;
+  }
+
+  /**
+   * Wait for the interface to be fully initialized (server URL loaded from storage)
+   */
+  public async waitForInitialization(): Promise<void> {
+    if (this.isInitialized) {
+      return Promise.resolve();
+    }
+    
+    // Poll until initialized
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (this.isInitialized) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 100);
+    });
+  }
+
+  /**
+   * Get the current server URL
+   */
+  public getServerUrl(): string {
+    return this.serverUrl;
   }
 
   /**
@@ -662,10 +710,29 @@ class McpInterface {
     console.log(`[MCP Interface] Handling get server config request ${requestId}`);
 
     try {
+      // CRITICAL FIX: Always fetch the latest value from storage instead of using cached serverUrl
+      // This ensures we return the actual stored config, not potentially stale in-memory value
+      let currentServerUrl = this.serverUrl; // Default fallback
+      
+      try {
+        const result = await chrome.storage.local.get('mcpServerUrl');
+        if (result.mcpServerUrl) {
+          currentServerUrl = result.mcpServerUrl;
+          // Also update our in-memory cache to stay in sync
+          this.serverUrl = result.mcpServerUrl;
+          console.log(`[MCP Interface] Retrieved server URL from storage: ${currentServerUrl}`);
+        } else {
+          console.log(`[MCP Interface] No server URL in storage, using current: ${currentServerUrl}`);
+        }
+      } catch (storageError) {
+        console.error(`[MCP Interface] Error reading from storage, using cached value:`, storageError);
+        // Continue with the cached value as fallback
+      }
+
       // Send the current server URL back to the content script
       port.postMessage({
         type: 'SERVER_CONFIG_RESULT',
-        config: { uri: this.serverUrl },
+        config: { uri: currentServerUrl },
         requestId,
       });
 

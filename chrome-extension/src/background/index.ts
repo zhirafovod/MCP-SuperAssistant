@@ -33,9 +33,14 @@ async function initializeExtension() {
     console.warn('Error initializing theme, continuing with defaults:', error);
   }
 
-  // Initialize the MCP interface, but don't connect yet
-  const serverUrl = await initializeServerUrl();
-  mcpInterface.updateServerUrl(serverUrl);
+  // Wait for the MCP interface to load its server URL from storage
+  await mcpInterface.waitForInitialization();
+  
+  // Get the loaded server URL from the interface
+  const serverUrl = mcpInterface.getServerUrl();
+  console.log('MCP Interface initialized with server URL:', serverUrl);
+  
+  // Set initial connection status
   mcpInterface.updateConnectionStatus(false);
 
   console.log('Extension initialized successfully');
@@ -47,19 +52,6 @@ async function initializeExtension() {
       // and the extension should continue running
     });
   }, 1000);
-}
-
-// Initialize server URL from storage or use default
-async function initializeServerUrl(): Promise<string> {
-  try {
-    const result = await chrome.storage.local.get('mcpServerUrl');
-    const serverUrl = result.mcpServerUrl || DEFAULT_MCP_SERVER_URL;
-    console.log(`Loaded MCP server URL from storage: ${serverUrl}`);
-    return serverUrl;
-  } catch (error) {
-    console.error('Error loading MCP server URL from storage:', error);
-    return DEFAULT_MCP_SERVER_URL;
-  }
 }
 
 /**
@@ -125,7 +117,7 @@ setInterval(async () => {
   if (!isConnected && !isConnecting) {
     connectionAttemptCount = 0; // Reset counter for periodic checks
     console.log('Periodic check: MCP server not connected, attempting to connect');
-    const serverUrl = await initializeServerUrl();
+    const serverUrl = mcpInterface.getServerUrl();
     tryConnectToServer(serverUrl).catch(() => {});
   }
 }, PERIODIC_CHECK_INTERVAL);

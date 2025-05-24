@@ -112,122 +112,43 @@ export class SidebarManager extends BaseSidebarManager {
   }
 
   /**
-   * Show the sidebar with tool outputs
+   * Show the sidebar with tool outputs - Always render immediately
    */
   public showWithToolOutputs(): void {
-    // Avoid race conditions by ensuring we only proceed with one initialization flow
-    if (this.isFirstLoad) {
-      // Prevent multiple initialization attempts in quick succession
-      this.isFirstLoad = false;
+    // Always use immediate rendering for consistent loading
+    logMessage('[SidebarManager] Showing sidebar with immediate rendering');
 
-      // First ensure initialization is complete
-      logMessage('[SidebarManager] First load, initializing with progressive reveal');
-
-      // Use promise chaining with explicit error handling for better race condition management
-      this.initialize()
-        .then(() => {
-          // Set the shadow host to block but with opacity 0
-          if (this.shadowHost) {
-            this.shadowHost.style.display = 'block';
-            this.shadowHost.style.opacity = '0'; // Ensure opacity starts at 0
-            // Mark that initialization is complete but keep opacity 0
-            this.shadowHost.classList.add('initialized');
-          }
-          this._isVisible = true;
-
-          // Now load preferences
-          return getSidebarPreferences();
-        })
-        .then(preferences => {
-          const wasMinimized = preferences.isMinimized ?? false;
-          const isPushMode = preferences.isPushMode ?? false;
-          const sidebarWidth = preferences.sidebarWidth || 320;
-
-          // First apply push content mode with correct width but no visibility yet
-          if (isPushMode) {
-            this.setPushContentMode(true, wasMinimized ? 56 : sidebarWidth, wasMinimized);
-          }
-
-          // Start rendering process with proper error handling
-          logMessage('[SidebarManager] Rendering with current preferences');
-          try {
-            this.render();
-
-            // Trigger a layout reflow before revealing the sidebar
-            void this.shadowHost?.offsetHeight;
-          } catch (renderError) {
-            logMessage(
-              `[SidebarManager] Initial render error: ${renderError instanceof Error ? renderError.message : String(renderError)}`,
-            );
-            // Try one more render after a short delay
-            setTimeout(() => {
-              try {
-                this.render();
-              } catch (retryError) {
-                logMessage(
-                  `[SidebarManager] Retry render failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`,
-                );
-                // Continue with reveal anyway
-              }
-            }, 100);
-          }
-
-          // Now reveal the sidebar by setting opacity to 1 with transition
-          if (this.shadowHost) {
-            setTimeout(() => {
-              if (this.shadowHost) {
-                this.shadowHost.style.opacity = '1';
-
-                // Double-check visibility after a delay to ensure it's displayed
-                setTimeout(() => {
-                  if (this.shadowHost && this.shadowHost.style.opacity !== '1') {
-                    // Force visibility if opacity transition didn't work
-                    this.shadowHost.style.opacity = '1';
-                    logMessage('[SidebarManager] Forced sidebar visibility after delay check');
-                  }
-                }, 500);
-
-                logMessage('[SidebarManager] Sidebar revealed after all preparations');
-              }
-            }, 100);
-          }
-        })
-        .catch(error => {
+    // Initialize and show immediately
+    this.initialize()
+      .then(() => {
+        // Make sure sidebar is visible immediately after initialization
+        if (this.shadowHost) {
+          this.shadowHost.style.display = 'block';
+          this.shadowHost.style.opacity = '1';
+          this.shadowHost.classList.add('initialized');
+        }
+        this._isVisible = true;
+        this.render();
+        logMessage('[SidebarManager] Sidebar shown successfully');
+      })
+      .catch(error => {
+        logMessage(
+          `[SidebarManager] Error during initialization: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        // Even if initialization fails, try to show the sidebar
+        try {
+          this.forceVisibility();
+          this.render();
+          logMessage('[SidebarManager] Sidebar shown with force visibility after initialization error');
+        } catch (forceError) {
           logMessage(
-            `[SidebarManager] Error during initialization flow: ${error instanceof Error ? error.message : String(error)}`,
+            `[SidebarManager] Even force visibility failed: ${forceError instanceof Error ? forceError.message : String(forceError)}`,
           );
-          this.isFirstLoad = true; // Reset so we can try again
-          // Fallback to simple show
-          try {
-            this.show();
-          } catch (showError) {
-            logMessage(
-              `[SidebarManager] Even fallback show failed: ${showError instanceof Error ? showError.message : String(showError)}`,
-            );
-          }
-        });
-    } else {
-      // Not first load, use normal show and refresh
-      // We still need to ensure no flickering, so use a modified approach
-      this.show()
-        .then(() => {
-          // Ensure opacity is set correctly
-          if (this.shadowHost) {
-            this.shadowHost.classList.add('initialized');
-            this.shadowHost.style.opacity = '1';
+        }
+      });
 
-            // Force visibility if needed
-            if (getComputedStyle(this.shadowHost).opacity !== '1') {
-              this.shadowHost.style.opacity = '1';
-              logMessage('[SidebarManager] Forced sidebar visibility');
-            }
-          }
-          this.refreshContent();
-        })
-        .catch(error => {
-          logMessage(`[SidebarManager] Error in show: ${error instanceof Error ? error.message : String(error)}`);
-        });
-    }
+    // Mark as no longer first load regardless of success/failure
+    this.isFirstLoad = false;
   }
 
   /**

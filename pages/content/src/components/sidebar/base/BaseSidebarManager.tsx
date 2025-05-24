@@ -268,14 +268,29 @@ export abstract class BaseSidebarManager {
     logMessage('Starting sidebar manager initialization...');
     this._initializationPromise = new Promise<void>(async (resolve, reject) => {
       try {
-        // Ensure the DOM is ready by waiting for next frame
-        await new Promise<void>(resolve => {
-          if (document.readyState === 'complete') {
-            resolve();
-          } else {
-            window.addEventListener('load', () => resolve(), { once: true });
-          }
-        });
+        // For maximum compatibility, only require document to exist
+        // Don't wait for body if it's not ready - we'll append later
+        if (!document.body) {
+          logMessage('[BaseSidebarManager] Document body not ready, waiting briefly...');
+          await new Promise<void>(resolve => {
+            const checkBody = () => {
+              if (document.body) {
+                resolve();
+              } else if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                // If document is ready but body still doesn't exist, something is wrong
+                // Create a minimal body to proceed
+                if (!document.body) {
+                  document.body = document.createElement('body');
+                  logMessage('[BaseSidebarManager] Created minimal document body');
+                }
+                resolve();
+              } else {
+                setTimeout(checkBody, 10);
+              }
+            };
+            checkBody();
+          });
+        }
 
         // Create and setup the shadow host
         this.shadowHost = document.createElement('div');
@@ -305,31 +320,26 @@ export abstract class BaseSidebarManager {
         this.container.style.width = '100%';
         this.shadowRoot.appendChild(this.container);
 
-        // Inject CSS into Shadow DOM using our specialized utility
+        // Inject CSS into Shadow DOM - make this completely non-blocking
         try {
           await injectTailwindToShadowDom(this.shadowRoot);
+          logMessage('[BaseSidebarManager] CSS injection successful');
         } catch (cssError) {
-          console.error('Failed to inject CSS into Shadow DOM:', cssError);
-          // Fallback to the old method if needed
-          await injectShadowDomCSS(this.shadowRoot, 'content/index.css');
+          logMessage(`[BaseSidebarManager] CSS injection failed but continuing: ${cssError instanceof Error ? cssError.message : String(cssError)}`);
+          // Continue anyway - the sidebar will still function with degraded styling
         }
 
         // Create React root
         this.root = createRoot(this.container);
         logMessage('Sidebar manager initialized with Shadow DOM.');
 
-        // Add debug mode in development
-        if (process.env.NODE_ENV === 'development') {
-          // Debug the Shadow DOM styling after a short delay to ensure all styles are loaded
-          setTimeout(() => {
-            if (this.shadowRoot) {
-              debugShadowDomStyling(this.shadowRoot);
-            }
-          }, 2000);
+        // Apply default theme based on system preference - handle failures gracefully
+        try {
+          this.applyThemeClass('system');
+        } catch (themeError) {
+          logMessage(`[BaseSidebarManager] Theme application failed: ${themeError instanceof Error ? themeError.message : String(themeError)}`);
+          // Continue without theme
         }
-
-        // Apply default theme based on system preference
-        this.applyThemeClass('system');
 
         // Mark as successfully initialized *before* resolving
         this._isInitialized = true;

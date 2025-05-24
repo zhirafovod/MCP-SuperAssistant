@@ -28,6 +28,12 @@ class McpHandler {
   private pendingRequestTimeoutMs: number = 30000;
   private staleRequestCleanupInterval: number | null = null;
   private extensionContextValid: boolean = true;
+  
+  // Add debouncing for getServerConfig requests
+  private lastServerConfigRequest: number = 0;
+  private serverConfigDebounceMs: number = 1000; // 1 second debounce
+  private pendingServerConfigCallbacks: ToolCallCallback[] = [];
+  private serverConfigRequestId: string | null = null;
 
   /**
    * Private constructor to enforce singleton pattern
@@ -887,7 +893,7 @@ class McpHandler {
   }
 
   /**
-   * Get the server configuration from the background script
+   * Get the server configuration from the background script with request deduplication
    * @returns Promise that resolves to the server configuration
    */
   public getServerConfig(callback: ToolCallCallback): string {
@@ -897,14 +903,38 @@ class McpHandler {
       return '';
     }
 
+    // If there's already a pending request, add this callback to the queue
+    if (this.serverConfigRequestId && this.pendingRequests.has(this.serverConfigRequestId)) {
+      logMessage('[MCP Handler] Server config request already pending, adding callback to queue');
+      this.pendingServerConfigCallbacks.push(callback);
+      return this.serverConfigRequestId;
+    }
+
     const requestId = `server-config-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    this.serverConfigRequestId = requestId;
 
     // Store the request
     this.pendingRequests.set(requestId, {
       requestId,
       toolName: '',
       args: {},
-      callback,
+      callback: (result: any, error?: string) => {
+        // Call the original callback
+        callback(result, error);
+        
+        // Call all queued callbacks
+        this.pendingServerConfigCallbacks.forEach(queuedCallback => {
+          try {
+            queuedCallback(result, error);
+          } catch (callbackError) {
+            logMessage(`[MCP Handler] Error in queued server config callback: ${callbackError instanceof Error ? callbackError.message : String(callbackError)}`);
+          }
+        });
+        
+        // Clear the queue and request ID
+        this.pendingServerConfigCallbacks = [];
+        this.serverConfigRequestId = null;
+      },
       timestamp: Date.now(),
     });
 

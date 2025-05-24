@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSiteAdapter } from '@src/adapters/adapterRegistry';
 import ServerStatus from './ServerStatus/ServerStatus';
 import AvailableTools from './AvailableTools/AvailableTools';
@@ -34,14 +34,17 @@ type DetectedTool = {
 
 const Sidebar: React.FC = () => {
   const adapter = useSiteAdapter();
-  // Get communication methods with fallback for failed initialization
+  
+  // No error states that could block rendering
+  const [initializationError, setInitializationError] = useState<string | null>(null);
+  
+  // Get communication methods with guaranteed safe fallbacks
   const communicationMethods = useBackgroundCommunication();
   
-  // Use a single source of truth for server status from the useBackgroundCommunication hook
-  // This is the most reliable source as it's already set up to handle all connection status updates
+  // Always render immediately - use safe defaults for all communication methods
   const serverStatus = communicationMethods?.serverStatus || 'disconnected';
   const availableTools = communicationMethods?.availableTools || [];
-  const sendMessage = communicationMethods?.sendMessage || (async () => 'Error: Communication unavailable');
+  const sendMessage = communicationMethods?.sendMessage || (async () => 'Communication not available');
   const refreshTools = communicationMethods?.refreshTools || (async () => []);
   const forceReconnect = communicationMethods?.forceReconnect || (async () => false);
   
@@ -59,10 +62,8 @@ const Sidebar: React.FC = () => {
   const [autoSubmit, setAutoSubmit] = useState(false);
   const [theme, setTheme] = useState<Theme>('system');
   const [isTransitioning, setIsTransitioning] = useState(false); // Single state for all transitions
-  const [isInitialRender, setIsInitialRender] = useState(true);
+  const [isInitialRender, setIsInitialRender] = useState(false);
   const [isInputMinimized, setIsInputMinimized] = useState(false);
-  // Add a state to track if component loading is complete, regardless of background services
-  const [isComponentLoadingComplete, setIsComponentLoadingComplete] = useState(false);
 
   const sidebarRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -75,25 +76,38 @@ const Sidebar: React.FC = () => {
   const applyTheme = useCallback((selectedTheme: Theme) => {
     const sidebarManager = (window as any).activeSidebarManager;
     if (!sidebarManager) {
-      logMessage('[Sidebar] Cannot apply theme: Sidebar manager not found.');
+      logMessage('[Sidebar] Sidebar manager not available for theme application - will apply when ready.');
       return;
     }
 
-    // Use the BaseSidebarManager's applyThemeClass method instead of direct manipulation
-    const success = sidebarManager.applyThemeClass(selectedTheme);
-    if (!success) {
-      logMessage('[Sidebar] Failed to apply theme using sidebar manager.');
+    // Use the BaseSidebarManager's applyThemeClass method - handle failures gracefully
+    try {
+      const success = sidebarManager.applyThemeClass(selectedTheme);
+      if (!success) {
+        logMessage('[Sidebar] Theme application failed but continuing...');
+      }
+    } catch (error) {
+      logMessage(`[Sidebar] Theme application error: ${error instanceof Error ? error.message : String(error)}`);
     }
   }, []);
 
   // Effect to apply theme and listen for system changes
   useEffect(() => {
-    applyTheme(theme); // Apply theme initially
+    // Apply theme safely without blocking
+    try {
+      applyTheme(theme);
+    } catch (error) {
+      logMessage(`[Sidebar] Theme application error during useEffect: ${error instanceof Error ? error.message : String(error)}`);
+    }
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = () => {
       if (theme === 'system') {
-        applyTheme('system'); // Re-apply system theme on change
+        try {
+          applyTheme('system'); // Re-apply system theme on change
+        } catch (error) {
+          logMessage(`[Sidebar] Theme reapplication error: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }
     };
 
@@ -107,46 +121,35 @@ const Sidebar: React.FC = () => {
   }, [theme, applyTheme]);
   // --- End Theme Application Logic ---
 
-  // Load preferences from storage on initial render
+  // Load preferences immediately but never block rendering
   useEffect(() => {
     const loadPreferences = async () => {
       try {
+        logMessage('[Sidebar] Loading preferences...');
         const preferences = await getSidebarPreferences();
         logMessage(`[Sidebar] Loaded preferences: ${JSON.stringify(preferences)}`);
 
-        // Apply stored settings
+        // Apply stored settings - use batched state updates
         setIsPushMode(preferences.isPushMode);
         setSidebarWidth(preferences.sidebarWidth || SIDEBAR_DEFAULT_WIDTH);
         setIsMinimized(preferences.isMinimized ?? false);
         setAutoSubmit(preferences.autoSubmit || false);
         setTheme(preferences.theme || 'system');
         previousWidthRef.current = preferences.sidebarWidth || SIDEBAR_DEFAULT_WIDTH;
+
+        logMessage('[Sidebar] Preferences applied successfully');
       } catch (error) {
-        logMessage(`[Sidebar] Error loading preferences: ${error instanceof Error ? error.message : String(error)}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logMessage(`[Sidebar] Error loading preferences (non-blocking): ${errorMessage}`);
+        // Never block the UI for preference loading failures
       } finally {
         isInitialLoadRef.current = false;
-
-        // Delay disabling the initial render flag to prevent flickering
-        setTimeout(() => {
-          setIsInitialRender(false);
-          setIsComponentLoadingComplete(true);
-        }, 200);
       }
     };
 
+    // Start loading immediately but don't wait
     loadPreferences();
-
-    // Ensure loading completes even if preferences fail
-    const timeoutId = setTimeout(() => {
-      if (!isComponentLoadingComplete) {
-        logMessage('[Sidebar] Forcing component loading complete after timeout');
-        setIsComponentLoadingComplete(true);
-        setIsInitialRender(false);
-      }
-    }, 1000);
-
-    return () => clearTimeout(timeoutId);
-  }, []);
+  }, []); // Load preferences once on mount
 
   // Save preferences when they change
   useEffect(() => {
@@ -215,31 +218,35 @@ const Sidebar: React.FC = () => {
   //   };
   // }, [adapter]);
 
-  // Effect to apply push mode and width changes to the manager
+  // Apply push mode and width changes safely
   useEffect(() => {
-    const sidebarManager = (window as any).activeSidebarManager; // Or get it via context/props if available
+    const sidebarManager = (window as any).activeSidebarManager;
     if (sidebarManager) {
-      // Only apply push mode settings if the sidebar is currently visible
-      if (sidebarManager.getIsVisible()) {
-        logMessage(
-          `[Sidebar] Applying push mode (${isPushMode}, minimized: ${isMinimized}) and width (${sidebarWidth}) to BaseSidebarManager`,
-        );
-        // Pass minimized width if minimized, otherwise sidebarWidth
-        sidebarManager.setPushContentMode(
-          isPushMode,
-          isMinimized ? SIDEBAR_MINIMIZED_WIDTH : sidebarWidth,
-          isMinimized,
-        );
+      try {
+        // Only apply push mode settings if the sidebar is currently visible
+        if (sidebarManager.getIsVisible()) {
+          logMessage(
+            `[Sidebar] Applying push mode (${isPushMode}, minimized: ${isMinimized}) and width (${sidebarWidth}) to BaseSidebarManager`,
+          );
+          // Pass minimized width if minimized, otherwise sidebarWidth
+          sidebarManager.setPushContentMode(
+            isPushMode,
+            isMinimized ? SIDEBAR_MINIMIZED_WIDTH : sidebarWidth,
+            isMinimized,
+          );
 
-        // If only width changed while push mode is active, update styles
-        // Added checks to prevent unnecessary updates during resize or initial load
-        if (isPushMode && !isInitialLoadRef.current && !isResizingRef.current) {
-          sidebarManager.updatePushModeStyles(isMinimized ? SIDEBAR_MINIMIZED_WIDTH : sidebarWidth);
+          // If only width changed while push mode is active, update styles
+          // Added checks to prevent unnecessary updates during resize or initial load
+          if (isPushMode && !isInitialLoadRef.current && !isResizingRef.current) {
+            sidebarManager.updatePushModeStyles(isMinimized ? SIDEBAR_MINIMIZED_WIDTH : sidebarWidth);
+          }
+        } else {
+          logMessage('[Sidebar] Sidebar is hidden, skipping application of push mode/width preferences.');
+          // Ensure push mode is explicitly turned off if the sidebar should be hidden
+          sidebarManager.setPushContentMode(false);
         }
-      } else {
-        logMessage('[Sidebar] Sidebar is hidden, skipping application of push mode/width preferences.');
-        // Ensure push mode is explicitly turned off if the sidebar should be hidden
-        sidebarManager.setPushContentMode(false);
+      } catch (error) {
+        logMessage(`[Sidebar] Error applying push mode settings: ${error instanceof Error ? error.message : String(error)}`);
       }
     } else {
       logMessage('[Sidebar] Sidebar manager not found when trying to apply push mode/width.');
@@ -369,7 +376,8 @@ const Sidebar: React.FC = () => {
       await refreshTools(true);
       logMessage('[Sidebar] Tools refreshed successfully');
     } catch (error) {
-      logMessage(`[Sidebar] Error refreshing tools: ${error instanceof Error ? error.message : String(error)}`);
+      logMessage(`[Sidebar] Error refreshing tools (non-blocking): ${error instanceof Error ? error.message : String(error)}`);
+      // Don't show error to user - this is a background operation
     } finally {
       setIsRefreshing(false);
     }
@@ -436,7 +444,7 @@ const Sidebar: React.FC = () => {
         {!isMinimized ? (
           <>
             <div className="flex items-center space-x-2">
-              {/* Replace settings icon with logo, make it larger and linkable */}
+              {/* Always show the header content immediately */}
               <a
                 href="https://mcpsuperassistant.ai/"
                 target="_blank"
@@ -451,34 +459,28 @@ const Sidebar: React.FC = () => {
                   className="w-8 h-8 rounded-md " // Increase size & add rounded corners
                 />
               </a>
-              {isComponentLoadingComplete ? (
-                <>
-                  {/* Wrap title in link */}
-                  <a
-                    href="https://mcpsuperassistant.ai/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-slate-800 dark:text-slate-100 hover:text-slate-600 dark:hover:text-slate-300 transition-colors duration-150 no-underline"
-                    aria-label="Visit MCP Super Assistant Website">
-                    <Typography variant="h4" className="font-semibold">
-                      MCP SuperAssistant
-                    </Typography>
-                  </a>
-                  {/* Existing icon link */}
-                  <a
-                    href="https://mcpsuperassistant.ai/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 transition-colors duration-150"
-                    aria-label="Visit MCP Super Assistant Website">
-                    <Icon name="arrow-up-right" size="xs" className="inline-block align-baseline" />
-                  </a>
-                </>
-              ) : (
-                <Typography variant="h4" className="font-semibold text-slate-800 dark:text-slate-100">
-                  MCP SuperAssistant
-                </Typography>
-              )}
+              <>
+                {/* Wrap title in link */}
+                <a
+                  href="https://mcpsuperassistant.ai/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-slate-800 dark:text-slate-100 hover:text-slate-600 dark:hover:text-slate-300 transition-colors duration-150 no-underline"
+                  aria-label="Visit MCP Super Assistant Website">
+                  <Typography variant="h4" className="font-semibold">
+                    MCP SuperAssistant
+                  </Typography>
+                </a>
+                {/* Existing icon link */}
+                <a
+                  href="https://mcpsuperassistant.ai/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-1 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 transition-colors duration-150"
+                  aria-label="Visit MCP Super Assistant Website">
+                  <Icon name="arrow-up-right" size="xs" className="inline-block align-baseline" />
+                </a>
+              </>
             </div>
             <div className="flex items-center space-x-2 pr-1">
               {/* Theme Toggle Button */}
@@ -531,6 +533,44 @@ const Sidebar: React.FC = () => {
           )}
           style={{ width: `${sidebarWidth}px` }}>
           <div className="flex flex-col h-full">
+            {/* Background Communication Status - Small, optional indicator */}
+            {!sendMessage || serverStatus === 'disconnected' ? (
+              <div className="bg-amber-50 dark:bg-amber-900/10 border-b border-amber-200/50 dark:border-amber-800/30 p-2 flex-shrink-0">
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin w-3 h-3 border border-amber-500 border-t-transparent rounded-full"></div>
+                  <Typography variant="caption" className="text-amber-700 dark:text-amber-300 text-xs">
+                    Connecting...
+                  </Typography>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Critical Error Display - Only show for severe failures, never block UI */}
+            {initializationError && (
+              <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 p-3 flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-start space-x-2">
+                    <Icon name="alert-triangle" size="sm" className="text-red-600 dark:text-red-400 mt-0.5" />
+                    <div className="flex-1">
+                      <Typography variant="subtitle" className="text-red-800 dark:text-red-200 font-medium">
+                        Warning
+                      </Typography>
+                      <Typography variant="caption" className="text-red-700 dark:text-red-300">
+                        Some features may be limited: {initializationError}
+                      </Typography>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setInitializationError(null)}
+                    className="border-red-300 dark:border-red-600 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800">
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+            )}
+            
             {/* Status and Settings section */}
             <div className="py-4 px-4 space-y-4 overflow-y-auto flex-shrink-0">
               <ServerStatus status={serverStatus} />
