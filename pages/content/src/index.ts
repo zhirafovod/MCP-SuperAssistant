@@ -55,8 +55,10 @@ function setupSidebarRecovery(): void {
             shadowHost.style.opacity = '1';
             shadowHost.classList.add('initialized');
 
-            // Also force a re-render
-            sidebarManager.refreshContent();
+            // OPTIMIZATION: Don't force a re-render unless absolutely necessary
+            // The sidebar content should automatically update through React state management
+            logMessage('[SidebarRecovery] Sidebar visibility restored - skipping re-render to avoid performance issues');
+            // sidebarManager.refreshContent();
           }
         } else {
           // If shadow host doesn't exist but push mode is enabled,

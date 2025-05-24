@@ -32,7 +32,15 @@ type DetectedTool = {
   callId?: string;
 };
 
-const Sidebar: React.FC = () => {
+interface SidebarProps {
+  initialPreferences?: SidebarPreferences | null;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
+  // Add unique ID to track component instances
+  const componentId = useRef(`sidebar-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  logMessage(`[Sidebar] Component initializing with preferences: ${initialPreferences ? 'loaded' : 'null'} (ID: ${componentId.current})`);
+  
   const adapter = useSiteAdapter();
   
   // No error states that could block rendering
@@ -53,17 +61,74 @@ const Sidebar: React.FC = () => {
     logMessage(`[Sidebar] serverStatus changed to: "${serverStatus}", passing to ServerStatus component`);
   }, [serverStatus]);
 
-  const [isMinimized, setIsMinimized] = useState(false);
+  // Get initial state from shadow host to prevent flash
+  const getInitialMinimizedState = (): boolean => {
+    // Use passed preferences first (most reliable)
+    if (initialPreferences !== undefined && initialPreferences !== null) {
+      const value = initialPreferences.isMinimized ?? false;
+      logMessage(`[Sidebar] Using initialPreferences for isMinimized: ${value}`);
+      return value;
+    }
+    
+    // Fallback to shadow host attribute
+    try {
+      const sidebarManager = (window as any).activeSidebarManager;
+      const shadowHost = sidebarManager?.getShadowHost();
+      if (shadowHost) {
+        const attrValue = shadowHost.getAttribute('data-initial-minimized');
+        logMessage(`[Sidebar] DEBUG: Raw attribute value: ${JSON.stringify(attrValue)}`);
+        
+        if (attrValue === null || attrValue === undefined) {
+          logMessage(`[Sidebar] WARNING: data-initial-minimized attribute is null/undefined, defaulting to false`);
+          return false;
+        }
+        
+        const isMinimized = attrValue === 'true';
+        logMessage(`[Sidebar] Shadow host attribute 'data-initial-minimized' = '${attrValue}', interpreted as: ${isMinimized}`);
+        return isMinimized;
+      } else {
+        logMessage(`[Sidebar] Shadow host not found, defaulting to false`);
+        return false;
+      }
+    } catch (error) {
+      logMessage(`[Sidebar] Error reading initial state, defaulting to false: ${error}`);
+      return false;
+    }
+  };
+
+  // Initialize states with proper defaults to prevent flash
+  const isInitiallyMinimized = getInitialMinimizedState();
+  
+  // CRITICAL FIX: If attribute was null but we expect it to have a value, set it
+  useEffect(() => {
+    try {
+      const sidebarManager = (window as any).activeSidebarManager;
+      const shadowHost = sidebarManager?.getShadowHost();
+      if (shadowHost) {
+        const currentAttr = shadowHost.getAttribute('data-initial-minimized');
+        if (currentAttr === null || currentAttr === undefined) {
+          // Attribute was not set properly, set it now based on our initialization
+          const valueToSet = isInitiallyMinimized ? 'true' : 'false';
+          shadowHost.setAttribute('data-initial-minimized', valueToSet);
+          logMessage(`[Sidebar] CORRECTED: Set missing data-initial-minimized to '${valueToSet}'`);
+        }
+      }
+    } catch (error) {
+      logMessage(`[Sidebar] Error correcting data-initial-minimized: ${error}`);
+    }
+  }, [isInitiallyMinimized]);
+  
+  const [isMinimized, setIsMinimized] = useState(isInitiallyMinimized);
   const [detectedTools, setDetectedTools] = useState<DetectedTool[]>([]);
   const [activeTab, setActiveTab] = useState<'availableTools' | 'instructions'>('availableTools');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
-  const [isPushMode, setIsPushMode] = useState(false);
-  const [autoSubmit, setAutoSubmit] = useState(false);
-  const [theme, setTheme] = useState<Theme>('system');
+  const [sidebarWidth, setSidebarWidth] = useState(initialPreferences?.sidebarWidth || SIDEBAR_DEFAULT_WIDTH);
+  const [isPushMode, setIsPushMode] = useState(initialPreferences?.isPushMode || false);
+  const [autoSubmit, setAutoSubmit] = useState(initialPreferences?.autoSubmit || false);
+  const [theme, setTheme] = useState<Theme>(initialPreferences?.theme || 'system');
   const [isTransitioning, setIsTransitioning] = useState(false); // Single state for all transitions
-  const [isInitialRender, setIsInitialRender] = useState(false);
   const [isInputMinimized, setIsInputMinimized] = useState(false);
+  const [preferencesLoaded, setPreferencesLoaded] = useState(initialPreferences !== null); // Start as loaded if we have initial preferences
 
   const sidebarRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -80,7 +145,7 @@ const Sidebar: React.FC = () => {
       return;
     }
 
-    // Use the BaseSidebarManager's applyThemeClass method - handle failures gracefully
+    // OPTIMIZATION: Theme application is now CSS-only and doesn't trigger re-renders
     try {
       const success = sidebarManager.applyThemeClass(selectedTheme);
       if (!success) {
@@ -92,7 +157,17 @@ const Sidebar: React.FC = () => {
   }, []);
 
   // Effect to apply theme and listen for system changes
+  // OPTIMIZATION: Throttle theme changes to avoid excessive calls
+  const lastThemeChangeRef = useRef<number>(0);
+  
   useEffect(() => {
+    // Throttle theme applications to once every 100ms
+    const now = Date.now();
+    if (now - lastThemeChangeRef.current < 100) {
+      return;
+    }
+    lastThemeChangeRef.current = now;
+
     // Apply theme safely without blocking
     try {
       applyTheme(theme);
@@ -103,6 +178,12 @@ const Sidebar: React.FC = () => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = () => {
       if (theme === 'system') {
+        const changeNow = Date.now();
+        if (changeNow - lastThemeChangeRef.current < 100) {
+          return; // Throttle system theme changes
+        }
+        lastThemeChangeRef.current = changeNow;
+        
         try {
           applyTheme('system'); // Re-apply system theme on change
         } catch (error) {
@@ -121,8 +202,15 @@ const Sidebar: React.FC = () => {
   }, [theme, applyTheme]);
   // --- End Theme Application Logic ---
 
-  // Load preferences immediately but never block rendering
+  // Load preferences immediately but never block rendering - only if not provided initially
   useEffect(() => {
+    // Skip loading if preferences were already provided
+    if (initialPreferences !== null) {
+      logMessage('[Sidebar] Using initial preferences, skipping async load');
+      isInitialLoadRef.current = false;
+      return;
+    }
+
     const loadPreferences = async () => {
       try {
         logMessage('[Sidebar] Loading preferences...');
@@ -130,6 +218,7 @@ const Sidebar: React.FC = () => {
         logMessage(`[Sidebar] Loaded preferences: ${JSON.stringify(preferences)}`);
 
         // Apply stored settings - use batched state updates
+        logMessage(`[Sidebar] Applying preferences - isPushMode: ${preferences.isPushMode}, isMinimized: ${preferences.isMinimized}, sidebarWidth: ${preferences.sidebarWidth}`);
         setIsPushMode(preferences.isPushMode);
         setSidebarWidth(preferences.sidebarWidth || SIDEBAR_DEFAULT_WIDTH);
         setIsMinimized(preferences.isMinimized ?? false);
@@ -138,10 +227,32 @@ const Sidebar: React.FC = () => {
         previousWidthRef.current = preferences.sidebarWidth || SIDEBAR_DEFAULT_WIDTH;
 
         logMessage('[Sidebar] Preferences applied successfully');
+        
+        // Mark preferences as loaded
+        logMessage('[Sidebar] Setting preferencesLoaded to true');
+        setPreferencesLoaded(true);
+        
+        // Clean up initial state attributes after preferences are applied
+        setTimeout(() => {
+          try {
+            const sidebarManager = (window as any).activeSidebarManager;
+            const shadowHost = sidebarManager?.getShadowHost();
+            if (shadowHost?.getAttribute('data-initial-minimized') && !preferences.isMinimized) {
+              // Only remove if we're not actually minimized
+              shadowHost.removeAttribute('data-initial-minimized');
+              shadowHost.style.removeProperty('width');
+              logMessage('[Sidebar] Cleaned up initial state attributes');
+            }
+          } catch (error) {
+            logMessage(`[Sidebar] Error cleaning up initial state: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }, 100);
+        
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logMessage(`[Sidebar] Error loading preferences (non-blocking): ${errorMessage}`);
         // Never block the UI for preference loading failures
+        setPreferencesLoaded(true); // Mark as loaded even on error to prevent blocking
       } finally {
         isInitialLoadRef.current = false;
       }
@@ -149,7 +260,7 @@ const Sidebar: React.FC = () => {
 
     // Start loading immediately but don't wait
     loadPreferences();
-  }, []); // Load preferences once on mount
+  }, [initialPreferences]); // Load preferences once on mount or when initialPreferences changes
 
   // Save preferences when they change
   useEffect(() => {
@@ -218,8 +329,15 @@ const Sidebar: React.FC = () => {
   //   };
   // }, [adapter]);
 
-  // Apply push mode and width changes safely
+  // Apply push mode and width changes safely - only when preferences are first loaded
   useEffect(() => {
+    // Only run when preferences are loaded for the first time
+    if (!preferencesLoaded) {
+      return;
+    }
+
+    logMessage(`[Sidebar] Preferences loaded - applying initial push mode settings`);
+    
     const sidebarManager = (window as any).activeSidebarManager;
     if (sidebarManager) {
       try {
@@ -258,7 +376,46 @@ const Sidebar: React.FC = () => {
     }
     // Reset resize ref after applying changes
     isResizingRef.current = false;
-  }, [isPushMode, sidebarWidth, isMinimized, adapter]); // Re-run when these change
+  }, [preferencesLoaded]); // Only depend on preferencesLoaded
+
+  // Separate effect for handling live changes to push mode settings
+  useEffect(() => {
+    // Skip if preferences haven't been loaded yet
+    if (!preferencesLoaded) {
+      return;
+    }
+    
+    // Skip during initial load to prevent duplicate applications
+    if (isInitialLoadRef.current) {
+      return;
+    }
+
+    logMessage(`[Sidebar] Push mode settings changed - updating BaseSidebarManager`);
+    
+    const sidebarManager = (window as any).activeSidebarManager;
+    if (sidebarManager) {
+      try {
+        if (sidebarManager.getIsVisible()) {
+          logMessage(
+            `[Sidebar] Updating push mode (${isPushMode}, minimized: ${isMinimized}) and width (${sidebarWidth}) to BaseSidebarManager`,
+          );
+          sidebarManager.setPushContentMode(
+            isPushMode,
+            isMinimized ? SIDEBAR_MINIMIZED_WIDTH : sidebarWidth,
+            isMinimized,
+          );
+
+          if (isPushMode && !isResizingRef.current) {
+            sidebarManager.updatePushModeStyles(isMinimized ? SIDEBAR_MINIMIZED_WIDTH : sidebarWidth);
+          }
+        } else {
+          sidebarManager.setPushContentMode(false);
+        }
+      } catch (error) {
+        logMessage(`[Sidebar] Error updating push mode settings: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }, [isPushMode, sidebarWidth, isMinimized, adapter]); // Dependencies for live updates
 
   // Simple transition management
   const startTransition = () => {
@@ -426,7 +583,6 @@ const Sidebar: React.FC = () => {
         isResizingRef.current ? 'resizing' : '',
         isMinimized ? 'collapsed' : '',
         isTransitioning ? 'sidebar-transitioning' : '',
-        isInitialRender ? 'initial-render' : '',
       )}
       style={{ width: isMinimized ? `${SIDEBAR_MINIMIZED_WIDTH}px` : `${sidebarWidth}px` }}>
       {/* Resize Handle - only visible when not minimized */}

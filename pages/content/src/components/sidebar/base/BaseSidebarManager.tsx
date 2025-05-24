@@ -74,9 +74,12 @@ export abstract class BaseSidebarManager {
       logMessage(`[BaseSidebarManager] Applied light theme (Selected: ${theme}, System Prefers Dark: ${prefersDark})`);
     }
 
-    // Force a re-render to ensure theme changes are applied
-    this.render();
+    // OPTIMIZATION: Theme changes are applied via CSS classes only
+    // No need to re-render the entire React component tree for theme changes
+    // The React component will automatically pick up theme changes through CSS
+    // this.render();
 
+    logMessage(`[BaseSidebarManager] Applied ${theme} theme (CSS-only, no re-render)`);
     return true;
   }
 
@@ -538,10 +541,16 @@ export abstract class BaseSidebarManager {
 
   /**
    * Handle tools updated event
+   * OPTIMIZATION: Let React components handle state updates instead of forcing re-renders
    */
   protected handleToolsUpdated = (): void => {
     if (this._isVisible) {
-      this.refreshContent();
+      // OPTIMIZATION: Instead of calling refreshContent() which may trigger re-renders,
+      // let the React components handle updates through their own state management
+      logMessage('[BaseSidebarManager] Tools updated - letting React components handle updates');
+      
+      // The backgroundCommunication hook and related components will automatically
+      // detect and handle tool updates through their state management
     }
   };
 

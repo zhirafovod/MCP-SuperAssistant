@@ -8,7 +8,18 @@
 .sidebar.initial-render {
   transition: none !important;
   animation: none !important;
-  opacity: 0.01;
+}
+
+/* Prevent any flash during initial loading */
+.sidebar.initial-render.collapsed {
+  width: 56px !important;
+  transition: none !important;
+}
+
+.sidebar.initial-render.collapsed .sidebar-inner-content {
+  opacity: 0 !important;
+  transform: translateX(100%) !important;
+  transition: none !important;
 }
 
 /* Add transition class for shadow host */
@@ -77,6 +88,25 @@
 /* Minimized state hides content with opacity */
 .sidebar.collapsed .sidebar-inner-content {
   opacity: 0;
+}
+
+/* Prevent flash on initial load when sidebar should start minimized */
+[data-initial-minimized="true"] {
+  /* Apply to the shadow host itself */
+  width: 56px !important;
+  max-width: 56px !important;
+}
+
+[data-initial-minimized="true"] .sidebar {
+  width: 56px !important;
+  max-width: 56px !important;
+  transition: none !important; /* Disable transitions during initial load */
+}
+
+[data-initial-minimized="true"] .sidebar .sidebar-inner-content {
+  opacity: 0 !important;
+  transform: translateX(100%) !important;
+  transition: none !important; /* Disable transitions during initial load */
 }
 
 /* Header should not resize or shift */
