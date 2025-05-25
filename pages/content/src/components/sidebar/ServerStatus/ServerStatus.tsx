@@ -513,10 +513,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
         <div className="absolute inset-0 bg-gradient-to-r from-emerald-100 to-green-100 dark:from-emerald-900/20 dark:to-green-900/20 opacity-30 animate-pulse rounded-sm" />
       )}
       
-      {/* Save process overlay to prevent flickers */}
-      {isReconnecting && (
-        <div className="save-process-overlay" />
-      )}
+
       
       <div className="relative z-10 flex items-center justify-between">
         <div className="flex items-center gap-3">
