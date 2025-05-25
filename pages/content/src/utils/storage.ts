@@ -7,6 +7,8 @@ export interface SidebarPreferences {
   isMinimized: boolean;
   autoSubmit: boolean;
   theme: 'light' | 'dark' | 'system';
+  customInstructions: string;
+  customInstructionsEnabled: boolean;
 }
 
 // Tool Permissions
@@ -28,6 +30,8 @@ const DEFAULT_PREFERENCES: SidebarPreferences = {
   isMinimized: false,
   autoSubmit: false,
   theme: 'system',
+  customInstructions: '',
+  customInstructionsEnabled: false,
 };
 
 /**

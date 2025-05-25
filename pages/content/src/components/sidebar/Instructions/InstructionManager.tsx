@@ -4,6 +4,7 @@ import { generateInstructions } from './instructionGenerator';
 import { Typography } from '../ui';
 import { cn } from '@src/lib/utils';
 import { logMessage } from '@src/utils/helpers';
+import { getSidebarPreferences, saveSidebarPreferences, type SidebarPreferences } from '@src/utils/storage';
 
 // Create a global shared state for instructions
 export const instructionsState = {
@@ -87,16 +88,42 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
   const [insertSuccess, setInsertSuccess] = useState(false);
   const [attachSuccess, setAttachSuccess] = useState(false);
 
+  // Custom instructions state
+  const [customInstructions, setCustomInstructions] = useState('');
+  const [customInstructionsEnabled, setCustomInstructionsEnabled] = useState(false);
+  const [isEditingCustom, setIsEditingCustom] = useState(false);
+  const [preferences, setPreferences] = useState<SidebarPreferences | null>(null);
+
   // Memoize tools to prevent unnecessary regeneration
   const toolsSignature = useMemo(() => {
     return tools.map(tool => tool.name).join(',');
   }, [tools]);
 
-  // Update instructions when tools change, using memoized value
+  // Load preferences on mount
   useEffect(() => {
-    if (tools.length > 0) {
-      logMessage('Generating instructions based on updated tools');
-      const newInstructions = generateInstructions(tools);
+    const loadPreferences = async () => {
+      try {
+        const prefs = await getSidebarPreferences();
+        setPreferences(prefs);
+        setCustomInstructions(prefs.customInstructions);
+        setCustomInstructionsEnabled(prefs.customInstructionsEnabled);
+      } catch (error) {
+        logMessage(`Error loading preferences: ${error}`);
+      }
+    };
+    loadPreferences();
+  }, []);
+
+  // Generate instructions with custom instructions
+  const generateCurrentInstructions = useCallback(() => {
+    return generateInstructions(tools, customInstructions, customInstructionsEnabled);
+  }, [tools, customInstructions, customInstructionsEnabled]);
+
+  // Update instructions when tools or custom instructions change
+  useEffect(() => {
+    if (tools.length > 0 && preferences !== null) {
+      logMessage('Generating instructions based on updated tools and custom instructions');
+      const newInstructions = generateCurrentInstructions();
       setInstructions(newInstructions);
       // Update global state
       instructionsState.setInstructions(newInstructions);
@@ -105,7 +132,7 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
     return () => {
       logMessage('Cleaning up instruction generator effect');
     };
-  }, [toolsSignature]);
+  }, [toolsSignature, customInstructions, customInstructionsEnabled, preferences, generateCurrentInstructions]);
 
   // Update global state when local state changes
   useEffect(() => {
@@ -199,69 +226,158 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
   }, [instructions]);
 
   const handleCancel = useCallback(() => {
-    const originalInstructions = generateInstructions(tools);
+    const originalInstructions = generateCurrentInstructions();
     setInstructions(originalInstructions);
     // Update global state
     instructionsState.setInstructions(originalInstructions);
     setIsEditing(false);
-  }, [tools]);
+  }, [generateCurrentInstructions]);
+
+  // Custom instructions handlers
+  const handleCustomInstructionsToggle = useCallback(async (enabled: boolean) => {
+    setCustomInstructionsEnabled(enabled);
+    try {
+      await saveSidebarPreferences({ customInstructionsEnabled: enabled });
+      logMessage(`Custom instructions ${enabled ? 'enabled' : 'disabled'}`);
+    } catch (error) {
+      logMessage(`Error saving custom instructions toggle: ${error}`);
+    }
+  }, []);
+
+  const handleCustomInstructionsSave = useCallback(async () => {
+    setIsEditingCustom(false);
+    try {
+      await saveSidebarPreferences({ customInstructions });
+      logMessage('Custom instructions saved');
+    } catch (error) {
+      logMessage(`Error saving custom instructions: ${error}`);
+    }
+  }, [customInstructions]);
+
+  const handleCustomInstructionsCancel = useCallback(() => {
+    if (preferences) {
+      setCustomInstructions(preferences.customInstructions);
+    }
+    setIsEditingCustom(false);
+  }, [preferences]);
 
   return (
-    <div className="rounded-lg bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800 sidebar-card">
-      <div className="p-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-        <Typography variant="h4" className="text-slate-700 dark:text-slate-300">
-          Instructions
-        </Typography>
-        <div className="flex items-center gap-1.5">
-          {isEditing ? (
-            <>
-              <ActionButton onClick={handleSave} color="green" label="Save" />
-              <ActionButton onClick={handleCancel} color="red" label="Cancel" />
-            </>
+    <div className="space-y-3">
+      {/* Custom Instructions Panel */}
+      <div className="rounded-lg bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800 sidebar-card">
+        <div className="p-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Typography variant="h4" className="text-slate-700 dark:text-slate-300">
+              Custom Instructions
+            </Typography>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={customInstructionsEnabled}
+                onChange={(e) => handleCustomInstructionsToggle(e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+              <span className="text-xs text-slate-600 dark:text-slate-400">Enable</span>
+            </label>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {isEditingCustom ? (
+              <>
+                <ActionButton onClick={handleCustomInstructionsSave} color="green" label="Save" />
+                <ActionButton onClick={handleCustomInstructionsCancel} color="red" label="Cancel" />
+              </>
+            ) : (
+              <ActionButton 
+                onClick={() => setIsEditingCustom(true)} 
+                color="blue" 
+                label="Edit"
+                disabled={!customInstructionsEnabled}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="p-3 bg-white dark:bg-slate-900">
+          {isEditingCustom ? (
+            <textarea
+              value={customInstructions}
+              onChange={(e) => setCustomInstructions(e.target.value)}
+              placeholder="Enter your custom instructions here..."
+              className="w-full h-32 p-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200"
+            />
           ) : (
-            <>
-              <ActionButton onClick={() => setIsEditing(true)} color="blue" label="Edit" />
-              {/* <ActionButton 
-                onClick={handleCopyToClipboard} 
-                loading={isCopying}
-                success={copySuccess}
-                color="amber" 
-                label="Copy" 
-              />
-              <ActionButton 
-                onClick={handleInsertInChat} 
-                loading={isInserting}
-                success={insertSuccess}
-                color="green" 
-                label="Insert" 
-              />
-              <ActionButton 
-                onClick={handleAttachAsFile} 
-                loading={isAttaching}
-                success={attachSuccess}
-                disabled={!adapter.supportsFileUpload()} 
-                color="purple" 
-                label="Attach" 
-              /> */}
-            </>
+            <div className="max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
+              {customInstructionsEnabled && customInstructions ? (
+                <pre className="text-xs bg-slate-50 dark:bg-slate-800 p-3 rounded overflow-x-auto text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                  {customInstructions}
+                </pre>
+              ) : (
+                <div className="text-xs text-slate-500 dark:text-slate-400 italic p-3">
+                  {customInstructionsEnabled ? 'No custom instructions set' : 'Custom instructions disabled'}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
 
-      <div className="p-3 bg-white dark:bg-slate-900">
-        {isEditing ? (
-          <textarea
-            value={instructions}
-            onChange={e => setInstructions(e.target.value)}
-            className="w-full h-64 p-2 text-sm font-mono border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200"
-          />
-        ) : (
-          <div className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
-            <pre className="text-xs bg-slate-50 dark:bg-slate-800 p-3 rounded overflow-x-auto text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
-              {instructions}
-            </pre>
+      {/* Main Instructions Panel */}
+      <div className="rounded-lg bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800 sidebar-card">
+        <div className="p-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+          <Typography variant="h4" className="text-slate-700 dark:text-slate-300">
+            Instructions
+          </Typography>
+          <div className="flex items-center gap-1.5">
+            {isEditing ? (
+              <>
+                <ActionButton onClick={handleSave} color="green" label="Save" />
+                <ActionButton onClick={handleCancel} color="red" label="Cancel" />
+              </>
+            ) : (
+              <>
+                <ActionButton onClick={() => setIsEditing(true)} color="blue" label="Edit" />
+                {/* <ActionButton 
+                  onClick={handleCopyToClipboard} 
+                  loading={isCopying}
+                  success={copySuccess}
+                  color="amber" 
+                  label="Copy" 
+                />
+                <ActionButton 
+                  onClick={handleInsertInChat} 
+                  loading={isInserting}
+                  success={insertSuccess}
+                  color="green" 
+                  label="Insert" 
+                />
+                <ActionButton 
+                  onClick={handleAttachAsFile} 
+                  loading={isAttaching}
+                  success={attachSuccess}
+                  disabled={!adapter.supportsFileUpload()} 
+                  color="purple" 
+                  label="Attach" 
+                /> */}
+              </>
+            )}
           </div>
-        )}
+        </div>
+
+        <div className="p-3 bg-white dark:bg-slate-900">
+          {isEditing ? (
+            <textarea
+              value={instructions}
+              onChange={e => setInstructions(e.target.value)}
+              className="w-full h-64 p-2 text-sm font-mono border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200"
+            />
+          ) : (
+            <div className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
+              <pre className="text-xs bg-slate-50 dark:bg-slate-800 p-3 rounded overflow-x-auto text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                {instructions}
+              </pre>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
