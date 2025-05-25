@@ -22,6 +22,13 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
   const [hasBackgroundError, setHasBackgroundError] = useState<boolean>(false);
   const [isEditingUri, setIsEditingUri] = useState<boolean>(false); // Track if user is actively editing the URI
   const [lastErrorMessage, setLastErrorMessage] = useState<string>(''); // Store the last detailed error message
+  
+  // Animation states
+  const [isStatusChanging, setIsStatusChanging] = useState(false);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [settingsAnimating, setSettingsAnimating] = useState(false);
+  const [detailsAnimating, setDetailsAnimating] = useState(false);
 
   // Get communication methods with error handling
   const communicationMethods = useBackgroundCommunication();
@@ -96,21 +103,34 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
     // Always log the status for debugging
     logMessage(`[ServerStatus] Props received initialStatus: "${initialStatus}", current UI status: "${status}", isReconnecting: ${isReconnecting}`);
     
-    // ALWAYS update the status from props, regardless of any other conditions
+    // Don't update status if we're in the middle of saving configuration to prevent flickers
+    if (isReconnecting) {
+      logMessage(`[ServerStatus] Skipping status update during reconnection process`);
+      return;
+    }
+    
+    // ALWAYS update the status from props, but only when not reconnecting
     if (initialStatus && initialStatus !== status) {
       logMessage(`[ServerStatus] FORCE UPDATING status from "${status}" to "${initialStatus}"`);
+      
+      // Simple status update without excessive animation
       setStatus(initialStatus);
       
-      // Update status message based on the new status
+      // Update status message based on the new status only if not reconnecting
       if (initialStatus === 'disconnected') {
         setStatusMessage('Server disconnected. Click the refresh button to reconnect.');
       } else if (initialStatus === 'connected') {
         setStatusMessage('Connected to MCP server');
+        // Brief success indication only for connection
+        if (status !== 'connected') {
+          setShowSuccessAnimation(true);
+          setTimeout(() => setShowSuccessAnimation(false), 1000);
+        }
       } else if (initialStatus === 'error') {
         setStatusMessage('Server connection error. Please check your configuration.');
       }
     }
-  }, [initialStatus]); // Only depend on initialStatus to prevent circular dependencies
+  }, [initialStatus, status, isReconnecting]); // Include isReconnecting to prevent updates during save
 
   // Check for background communication issues
   useEffect(() => {
@@ -177,10 +197,13 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
 
   // Set status message based on connection state
   useEffect(() => {
+    // During reconnection, don't override the status message set by handleSaveServerConfig
+    if (isReconnecting) {
+      return;
+    }
+
     if (hasBackgroundError) {
       setStatusMessage('Extension background services unavailable. Try reloading the page.');
-    } else if (isReconnecting) {
-      setStatusMessage('Attempting to reconnect to MCP server...');
     } else {
       switch (status) {
         case 'connected':
@@ -196,9 +219,12 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
           setStatusMessage('Checking MCP Server status...');
       }
     }
-  }, [status, isReconnecting, hasBackgroundError]);
+  }, [status, hasBackgroundError, isReconnecting]);
 
   const handleReconnect = async () => {
+    const startTime = Date.now();
+    const minDisplayDuration = 1200; // Minimum display time for smooth UX
+    
     try {
       logMessage('[ServerStatus] Reconnect button clicked');
       setIsReconnecting(true);
@@ -227,6 +253,15 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
       const now = new Date();
       setLastReconnectTime(now.toLocaleTimeString());
 
+      // Ensure minimum display duration before updating final state
+      const elapsed = Date.now() - startTime;
+      const remainingTime = Math.max(0, minDisplayDuration - elapsed);
+      
+      if (remainingTime > 0) {
+        logMessage(`[ServerStatus] Waiting ${remainingTime}ms for smooth transition`);
+        await new Promise(resolve => setTimeout(resolve, remainingTime));
+      }
+
       // Update local status based on reconnection result
       setStatus(success ? 'connected' : 'disconnected');
 
@@ -246,6 +281,14 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
         setStatusMessage('Failed to reconnect to MCP server. Some features will be limited.');
       }
     } catch (error) {
+      // Ensure minimum display time even for errors
+      const elapsed = Date.now() - startTime;
+      const remainingTime = Math.max(0, minDisplayDuration - elapsed);
+      
+      if (remainingTime > 0) {
+        await new Promise(resolve => setTimeout(resolve, remainingTime));
+      }
+
       logMessage(`[ServerStatus] Reconnection error: ${error instanceof Error ? error.message : String(error)}`);
       
       // Use the enhanced error message from the error object and store it
@@ -276,12 +319,20 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
   };
 
   const handleDetails = () => {
-    setShowDetails(!showDetails);
+    setDetailsAnimating(true);
+    setTimeout(() => {
+      setShowDetails(!showDetails);
+      setDetailsAnimating(false);
+    }, 150);
     logMessage(`[ServerStatus] Details ${showDetails ? 'hidden' : 'shown'}, status: ${status}`);
   };
 
   const handleSettings = () => {
-    setShowSettings(!showSettings);
+    setSettingsAnimating(true);
+    setTimeout(() => {
+      setShowSettings(!showSettings);
+      setSettingsAnimating(false);
+    }, 150);
     logMessage(`[ServerStatus] Settings ${showSettings ? 'hidden' : 'shown'}`);
   };
 
@@ -299,104 +350,97 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
   };
 
   const handleSaveServerConfig = async () => {
+    if (!communicationMethods.updateServerConfig || hasBackgroundError) {
+      logMessage('[ServerStatus] Background communication not available');
+      return;
+    }
+
+    // Set stable loading state and prevent rapid UI changes
+    setIsReconnecting(true);
+    setLastReconnectTime(new Date().toLocaleTimeString());
+    
+    // Use a single stable message throughout the process to prevent flickers
+    const stableMessage = 'Saving configuration and connecting...';
+    setStatusMessage(stableMessage);
+    
+    // Clear any existing error
+    setLastErrorMessage('');
+
+    // Track the start time to ensure minimum display duration
+    const startTime = Date.now();
+    const minDisplayDuration = 1500; // Minimum 1.5 seconds to prevent jitter
+
     try {
       logMessage(`[ServerStatus] Saving server URI: ${serverUri}`);
-
-      // Handle case where background connection is unavailable
-      if (hasBackgroundError) {
-        throw new Error('Background services unavailable');
-      }
-
+      
       await updateServerConfig({ uri: serverUri });
       logMessage('[ServerStatus] Server config updated successfully');
       
       // Clear the editing flag since we successfully saved
       setIsEditingUri(false);
 
-      // After updating server config, fetch the fresh config to ensure consistency
-      // This ensures we display exactly what was stored
+      // Get fresh config to ensure consistency (but don't update UI immediately)
       try {
-        const freshConfig = await getServerConfig(true); // Force refresh to get latest
+        const freshConfig = await getServerConfig(true);
         if (freshConfig && freshConfig.uri) {
           setServerUri(freshConfig.uri);
           logMessage(`[ServerStatus] Updated serverUri to stored value: ${freshConfig.uri}`);
         }
       } catch (fetchError) {
         logMessage(`[ServerStatus] Error fetching fresh config after save: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
-        // Keep the current serverUri value since we just saved it
       }
 
-      // Reconnect to apply new settings and refresh tools
-      setIsReconnecting(true);
-      setStatusMessage('Reconnecting to apply new server settings...');
+      // Trigger reconnect
+      const success = await forceReconnect();
+      logMessage(`[ServerStatus] Reconnection ${success ? 'succeeded' : 'failed'}`);
 
-      try {
-        logMessage('[ServerStatus] Reconnecting to apply new server settings');
-        const success = await forceReconnect();
-        logMessage(`[ServerStatus] Reconnection ${success ? 'succeeded' : 'failed'}`);
+      // Calculate remaining time to ensure minimum display duration
+      const elapsed = Date.now() - startTime;
+      const remainingTime = Math.max(0, minDisplayDuration - elapsed);
+      
+      if (remainingTime > 0) {
+        logMessage(`[ServerStatus] Waiting ${remainingTime}ms to prevent visual jitter`);
+        await new Promise(resolve => setTimeout(resolve, remainingTime));
+      }
 
-        // Update last reconnect time
-        const now = new Date();
-        setLastReconnectTime(now.toLocaleTimeString());
-
-        // Update local status based on reconnection result
-        setStatus(success ? 'connected' : 'disconnected');
-
-        // Set appropriate status message
-        if (success) {
-          setStatusMessage('Successfully connected to new MCP server');
-          logMessage('[ServerStatus] Reconnection successful, waiting for server initialization');
-
-          // Wait a moment to ensure the server is fully initialized
-          await new Promise(resolve => setTimeout(resolve, 1000));
-
-          logMessage('[ServerStatus] Explicitly refreshing tools after server change');
-          try {
-            // Force a refresh to ensure we get fresh tools from the new server
-            const tools = await refreshTools(true);
-            logMessage(`[ServerStatus] Successfully refreshed ${tools.length} tools after server change`);
-
-            // Wait a moment to ensure the UI has updated
-            await new Promise(resolve => setTimeout(resolve, 500));
-          } catch (refreshError) {
-            logMessage(
-              `[ServerStatus] Error refreshing tools after server change: ${refreshError instanceof Error ? refreshError.message : String(refreshError)}`,
-            );
-
-            // Try one more time with a longer delay
-            logMessage('[ServerStatus] Retrying tool refresh after delay');
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            try {
-              const tools = await refreshTools(true);
-              logMessage(`[ServerStatus] Second refresh attempt succeeded with ${tools.length} tools`);
-            } catch (secondRefreshError) {
-              logMessage(
-                `[ServerStatus] Second refresh attempt failed: ${secondRefreshError instanceof Error ? secondRefreshError.message : String(secondRefreshError)}`,
-              );
-            }
-          }
-        } else {
-          setStatusMessage('Failed to connect to new MCP server. Some features will be limited.');
+      // Single final UI update to prevent flickers
+      if (success) {
+        setStatusMessage('Successfully connected to MCP server');
+        setStatus('connected');
+        
+        // Refresh tools silently without UI updates
+        try {
+          const tools = await refreshTools(true);
+          logMessage(`[ServerStatus] Successfully refreshed ${tools.length} tools after server change`);
+        } catch (refreshError) {
+          logMessage(`[ServerStatus] Error refreshing tools: ${refreshError instanceof Error ? refreshError.message : String(refreshError)}`);
         }
-      } catch (reconnectError) {
-        logMessage(
-          `[ServerStatus] Reconnection error: ${reconnectError instanceof Error ? reconnectError.message : String(reconnectError)}`,
-        );
-        setStatusMessage('Error connecting to new MCP server. Some features will be limited.');
-        setStatus('error');
-      } finally {
-        setIsReconnecting(false);
+      } else {
+        setStatusMessage('Failed to connect to new MCP server');
+        setStatus('disconnected');
       }
 
-      // Close settings panel
+      // Close settings on success
       setShowSettings(false);
+      
     } catch (error) {
-      logMessage(
-        `[ServerStatus] Error saving server config: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      setStatusMessage('Error updating server configuration');
-      // Don't close settings panel on error to allow the user to try again
+      // Still ensure minimum display time even for errors
+      const elapsed = Date.now() - startTime;
+      const remainingTime = Math.max(0, minDisplayDuration - elapsed);
+      
+      if (remainingTime > 0) {
+        await new Promise(resolve => setTimeout(resolve, remainingTime));
+      }
+
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setLastErrorMessage(errorMessage);
+      setStatusMessage(`Configuration failed: ${errorMessage}`);
+      setStatus('error');
+      logMessage(`[ServerStatus] Save config error: ${errorMessage}`);
+      // Keep settings open on error
+    } finally {
+      // Always reset reconnecting state
+      setIsReconnecting(false);
     }
   };
 
@@ -460,77 +504,126 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
   
   return (
     <div className={cn(
-      "px-4 py-3 border-b border-slate-200 dark:border-slate-800",
-      // Add conditional styling for disconnected/error states
-      isDisconnectedOrError && "bg-rose-50 dark:bg-rose-900/10 border border-rose-200 dark:border-rose-800/50 rounded-sm"
+      "relative px-4 py-3 border-b border-slate-200 dark:border-slate-800 transition-all duration-300 ease-out server-status-stable",
+      // Add conditional styling for disconnected/error states with smooth transitions
+      isDisconnectedOrError && "bg-gradient-to-r from-rose-50 to-red-50 dark:from-rose-900/10 dark:to-red-900/10 border border-rose-200 dark:border-rose-800/50 rounded-sm shadow-sm"
     )}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      {/* Success animation overlay - subtle */}
+      {showSuccessAnimation && (
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-100 to-green-100 dark:from-emerald-900/20 dark:to-green-900/20 opacity-30 animate-pulse rounded-sm" />
+      )}
+      
+      {/* Save process overlay to prevent flickers */}
+      {isReconnecting && (
+        <div className="save-process-overlay" />
+      )}
+      
+      <div className="relative z-10 flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <div className={cn(
-            'flex items-center justify-center w-6 h-6 rounded-full', 
+            'relative flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 ease-out server-status-icon', 
             statusInfo.bgColor,
-            // Add animation for disconnected/error states
-            isDisconnectedOrError && 'animate-pulse'
+            // Simplified animations to prevent flickers
+            isReconnecting ? 'animate-spin' : isDisconnectedOrError && 'animate-pulse'
           )}>
-            {statusInfo.icon}
+            
+            <div className="transition-transform duration-200">
+              {statusInfo.icon}
+            </div>
           </div>
-          <Typography 
-            variant="body" 
-            className={cn(
-              "font-medium",
-              // Change text color for disconnected/error states
+          
+          <div className="flex flex-col">
+            <Typography 
+              variant="body" 
+              className={cn(
+                "font-semibold transition-colors duration-200 leading-tight",
+                // Enhanced text styling with smooth color transitions
+                isDisconnectedOrError 
+                  ? "text-rose-700 dark:text-rose-400" 
+                  : status === 'connected'
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : "text-slate-700 dark:text-slate-200"
+              )}>
+              Server {statusInfo.label}
+            </Typography>
+            
+            {/* Status message with stable height to prevent layout shifts */}
+            <div className={cn(
+              "text-xs mt-0.5 transition-all duration-200 ease-out max-h-20 overflow-hidden status-message-stable",
               isDisconnectedOrError 
-                ? "text-rose-600 dark:text-rose-400" 
-                : "text-slate-700 dark:text-slate-200"
+                ? "text-rose-600 dark:text-rose-400 font-medium" 
+                : "text-slate-500 dark:text-slate-400"
             )}>
-            Server {statusInfo.label}
-          </Typography>
+              {statusMessage}
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Enhanced reconnect button for disconnected states */}
+        
+        <div className="flex items-center gap-1">
+          {/* Simplified reconnect button */}
           <button
             onClick={handleReconnect}
             disabled={isReconnecting}
             className={cn(
-              "p-1 rounded transition-colors",
-              isReconnecting ? "opacity-50 cursor-not-allowed" : "",
-              // Change button color for disconnected/error states
+              "group relative p-2 rounded-lg transition-all duration-200 ease-out hover:scale-105 active:scale-95",
+              isReconnecting ? "opacity-60 cursor-not-allowed" : "hover:shadow-md",
+              // Dynamic button styling based on state
               isDisconnectedOrError 
                 ? "text-rose-600 hover:text-rose-700 hover:bg-rose-100 dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-rose-900/30" 
-                : "text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/30",
-              // Add animation for disconnected/error states when not reconnecting
-              isDisconnectedOrError && !isReconnecting && "animate-pulse"
+                : "text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/30"
             )}
             aria-label="Reconnect to server"
             title="Reconnect to server">
-            <Icon name="refresh" size="sm" className={isReconnecting ? 'animate-spin' : ''} />
+            
+            <Icon 
+              name="refresh" 
+              size="sm" 
+              className={cn(
+                "transition-transform duration-300",
+                isReconnecting ? 'animate-spin' : 'group-hover:rotate-180'
+              )} 
+            />
           </button>
-          {/* Settings and Details buttons already have dark mode styles */}
+          
+          {/* Simplified settings button */}
           <button
             onClick={handleSettings}
-            className="p-1 text-slate-500 hover:text-slate-700 rounded hover:bg-slate-100 transition-colors dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-slate-800"
+            disabled={settingsAnimating}
+            className={cn(
+              "group relative p-2 rounded-lg transition-all duration-200 ease-out hover:scale-105 active:scale-95",
+              "text-slate-500 hover:text-slate-700 hover:bg-slate-100 hover:shadow-md dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-slate-800"
+            )}
             aria-label="Server settings"
             title="Server settings">
-            <Icon name="settings" size="sm" />
+            
+            <Icon 
+              name="settings" 
+              size="sm" 
+              className={cn(
+                "transition-transform duration-200",
+                showSettings ? "rotate-90" : "group-hover:rotate-45"
+              )}
+            />
           </button>
+          
+          {/* Simplified details button */}
           <button
             onClick={handleDetails}
-            className="p-1 text-slate-500 hover:text-slate-700 rounded hover:bg-slate-100 transition-colors dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-slate-800"
+            disabled={detailsAnimating}
+            className={cn(
+              "group relative p-2 rounded-lg transition-all duration-200 ease-out hover:scale-105 active:scale-95",
+              "text-slate-500 hover:text-slate-700 hover:bg-slate-100 hover:shadow-md dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-slate-800"
+            )}
             aria-label="Show details"
             title="Show details">
-            <Icon name="info" size="sm" />
+            
+            <Icon 
+              name="info" 
+              size="sm" 
+              className="transition-transform duration-200 group-hover:scale-110"
+            />
           </button>
         </div>
-      </div>
-
-      {/* Enhanced status message with better visibility for disconnected states */}
-      <div className={cn(
-        "mt-1 mb-1 text-xs",
-        isDisconnectedOrError 
-          ? "text-rose-600 dark:text-rose-400 font-medium" 
-          : "text-slate-600 dark:text-slate-400"
-      )}>
-        {statusMessage}
       </div>
       
       {/* Add prominent alert for disconnected/error states with detailed error message */}
@@ -553,111 +646,171 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
             </div>
           </div>
         </div>
+      )}      
+      {/* Add connecting status indicator for background communication issues */}
+      {(hasBackgroundError || !communicationMethods.sendMessage) && (
+        <div className="bg-amber-50 dark:bg-amber-900/10 border-b border-amber-200/50 dark:border-amber-800/30 p-2 flex-shrink-0">
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin w-3 h-3 border border-amber-500 border-t-transparent rounded-full"></div>
+            <Typography variant="caption" className="text-amber-700 dark:text-amber-300 text-xs">
+              Connecting to extension services...
+            </Typography>
+          </div>
+        </div>
       )}
 
       {/* Settings panel */}
       {showSettings && (
-        <Card className="mt-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-          <CardContent className="p-3 text-xs text-slate-700 dark:text-slate-300">
-            <Typography variant="h4" className="mb-2 text-slate-800 dark:text-slate-100">
-              Server Configuration
-            </Typography>
-            <div className="mb-3">
-              {/* Label already has dark mode styles */}
-              <label htmlFor="server-uri" className="block mb-1 text-slate-600 dark:text-slate-400">
-                Server URI
-              </label>
-              {/* Input already has dark mode styles */}
-              <input
-                id="server-uri"
-                type="text"
-                value={serverUri}
-                onChange={handleServerUriChange}
-                onFocus={handleServerUriFocus}
-                onBlur={handleServerUriBlur}
-                placeholder="Enter server URI"
-                className="w-full px-2 py-1 text-sm border border-slate-300 rounded bg-white dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-600 outline-none"
-              />
-            </div>
-            <div className="flex justify-end">
-              {/* Assuming Button component handles dark mode variants */}
-              <Button onClick={() => {
-                setShowSettings(false);
-                setIsEditingUri(false);
-              }} variant="outline" size="sm" className="h-7 mr-2 text-xs">
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSaveServerConfig}
-                variant="default"
-                size="sm"
-                className="h-7 text-xs"
-                disabled={hasBackgroundError || isReconnecting}>
-                Save & Reconnect
-              </Button>
-            </div>
-
-            {hasBackgroundError && (
-              <div className="mt-3 p-2 bg-rose-50 dark:bg-rose-900/20 rounded text-rose-800 dark:text-rose-200">
-                <p>Extension background services unavailable. Try reloading the page.</p>
+        <div className="mt-3 animate-in slide-in-from-top-2 duration-200">
+          <Card className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+            <CardContent className="p-4 text-xs text-slate-700 dark:text-slate-300">
+              <Typography variant="h4" className="mb-3 text-slate-800 dark:text-slate-100 font-semibold">
+                Server Configuration
+              </Typography>
+              <div className="mb-4">
+                <label htmlFor="server-uri" className="block mb-2 text-slate-600 dark:text-slate-400 font-medium">
+                  Server URI
+                </label>
+                <input
+                  id="server-uri"
+                  type="text"
+                  value={serverUri}
+                  onChange={handleServerUriChange}
+                  onFocus={handleServerUriFocus}
+                  onBlur={handleServerUriBlur}
+                  placeholder="Enter server URI (e.g., http://localhost:3000)"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:border-transparent outline-none transition-all duration-200 hover:border-slate-400 dark:hover:border-slate-500"
+                />
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <div className="flex justify-end gap-2">
+                <Button 
+                  onClick={() => {
+                    setShowSettings(false);
+                    setIsEditingUri(false);
+                  }} 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 px-3 text-xs font-medium transition-all duration-200 hover:scale-105 active:scale-95">
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveServerConfig}
+                  variant="default"
+                  size="sm"
+                  className="h-8 px-3 text-xs font-medium transition-all duration-200 hover:scale-105 active:scale-95 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white dark:text-white save-button-stable"
+                  disabled={hasBackgroundError || isReconnecting}>
+                  {isReconnecting ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Connecting...
+                    </div>
+                  ) : (
+                    'Save & Reconnect'
+                  )}
+                </Button>
+              </div>
+
+              {hasBackgroundError && (
+                <div className="mt-3 p-3 bg-rose-50 dark:bg-rose-900/20 rounded-lg border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200">
+                  <div className="flex items-center gap-2">
+                    <Icon name="alert-triangle" size="sm" className="text-rose-600 dark:text-rose-400" />
+                    <p className="font-medium">Extension background services unavailable. Try reloading the page.</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Details panel */}
       {showDetails && (
-        <Card className="mt-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-          <CardContent className="p-3 text-xs text-slate-700 dark:text-slate-300">
-            {/* Paragraphs already have dark mode styles */}
-            <p className="text-slate-600 dark:text-slate-300">
-              <span className="font-medium text-slate-700 dark:text-slate-200">Status:</span> {statusInfo.label}
-            </p>
-            <p className="text-slate-600 dark:text-slate-300">
-              <span className="font-medium text-slate-700 dark:text-slate-200">Server URI:</span>{' '}
-              {serverUri || 'Not configured'}
-            </p>
-            <p className="text-slate-600 dark:text-slate-300">
-              <span className="font-medium text-slate-700 dark:text-slate-200">Last updated:</span>{' '}
-              {new Date().toLocaleTimeString()}
-            </p>
-            {lastReconnectTime && (
-              <p className="text-slate-600 dark:text-slate-300">
-                <span className="font-medium text-slate-700 dark:text-slate-200">Last reconnect attempt:</span>{' '}
-                {lastReconnectTime}
-              </p>
-            )}
-            {status === 'disconnected' && (
-              <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 rounded text-amber-800 dark:text-amber-200">
-                <p className="font-medium">Troubleshooting tips:</p>
-                <ul className="list-disc ml-4 mt-1">
-                  <li>Check if the MCP server is running at the configured URI</li>
-                  <li>Verify network connectivity to the server</li>
-                  <li>Restart the MCP server if needed</li>
-                  <li>Use the Reconnect button to try again</li>
-                </ul>
-                {/* Show detailed error in troubleshooting section - prefer background error */}
-                {(backgroundConnectionError || lastErrorMessage) && (
-                  <div className="mt-2 p-2 bg-amber-100 dark:bg-amber-800/50 rounded">
-                    <p className="font-medium text-xs">Last Error:</p>
-                    <p className="text-xs mt-1">{backgroundConnectionError || lastErrorMessage}</p>
+        <div className="mt-3 animate-in slide-in-from-top-2 duration-200">
+          <Card className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+            <CardContent className="p-4 text-xs text-slate-700 dark:text-slate-300">
+              <Typography variant="h4" className="mb-3 text-slate-800 dark:text-slate-100 font-semibold">
+                Connection Details
+              </Typography>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between items-center py-1">
+                  <span className="font-medium text-slate-700 dark:text-slate-200">Status:</span>
+                  <span className={cn(
+                    "px-2 py-1 rounded-full text-xs font-medium",
+                    status === 'connected' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400" :
+                    status === 'disconnected' ? "bg-rose-100 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400" :
+                    "bg-slate-100 text-slate-700 dark:bg-slate-900/20 dark:text-slate-400"
+                  )}>
+                    {statusInfo.label}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-start py-1">
+                  <span className="font-medium text-slate-700 dark:text-slate-200">Server URI:</span>
+                  <span className="text-right text-slate-600 dark:text-slate-300 max-w-[200px] break-all">
+                    {serverUri || 'Not configured'}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center py-1">
+                  <span className="font-medium text-slate-700 dark:text-slate-200">Last updated:</span>
+                  <span className="text-slate-600 dark:text-slate-300">
+                    {new Date().toLocaleTimeString()}
+                  </span>
+                </div>
+                
+                {lastReconnectTime && (
+                  <div className="flex justify-between items-center py-1">
+                    <span className="font-medium text-slate-700 dark:text-slate-200">Last reconnect:</span>
+                    <span className="text-slate-600 dark:text-slate-300">
+                      {lastReconnectTime}
+                    </span>
                   </div>
                 )}
               </div>
-            )}
-            {hasBackgroundError && (
-              <div className="mt-2 p-2 bg-rose-50 dark:bg-rose-900/20 rounded text-rose-800 dark:text-rose-200">
-                <p className="font-medium">Extension Communication Issue:</p>
-                <ul className="list-disc ml-4 mt-1">
-                  <li>Try reloading the current page</li>
-                  <li>If the issue persists, restart your browser</li>
-                  <li>You may need to reinstall the extension if problems continue</li>
-                </ul>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+
+              {status === 'disconnected' && (
+                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200">
+                  <div className="flex items-start gap-2">
+                    <Icon name="info" size="sm" className="text-amber-600 dark:text-amber-400 mt-0.5" />
+                    <div>
+                      <p className="font-medium mb-2">Troubleshooting tips:</p>
+                      <ul className="list-disc ml-4 space-y-1 text-xs">
+                        <li>Check if the MCP server is running at the configured URI</li>
+                        <li>Verify network connectivity to the server</li>
+                        <li>Restart the MCP server if needed</li>
+                        <li>Use the Reconnect button to try again</li>
+                      </ul>
+                      {/* Show detailed error in troubleshooting section - prefer background error */}
+                      {(backgroundConnectionError || lastErrorMessage) && (
+                        <div className="mt-3 p-2 bg-amber-100 dark:bg-amber-800/50 rounded border border-amber-200 dark:border-amber-700">
+                          <p className="font-medium text-xs mb-1">Last Error:</p>
+                          <p className="text-xs break-words">{backgroundConnectionError || lastErrorMessage}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {hasBackgroundError && (
+                <div className="mt-4 p-3 bg-rose-50 dark:bg-rose-900/20 rounded-lg border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200">
+                  <div className="flex items-start gap-2">
+                    <Icon name="alert-triangle" size="sm" className="text-rose-600 dark:text-rose-400 mt-0.5" />
+                    <div>
+                      <p className="font-medium mb-2">Extension Communication Issue:</p>
+                      <ul className="list-disc ml-4 space-y-1 text-xs">
+                        <li>Try reloading the current page</li>
+                        <li>If the issue persists, restart your browser</li>
+                        <li>You may need to reinstall the extension if problems continue</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );

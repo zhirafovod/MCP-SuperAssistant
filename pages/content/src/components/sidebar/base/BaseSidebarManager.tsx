@@ -202,7 +202,8 @@ export abstract class BaseSidebarManager {
       styleEl.textContent = `
         html.push-mode-enabled {
           overflow-x: hidden;
-          transition: margin-right 0.3s ease, width 0.3s ease;
+          transition: margin-right 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), 
+                      width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
         
         /* Ensure fixed elements don't overlap with sidebar */
@@ -212,25 +213,45 @@ export abstract class BaseSidebarManager {
 
         /* Add smooth resize styles */
         .sidebar {
-          transition: width 0.3s ease;
+          transition: width 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
         
         .sidebar.resizing {
           transition: none !important;
         }
         
-        /* Prevent flickering during initialization */
+        /* Enhanced shadow host animations */
         #mcp-sidebar-shadow-host {
           opacity: 0;
-          transition: opacity 0.3s ease;
+          transform: translateX(30px) scale(0.95);
+          transition: opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+                      transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
         
         #mcp-sidebar-shadow-host.initialized {
           opacity: 1;
+          transform: translateX(0) scale(1);
         }
         
         #mcp-sidebar-shadow-host.showing {
           transition-duration: 0s;
+        }
+        
+        #mcp-sidebar-shadow-host.hiding {
+          opacity: 0;
+          transform: translateX(20px) scale(0.98);
+          transition: opacity 0.3s cubic-bezier(0.55, 0.085, 0.68, 0.53),
+                      transform 0.3s cubic-bezier(0.55, 0.085, 0.68, 0.53);
+        }
+        
+        /* Add subtle backdrop effect */
+        body:has(#mcp-sidebar-shadow-host.initialized) {
+          transition: filter 0.3s ease;
+        }
+        
+        /* Smooth page content adjustments */
+        body {
+          transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
       `;
       document.head.appendChild(styleEl);
@@ -389,45 +410,40 @@ export abstract class BaseSidebarManager {
       return;
     }
 
-    // Now safe to set visible and render
+    // Now safe to set visible and render with enhanced animations
     if (this.shadowHost) {
-      // Add a class to help with smooth transitions
-      this.shadowHost.classList.add('showing');
+      // Start with immediate visibility but with opacity 0 for smooth transition
       this.shadowHost.style.display = 'block';
-
-      // Forcefully ensure opacity is set to 1 to guarantee visibility
-      this.shadowHost.style.opacity = '1';
-      this.shadowHost.classList.add('initialized');
-
-      // Force browser to update the display property before continuing
+      this.shadowHost.style.opacity = '0';
+      this.shadowHost.style.transform = 'translateX(30px) scale(0.95)';
+      
+      // Add showing class for CSS animations
+      this.shadowHost.classList.add('showing');
+      
+      // Force browser reflow
       void this.shadowHost.offsetHeight;
 
-      // Wait a short time before rendering to ensure the DOM is ready
-      await new Promise<void>(resolve => setTimeout(resolve, 50));
-
-      // Now render the content
-      this.render();
-
-      // Remove the showing class after a short delay
-      setTimeout(() => {
+      // Trigger the smooth appearance animation
+      requestAnimationFrame(() => {
         if (this.shadowHost) {
-          this.shadowHost.classList.remove('showing');
-
-          // Double-check that we're visible after a short delay
+          this.shadowHost.style.transition = 'opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)';
+          this.shadowHost.style.opacity = '1';
+          this.shadowHost.style.transform = 'translateX(0) scale(1)';
+          
+          // Add initialized class after animation starts
           setTimeout(() => {
-            if (
-              this.shadowHost &&
-              (this.shadowHost.style.display !== 'block' || this.shadowHost.style.opacity !== '1')
-            ) {
-              // Force visibility if something went wrong
-              this.shadowHost.style.display = 'block';
-              this.shadowHost.style.opacity = '1';
-              logMessage('[BaseSidebarManager] Forced visibility after check');
+            if (this.shadowHost) {
+              this.shadowHost.classList.add('initialized');
+              this.shadowHost.classList.remove('showing');
             }
-          }, 300);
-
-          logMessage('Sidebar shown and rendered');
+          }, 100);
         }
+      });
+
+      // Render content after a brief delay for smoother experience
+      setTimeout(() => {
+        this.render();
+        logMessage('Sidebar shown with enhanced animations');
       }, 50);
     }
   }
@@ -437,9 +453,27 @@ export abstract class BaseSidebarManager {
    */
   public hide(): void {
     logMessage('[BaseSidebarManager] Hide method invoked.');
+    
     if (this.shadowHost) {
-      this.shadowHost.style.display = 'none';
-      logMessage('[BaseSidebarManager] Set shadowHost display to none.');
+      // Add hiding class for smooth exit animation
+      this.shadowHost.classList.add('hiding');
+      this.shadowHost.classList.remove('initialized', 'showing');
+      
+      // Start the hiding animation
+      this.shadowHost.style.transition = 'opacity 0.3s cubic-bezier(0.55, 0.085, 0.68, 0.53), transform 0.3s cubic-bezier(0.55, 0.085, 0.68, 0.53)';
+      this.shadowHost.style.opacity = '0';
+      this.shadowHost.style.transform = 'translateX(20px) scale(0.98)';
+      
+      // After animation completes, hide completely
+      setTimeout(() => {
+        if (this.shadowHost) {
+          this.shadowHost.style.display = 'none';
+          this.shadowHost.classList.remove('hiding');
+          // Reset transform for next show
+          this.shadowHost.style.transform = '';
+          logMessage('[BaseSidebarManager] Sidebar hidden with smooth animation');
+        }
+      }, 300);
     }
 
     const previouslyVisible = this._isVisible;

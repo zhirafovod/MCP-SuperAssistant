@@ -426,15 +426,34 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
 
     setIsTransitioning(true);
 
+    // Add visual feedback to sidebar during transition
+    if (sidebarRef.current) {
+      sidebarRef.current.classList.add('sidebar-transitioning');
+    }
+
     // Set timeout to end transition
     transitionTimerRef.current = window.setTimeout(() => {
       setIsTransitioning(false);
+      if (sidebarRef.current) {
+        sidebarRef.current.classList.remove('sidebar-transitioning');
+      }
       transitionTimerRef.current = null;
     }, 500) as unknown as number;
   };
 
   const toggleMinimize = () => {
     startTransition();
+    
+    // Add a subtle bounce effect to the toggle
+    if (sidebarRef.current) {
+      sidebarRef.current.style.transform = 'scale(0.98)';
+      setTimeout(() => {
+        if (sidebarRef.current) {
+          sidebarRef.current.style.transform = '';
+        }
+      }, 100);
+    }
+    
     setIsMinimized(!isMinimized);
   };
 
@@ -689,18 +708,6 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
           )}
           style={{ width: `${sidebarWidth}px` }}>
           <div className="flex flex-col h-full">
-            {/* Background Communication Status - Small, optional indicator */}
-            {!sendMessage || serverStatus === 'disconnected' ? (
-              <div className="bg-amber-50 dark:bg-amber-900/10 border-b border-amber-200/50 dark:border-amber-800/30 p-2 flex-shrink-0">
-                <div className="flex items-center space-x-2">
-                  <div className="animate-spin w-3 h-3 border border-amber-500 border-t-transparent rounded-full"></div>
-                  <Typography variant="caption" className="text-amber-700 dark:text-amber-300 text-xs">
-                    Connecting...
-                  </Typography>
-                </div>
-              </div>
-            ) : null}
-
             {/* Critical Error Display - Only show for severe failures, never block UI */}
             {initializationError && (
               <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 p-3 flex-shrink-0">

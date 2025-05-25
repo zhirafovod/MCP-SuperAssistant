@@ -4,7 +4,7 @@
  * Component-specific styling is now handled by Tailwind CSS classes.
  */
 
-/* Add at the top of the file or in an appropriate section */
+/* Enhanced sidebar appearance/disappearance animations */
 .sidebar.initial-render {
   transition: none !important;
   animation: none !important;
@@ -22,15 +22,80 @@
   transition: none !important;
 }
 
-/* Add transition class for shadow host */
-#mcp-sidebar-shadow-host.showing {
-  opacity: 0.01;
-  transition: opacity 0.3s ease-in-out;
+/* Enhanced shadow host transitions with smooth appearing/disappearing */
+#mcp-sidebar-shadow-host {
+  transition: opacity 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transform-origin: right center;
+  will-change: opacity, transform;
 }
 
-#mcp-sidebar-shadow-host:not(.showing) {
+#mcp-sidebar-shadow-host.showing {
+  opacity: 0;
+  transform: translateX(40px) scale(0.9) rotateY(5deg);
+  animation: sidebarAppear 0.6s cubic-bezier(0.34, 1.26, 0.64, 1) forwards;
+}
+
+#mcp-sidebar-shadow-host.hiding {
   opacity: 1;
-  transition: opacity 0.3s ease-in-out;
+  transform: translateX(0) scale(1);
+  animation: sidebarDisappear 0.4s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards;
+}
+
+#mcp-sidebar-shadow-host.initialized:not(.showing):not(.hiding) {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+}
+
+/* Smooth appearing animation with subtle 3D effect */
+@keyframes sidebarAppear {
+  0% {
+    opacity: 0;
+    transform: translateX(60px) scale(0.85) rotateY(8deg);
+    filter: blur(1px);
+  }
+  30% {
+    opacity: 0.4;
+    transform: translateX(20px) scale(0.95) rotateY(3deg);
+    filter: blur(0.5px);
+  }
+  60% {
+    opacity: 0.8;
+    transform: translateX(-8px) scale(1.02) rotateY(-1deg);
+    filter: blur(0px);
+  }
+  85% {
+    opacity: 0.95;
+    transform: translateX(2px) scale(1.01) rotateY(0deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1) rotateY(0deg);
+    filter: blur(0px);
+  }
+}
+
+/* Smooth disappearing animation with elegant fade */
+@keyframes sidebarDisappear {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1) rotateY(0deg);
+    filter: blur(0px);
+  }
+  20% {
+    opacity: 0.9;
+    transform: translateX(8px) scale(0.98) rotateY(2deg);
+  }
+  50% {
+    opacity: 0.5;
+    transform: translateX(20px) scale(0.92) rotateY(4deg);
+    filter: blur(0.5px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(40px) scale(0.85) rotateY(8deg);
+    filter: blur(1px);
+  }
 }
 
 /* Base sidebar container */
@@ -42,32 +107,42 @@
   z-index: 9999;
   display: flex;
   flex-direction: column;
-  /* Spring-like animation for width transitions - reduced springiness */
-  transition: width 0.5s cubic-bezier(0.25, 1.0, 0.5, 1);
+  /* Smooth, natural width transitions with subtle elastic feel */
+  transition: width 0.4s cubic-bezier(0.4, 0.0, 0.2, 1), 
+              box-shadow 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
   overflow-y: auto;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 
+              0 1px 6px rgba(0, 0, 0, 0.04);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  will-change: width; /* Simplified: only width changes need optimization */
+  will-change: width, transform; 
   transform: translateZ(0); /* Force GPU acceleration */
-  contain: strict; /* Strict containment for better performance */
+  contain: layout style;
+  backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* Sidebar in transitioning state */
 .sidebar.sidebar-transitioning {
   contain: strict;
   overflow: hidden;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sidebar.sidebar-transitioning:hover {
+  transform: scale(1.01);
 }
 
 /* Collapsed state */
 .sidebar.collapsed {
-  width: 50px;
+  width: 56px;
   overflow: hidden;
-  transition: width 0.45s cubic-bezier(0.25, 1.0, 0.5, 1);
+  transition: width 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 /* Push mode */
 .sidebar.push-mode {
-  box-shadow: -5px 0 15px rgba(0, 0, 0, 0.05);
+  box-shadow: -5px 0 20px rgba(0, 0, 0, 0.08), 
+              0 0 40px rgba(0, 0, 0, 0.04);
 }
 
 /* Resizing state - disable transitions during active resize */
@@ -76,18 +151,30 @@
   will-change: width;
 }
 
-/* New class for the content container to prevent layout shifts */
+/* Enhanced inner content transitions */
 .sidebar-inner-content {
   width: 100%;
   height: 100%;
   contain: layout;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
   overflow: hidden;
+  transform: translateX(0);
+  opacity: 1;
 }
 
-/* Minimized state hides content with opacity */
+/* Smooth content hiding animation */
 .sidebar.collapsed .sidebar-inner-content {
   opacity: 0;
+  transform: translateX(20px);
+  transition-delay: 0s;
+}
+
+/* Content revealing animation */
+.sidebar:not(.collapsed) .sidebar-inner-content {
+  opacity: 1;
+  transform: translateX(0);
+  transition-delay: 0.15s;
 }
 
 /* Prevent flash on initial load when sidebar should start minimized */
@@ -277,28 +364,184 @@
   animation-delay: 0.15s;
 }
 
-/* Input styling - reduced springiness */
+/* Input styling with enhanced micro-interactions */
 .sidebar .input-submit {
   border: none;
   border-radius: 0.375rem;
   padding: 0.5rem 1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.3s cubic-bezier(0.25, 1.0, 0.5, 1), 
-              transform 0.2s cubic-bezier(0.25, 1.0, 0.5, 1);
+  transition: background-color 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .sidebar .input-submit:hover {
-  transform: translateY(-1px);
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .sidebar .input-submit:active {
-  transform: translateY(1px);
+  transform: translateY(0) scale(0.98);
+  transition-duration: 0.1s;
 }
 
 .sidebar .input-submit:disabled {
   cursor: not-allowed;
   transform: none;
+  opacity: 0.6;
+}
+
+/* Enhanced button animations - simplified */
+.sidebar button {
+  transition: all 0.2s ease-out;
+}
+
+.sidebar button:hover {
+  transform: translateY(-1px);
+}
+
+.sidebar button:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ServerStatus specific enhancements - simplified and stable */
+.server-status-container {
+  transition: all 0.3s ease-out;
+  will-change: transform;
+}
+
+.server-status-icon {
+  transition: all 0.2s ease-out;
+}
+
+/* Prevent layout shifts during status changes */
+.server-status-stable {
+  min-height: 60px; /* Ensure consistent height */
+  contain: layout;
+}
+
+/* Smooth status change animation without flickers */
+@keyframes statusChangeSmooth {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.status-changing-smooth {
+  animation: statusChangeSmooth 0.6s ease-out;
+}
+
+/* Prevent rapid status message changes */
+.status-message-stable {
+  min-height: 1.2em; /* Prevent height changes */
+  transition: opacity 0.3s ease-out;
+}
+
+/* Loading state styling to prevent flickers */
+.loading-state {
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+/* Smooth transition for save process */
+.save-process-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(1px);
+  z-index: 10;
+  transition: opacity 0.3s ease-out;
+}
+
+.dark .save-process-overlay {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* Prevent button text from jumping during state changes */
+.save-button-stable {
+  min-width: 120px; /* Ensure consistent button width */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Simple status change animation */
+@keyframes statusChange {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.status-changing {
+  animation: statusChange 0.4s ease-out;
+}
+
+/* Subtle success pulse animation */
+@keyframes successPulse {
+  0% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.8;
+  }
+}
+
+.success-animation {
+  animation: successPulse 0.8s ease-out 2;
+}
+
+/* Simple panel slide animations */
+@keyframes slideInDown {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.panel-enter {
+  animation: slideInDown 0.2s ease-out;
+}
+
+/* Micro-interaction for status message */
+.status-message {
+  transition: all 0.2s ease-out;
+}
+
+/* Simple card animations */
+.sidebar-card {
+  transition: all 0.2s ease-out;
+}
+
+.sidebar-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.dark .sidebar-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 /* Font styles */
@@ -433,4 +676,24 @@
   100% {
     background-position: -200% 0;
   }
+}
+
+/* Simple loading animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* Fade in animation for panels */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-in {
+  animation: fadeIn 0.2s ease-out;
 }
