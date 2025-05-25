@@ -36,7 +36,7 @@ class PersistentMcpClient {
   private isConnected: boolean = false;
   private connectionPromise: Promise<Client> | null = null;
   private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 5;
+  private maxReconnectAttempts: number = 3; // Reduced from 5 to 3
   private reconnectDelay: number = 2000;
   private reconnectTimeoutId: NodeJS.Timeout | null = null;
   private lastConnectionCheck: number = 0;
@@ -44,6 +44,9 @@ class PersistentMcpClient {
   private primitives: Primitive[] | null = null;
   private primitivesLastFetched: number = 0;
   private primitivesMaxAge: number = 300000; // 5 minutes
+  private lastConnectionError: string | null = null;
+  private consecutiveFailures: number = 0;
+  private maxConsecutiveFailures: number = 3;
 
   /**
    * Private constructor to enforce singleton pattern
@@ -68,6 +71,13 @@ class PersistentMcpClient {
    * @returns Promise that resolves to the client instance
    */
   public async connect(uri: string): Promise<Client> {
+    // Check if we've exceeded consecutive failures
+    if (this.consecutiveFailures >= this.maxConsecutiveFailures) {
+      const errorMsg = `Connection permanently failed after ${this.maxConsecutiveFailures} consecutive attempts. Last error: ${this.lastConnectionError}`;
+      console.error(`[PersistentMcpClient] ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
+
     // If we're already connecting, return the existing promise
     if (this.connectionPromise && this.serverUrl === uri && this.isConnected) {
       return this.connectionPromise;
@@ -107,16 +117,15 @@ class PersistentMcpClient {
         throw new Error(`Invalid URI: ${uri}`);
       }
 
-      const serverUrl = `${baseUrl.protocol}//${baseUrl.host}`;
-      spinner.success(`URI validated: ${serverUrl}`);
+      spinner.success(`URI validated: ${uri}`);
 
-      // Check server availability
-      spinner.success(`Checking if server at ${serverUrl} is available...`);
-      const isAvailable = await isServerAvailable(serverUrl);
+      // Check server availability using the complete URL provided by the user
+      spinner.success(`Checking if MCP server at ${uri} is available...`);
+      const isAvailable = await isServerAvailable(uri);
       if (!isAvailable) {
-        throw new Error(`Server at ${serverUrl} is not available`);
+        throw new Error(`MCP server at ${uri} is not available.`);
       }
-      spinner.success(`Server at ${serverUrl} is available`);
+      spinner.success(`MCP server at ${uri} is available`);
 
       // Try modern StreamableHTTP transport first, fall back to SSE
       spinner.success(`Attempting connection with backwards compatibility...`);
@@ -171,12 +180,39 @@ class PersistentMcpClient {
           this.transport = transport;
         } catch (sseError) {
           console.error(`Failed to connect with either transport method:\n1. StreamableHTTP error: ${streamableError}\n2. SSE error: ${sseError}`);
-          throw new Error(`Could not connect to server with any available transport`);
+          
+          // Provide more specific error message based on the errors
+          let specificError = 'Could not connect to server with any available transport method.';
+          
+          if (streamableError instanceof Error && sseError instanceof Error) {
+            // Check for common connection issues
+            if (streamableError.message.includes('404') || sseError.message.includes('404')) {
+              specificError = 'MCP endpoints not found (404). The server is running but does not have MCP service endpoints available.';
+            } else if (streamableError.message.includes('403') || sseError.message.includes('403')) {
+              specificError = 'Access forbidden (403). Please check server permissions and authentication settings.';
+            } else if (streamableError.message.includes('429') || sseError.message.includes('429') ||
+                       streamableError.message.includes('HTTP 429') || sseError.message.includes('HTTP 429')) {
+              specificError = 'Rate limited (429). The server is temporarily blocking requests due to too many attempts. Please wait a moment and try again.';
+            } else if (streamableError.message.includes('405') || sseError.message.includes('405') ||
+                       streamableError.message.includes('Method Not Allowed') || sseError.message.includes('Method Not Allowed')) {
+              specificError = 'Method not allowed (405). The server is available but may have restrictions on HTTP methods. This is usually a temporary issue.';
+            } else if (streamableError.message.includes('500') || sseError.message.includes('500') ||
+                       streamableError.message.includes('502') || sseError.message.includes('502') ||
+                       streamableError.message.includes('503') || sseError.message.includes('503')) {
+              specificError = 'Server error detected. The MCP server may be experiencing issues.';
+            } else if (streamableError.message.includes('timeout') || sseError.message.includes('timeout')) {
+              specificError = 'Connection timeout. The server may be slow to respond or the MCP endpoints are not accessible.';
+            }
+          }
+          
+          throw new Error(specificError);
         }
       }
 
       // Reset reconnect attempts on successful connection
       this.reconnectAttempts = 0;
+      this.consecutiveFailures = 0;
+      this.lastConnectionError = null;
       this.isConnected = true;
       this.lastConnectionCheck = Date.now();
 
@@ -184,13 +220,50 @@ class PersistentMcpClient {
       return this.client;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      spinner.error(errorMessage);
+      
+      // Enhanced error categorization for better user feedback
+      let enhancedErrorMessage = errorMessage;
+      if (errorMessage.includes('404') || errorMessage.includes('404 page not found')) {
+        enhancedErrorMessage = 'Server URL not found (404). Please check if the MCP server is running at the correct URL and verify the server configuration.';
+      } else if (errorMessage.includes('403')) {
+        enhancedErrorMessage = 'Access forbidden (403). Please check server permissions and authentication settings.';
+      } else if (errorMessage.includes('429') || errorMessage.includes('HTTP 429')) {
+        enhancedErrorMessage = 'Rate limited (429). The server is temporarily blocking requests due to too many attempts. Please wait a moment and try again.';
+      } else if (errorMessage.includes('405') || errorMessage.includes('Method Not Allowed')) {
+        enhancedErrorMessage = 'Method not allowed (405). The server is available but may not support the requested HTTP method. This is usually a temporary issue.';
+      } else if (errorMessage.includes('500') || errorMessage.includes('502') || errorMessage.includes('503')) {
+        enhancedErrorMessage = 'Server error detected. The MCP server may be experiencing issues. Please try again later or contact your server administrator.';
+      } else if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('Connection refused')) {
+        enhancedErrorMessage = 'Connection refused. Please verify the MCP server is running and accessible at the configured URL.';
+      } else if (errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+        enhancedErrorMessage = 'Connection timeout. The server may be slow to respond or unreachable. Please check your network connection and server status.';
+      } else if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('getaddrinfo ENOTFOUND')) {
+        enhancedErrorMessage = 'Server not found. Please check the server URL and your network connection.';
+      } else if (errorMessage.includes('Could not connect to server with any available transport')) {
+        enhancedErrorMessage = 'Unable to establish connection using any available method. Please verify the server URL and ensure the MCP server is running and accessible.';
+      } else if (errorMessage.includes('MCP endpoints not found')) {
+        enhancedErrorMessage = 'MCP endpoints not found (404). The server is running but does not have MCP service endpoints available. Please verify this is an MCP server.';
+      } else if (errorMessage.includes('MCP server may be experiencing issues')) {
+        enhancedErrorMessage = 'The MCP server is experiencing internal errors. Please check server logs or contact the server administrator.';
+      } else if (errorMessage.includes('MCP endpoints are not accessible')) {
+        enhancedErrorMessage = 'MCP service endpoints are not accessible. The server is running but MCP services may not be properly configured.';
+      }
+      
+      this.lastConnectionError = enhancedErrorMessage;
+      this.consecutiveFailures++;
+      
+      spinner.error(enhancedErrorMessage);
       this.isConnected = false;
 
-      // Schedule reconnect if appropriate
-      this.scheduleReconnect();
+      // Log the failure count with enhanced message
+      console.error(`[PersistentMcpClient] Connection attempt ${this.consecutiveFailures}/${this.maxConsecutiveFailures} failed: ${enhancedErrorMessage}`);
 
-      throw error;
+      // Create a new error with the enhanced message
+      const enhancedError = new Error(enhancedErrorMessage);
+      enhancedError.stack = error instanceof Error ? error.stack : undefined;
+      
+      // Don't schedule reconnect - all reconnection is user-driven
+      throw enhancedError;
     }
   }
 
@@ -255,6 +328,11 @@ class PersistentMcpClient {
     // If we've never connected, throw an error
     if (!this.serverUrl) {
       throw new Error('No server URL set, call connect() first');
+    }
+
+    // Check if we've exceeded consecutive failures
+    if (this.consecutiveFailures >= this.maxConsecutiveFailures) {
+      throw new Error(`Connection permanently failed after ${this.maxConsecutiveFailures} consecutive attempts. Last error: ${this.lastConnectionError}`);
     }
 
     // If we're already connected and it's been less than connectionCheckInterval since the last check, return the client
@@ -381,12 +459,8 @@ class PersistentMcpClient {
         return false;
       }
 
-      // Parse the URL to get the server URL
-      const baseUrl = new URL(this.serverUrl);
-      const serverUrl = `${baseUrl.protocol}//${baseUrl.host}`;
-
-      // Check if the server is available
-      const isAvailable = await isServerAvailable(serverUrl);
+      // Check if the server is available using the complete URL
+      const isAvailable = await isServerAvailable(this.serverUrl);
 
       // Update the connection status
       const wasConnected = this.isConnected;
@@ -416,13 +490,25 @@ class PersistentMcpClient {
 
   /**
    * Force a reconnection to the MCP server
+   * @param uri Optional new URI - if provided, will update the server URL before reconnecting
    */
-  public async forceReconnect(): Promise<void> {
+  public async forceReconnect(uri?: string): Promise<void> {
+    // Reset failure counters to allow user-initiated reconnects
+    this.consecutiveFailures = 0;
+    this.lastConnectionError = null;
+    
     // Clear the primitives cache to ensure we get fresh data from the new server
     this.clearCache();
 
-    // Disconnect and reconnect
+    // Disconnect first
     await this.disconnect();
+    
+    // If a new URI is provided, update the server URL
+    if (uri) {
+      this.serverUrl = uri;
+    }
+    
+    // Reconnect with the current (possibly updated) server URL
     if (this.serverUrl) {
       await this.connect(this.serverUrl);
     }
@@ -472,29 +558,50 @@ function prettyPrint(obj: any): void {
 
 /**
  * Utility function to check if a server is available
- * @param url The URL to check
+ * @param url The URL to check - this should be the exact URL provided by the user
  * @returns Promise that resolves to true if server is available, false otherwise
  */
 async function isServerAvailable(url: string): Promise<boolean> {
   try {
     // Create an abort controller with timeout to prevent long waits
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
 
     try {
-      // Use fetch with HEAD method to check if server is available
-      await fetch(url, {
+      // Always use CORS for MCP communication - CORS must be enabled for proper MCP functionality
+      const response = await fetch(url, {
         method: 'HEAD',
-        mode: 'no-cors', // Use no-cors to avoid CORS issues during check
         signal: controller.signal,
+        // Don't set mode: 'no-cors' - we need CORS for MCP communication
       });
 
-      // If we get here, the server is available
-      console.log(`Server at ${url} appears to be available`);
-      return true;
+      // Check the actual response status
+      if (response.ok || response.status === 200) {
+        console.log(`Server at ${url} is available (status: ${response.status})`);
+        return true;
+      } else if (response.status === 404) {
+        console.log(`Server at ${url} is not available (404 - URL not found)`);
+        return false;
+      } else if (response.status === 403) {
+        console.log(`Server at ${url} returned 403 (forbidden) - considering unavailable`);
+        return false;
+      } else if (response.status === 429) {
+        console.log(`Server at ${url} returned 429 (rate limited) - considering available but with rate limiting`);
+        return true; // Rate limiting means server is available, just busy
+      } else if (response.status === 405) {
+        console.log(`Server at ${url} returned 405 (method not allowed) - considering available`);
+        return true; // Method not allowed for HEAD, but server is responsive
+      } else if (response.status >= 500) {
+        console.log(`Server at ${url} returned server error (status: ${response.status}) - considering unavailable`);
+        return false;
+      } else {
+        // For other status codes, the server is available but may not support HEAD
+        console.log(`Server at ${url} returned status ${response.status} - considering available`);
+        return true;
+      }
     } catch (fetchError) {
-      // Any fetch error means the server is not available
-      console.log(`Server at ${url} is not available (fetch failed)`);
+      // Any fetch error (including CORS errors) means the server is not available for MCP communication
+      console.log(`Server at ${url} is not available (fetch failed): ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
       return false;
     } finally {
       clearTimeout(timeoutId);
@@ -628,18 +735,14 @@ export async function checkMcpServerConnection(): Promise<boolean> {
       return false;
     }
 
-    // Get the server URL
+    // Get the server URL (this is the complete URL provided by the user)
     const serverUrl = persistentClient.getServerUrl();
     if (!serverUrl) {
       return false;
     }
 
-    // Parse the URL to get the server URL
-    const baseUrl = new URL(serverUrl);
-    const hostUrl = `${baseUrl.protocol}//${baseUrl.host}`;
-
-    // Check if the server is available
-    return await isServerAvailable(hostUrl);
+    // Check if the server is available using the complete URL
+    return await isServerAvailable(serverUrl);
   } catch (error) {
     console.error('Error checking MCP server connection:', error);
     return false;
@@ -652,12 +755,8 @@ export async function checkMcpServerConnection(): Promise<boolean> {
  * @returns Promise that resolves when reconnection is complete
  */
 export async function forceReconnectToMcpServer(uri: string): Promise<void> {
-  // Clear the cache to ensure we get fresh data from the new server
-  persistentClient.clearCache();
-
-  // Disconnect and reconnect
-  await persistentClient.disconnect();
-  await persistentClient.connect(uri);
+  // Reset all client state for the new URL
+  await persistentClient.forceReconnect(uri);
 }
 
 /**
@@ -705,13 +804,11 @@ export async function runWithBackwardsCompatibility(uri: string): Promise<void> 
   try {
     console.log(`Attempting to connect to MCP server with backwards compatibility: ${uri}`);
 
-    // First check if the server is available before attempting to connect
-    const baseUrl = new URL(uri);
-    const serverUrl = `${baseUrl.protocol}//${baseUrl.host}`;
-    const isAvailable = await isServerAvailable(serverUrl);
+    // First check if the complete URL is available before attempting to connect
+    const isAvailable = await isServerAvailable(uri);
 
     if (!isAvailable) {
-      throw new Error(`Server at ${serverUrl} is not available`);
+      throw new Error(`MCP server at ${uri} is not available`);
     }
 
     // Connect to the server using the persistent client (with backwards compatibility)

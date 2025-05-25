@@ -18,6 +18,55 @@ let connectionAttemptCount = 0;
 const MAX_CONNECTION_ATTEMPTS = 3;
 
 /**
+ * Enhanced error categorization for better tool vs connection error distinction
+ */
+function categorizeToolError(error: Error): { isConnectionError: boolean; isToolError: boolean; category: string } {
+  const errorMessage = error.message.toLowerCase();
+  
+  // Tool-specific errors that definitely don't indicate connection issues
+  const toolErrorPatterns = [
+    /tool .* not found/i,
+    /tool not found/i,
+    /method not found/i,
+    /invalid arguments/i,
+    /invalid parameters/i,
+    /mcp error -32602/i,  // Invalid params
+    /mcp error -32601/i,  // Method not found
+    /mcp error -32600/i,  // Invalid request
+    /tool '[^']+' is not available/i,
+    /tool '[^']+' not found on server/i,
+  ];
+  
+  // Connection-related errors that indicate server is unavailable
+  const connectionErrorPatterns = [
+    /connection refused/i,
+    /econnrefused/i,
+    /timeout/i,
+    /etimedout/i,
+    /enotfound/i,
+    /network error/i,
+    /server unavailable/i,
+    /could not connect/i,
+    /connection failed/i,
+    /transport error/i,
+    /fetch failed/i,
+  ];
+  
+  // Check tool errors first (highest priority)
+  if (toolErrorPatterns.some(pattern => pattern.test(errorMessage))) {
+    return { isConnectionError: false, isToolError: true, category: 'tool_error' };
+  }
+  
+  // Check connection errors
+  if (connectionErrorPatterns.some(pattern => pattern.test(errorMessage))) {
+    return { isConnectionError: true, isToolError: false, category: 'connection_error' };
+  }
+  
+  // Default to tool error for ambiguous cases to prevent unnecessary disconnections
+  return { isConnectionError: false, isToolError: true, category: 'unknown_tool_error' };
+}
+
+/**
  * Initialize the extension
  * This function is called once when the extension starts
  */
@@ -78,9 +127,17 @@ async function tryConnectToServer(uri: string): Promise<void> {
     mcpInterface.updateConnectionStatus(true);
     connectionAttemptCount = 0; // Reset counter on success
   } catch (error: any) {
-    console.warn(`MCP server unavailable: ${error.message || String(error)}`);
+    const errorCategory = categorizeToolError(error instanceof Error ? error : new Error(String(error)));
+    
+    console.warn(`MCP server connection failed (${errorCategory.category}): ${error.message || String(error)}`);
     console.log('Extension will continue to function with limited capabilities');
-    mcpInterface.updateConnectionStatus(false);
+    
+    // Only update connection status for actual connection errors
+    if (errorCategory.isConnectionError) {
+      mcpInterface.updateConnectionStatus(false);
+    } else {
+      console.log('Error categorized as tool-related, not updating connection status');
+    }
 
     // Schedule another attempt if we haven't reached the limit
     if (connectionAttemptCount < MAX_CONNECTION_ATTEMPTS) {

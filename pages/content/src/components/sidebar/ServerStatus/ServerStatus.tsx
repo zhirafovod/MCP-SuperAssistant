@@ -21,6 +21,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [hasBackgroundError, setHasBackgroundError] = useState<boolean>(false);
   const [isEditingUri, setIsEditingUri] = useState<boolean>(false); // Track if user is actively editing the URI
+  const [lastErrorMessage, setLastErrorMessage] = useState<string>(''); // Store the last detailed error message
 
   // Get communication methods with error handling
   const communicationMethods = useBackgroundCommunication();
@@ -38,6 +39,9 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
       return false;
     }
   }, [communicationMethods]);
+
+  // Get the last connection error from the background communication hook
+  const backgroundConnectionError = communicationMethods.lastConnectionError || '';
 
   const refreshTools = useCallback(
     async (forceRefresh = false) => {
@@ -243,7 +247,28 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
       }
     } catch (error) {
       logMessage(`[ServerStatus] Reconnection error: ${error instanceof Error ? error.message : String(error)}`);
-      setStatusMessage('Error reconnecting to MCP server. Some features will be limited.');
+      
+      // Use the enhanced error message from the error object and store it
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setLastErrorMessage(errorMessage); // Store the detailed error message
+      
+      // Display the enhanced error message in the status
+      if (errorMessage.includes('404') || errorMessage.includes('not found')) {
+        setStatusMessage('Server URL not found (404). Please verify your MCP server URL and ensure the server is running.');
+      } else if (errorMessage.includes('403')) {
+        setStatusMessage('Access forbidden (403). Please check server permissions and authentication settings.');
+      } else if (errorMessage.includes('500') || errorMessage.includes('502') || errorMessage.includes('503')) {
+        setStatusMessage('Server error detected. The MCP server may be experiencing issues.');
+      } else if (errorMessage.includes('Connection refused') || errorMessage.includes('ECONNREFUSED')) {
+        setStatusMessage('Connection refused. Please verify the MCP server is running at the configured URL.');
+      } else if (errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
+        setStatusMessage('Connection timeout. The server may be slow to respond or unreachable.');
+      } else if (errorMessage.includes('ENOTFOUND')) {
+        setStatusMessage('Server not found. Please check the server URL and your network connection.');
+      } else {
+        setStatusMessage(`Connection failed: ${errorMessage}`);
+      }
+      
       setStatus('error');
     } finally {
       setIsReconnecting(false);
@@ -508,16 +533,24 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
         {statusMessage}
       </div>
       
-      {/* Add prominent alert for disconnected/error states */}
+      {/* Add prominent alert for disconnected/error states with detailed error message */}
       {isDisconnectedOrError && (
         <div className="mt-2 p-2 bg-rose-100 dark:bg-rose-900/20 rounded-md border border-rose-200 dark:border-rose-800/50">
           <div className="flex items-center gap-2">
             <Icon name="alert-triangle" size="sm" className="text-rose-600 dark:text-rose-400" />
-            <Typography variant="small" className="text-rose-600 dark:text-rose-400 font-medium">
-              {status === 'disconnected' 
-                ? "Server connection lost. Click the refresh button to reconnect." 
-                : "Server connection error. Check your configuration and try again."}
-            </Typography>
+            <div className="flex-1">
+              <Typography variant="small" className="text-rose-600 dark:text-rose-400 font-medium">
+                {status === 'disconnected' 
+                  ? "Server connection lost. Click the refresh button to reconnect." 
+                  : "Server connection error. Check your configuration and try again."}
+              </Typography>
+              {/* Show detailed error message if available - prefer background error over local error */}
+              {(backgroundConnectionError || lastErrorMessage) && (
+                <Typography variant="small" className="text-rose-500 dark:text-rose-300 mt-1 text-xs">
+                  Details: {backgroundConnectionError || lastErrorMessage}
+                </Typography>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -604,6 +637,13 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
                   <li>Restart the MCP server if needed</li>
                   <li>Use the Reconnect button to try again</li>
                 </ul>
+                {/* Show detailed error in troubleshooting section - prefer background error */}
+                {(backgroundConnectionError || lastErrorMessage) && (
+                  <div className="mt-2 p-2 bg-amber-100 dark:bg-amber-800/50 rounded">
+                    <p className="font-medium text-xs">Last Error:</p>
+                    <p className="text-xs mt-1">{backgroundConnectionError || lastErrorMessage}</p>
+                  </div>
+                )}
               </div>
             )}
             {hasBackgroundError && (

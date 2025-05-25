@@ -68,4 +68,5 @@ export interface BackgroundCommunication {
   updateServerConfig: (config: ServerConfig) => Promise<boolean>;
   isInitialized: boolean;
   initializationError: string | null;
+  lastConnectionError: string; // Add the last connection error field
 }
