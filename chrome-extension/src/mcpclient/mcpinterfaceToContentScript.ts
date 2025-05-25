@@ -29,7 +29,7 @@ type Primitive = {
 class McpInterface {
   private static instance: McpInterface | null = null;
   private connections: Map<string, chrome.runtime.Port> = new Map();
-  private serverUrl: string = 'http://localhost:3006/sse'; // Default fallback, will be loaded from storage
+  private serverUrl: string = 'http://localhost:3006/mcp'; // Default fallback, will be loaded from storage
   private isConnected: boolean = false;
   private connectionCheckInterval: NodeJS.Timeout | null = null;
   private connectionCheckIntervalTime: number = 10000; // Reduced from 30000 to 10000ms

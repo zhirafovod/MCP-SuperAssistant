@@ -1,5 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { ServerCapabilities } from '@modelcontextprotocol/sdk/types.js';
 import { LoggingMessageNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
@@ -117,11 +118,62 @@ class PersistentMcpClient {
       }
       spinner.success(`Server at ${serverUrl} is available`);
 
-      // Create transport and client
-      spinner.success(`Creating MCP client and connecting to server...`);
-      this.transport = new SSEClientTransport(new URL(uri));
-      this.client = await createClient();
-      await this.client.connect(this.transport);
+      // Try modern StreamableHTTP transport first, fall back to SSE
+      spinner.success(`Attempting connection with backwards compatibility...`);
+      
+      let client: Client | undefined = undefined;
+      let transport: Transport;
+      
+      try {
+        // Try StreamableHTTP transport first (modern)
+        console.log('1. Trying StreamableHTTP transport first...');
+        client = new Client({
+          name: 'streamable-http-client',
+          version: '1.0.0'
+        }, { capabilities: {} });
+        
+        // Set up notification handler
+        client.setNotificationHandler(LoggingMessageNotificationSchema, notification => {
+          console.debug('[server log]:', notification.params.data);
+        });
+        
+        transport = new StreamableHTTPClientTransport(baseUrl);
+        await client.connect(transport);
+        
+        console.log('Successfully connected using StreamableHTTP transport');
+        spinner.success(`Connected using modern StreamableHTTP transport`);
+        
+        this.client = client;
+        this.transport = transport;
+      } catch (streamableError) {
+        // If StreamableHTTP fails, try the older SSE transport
+        console.log(`StreamableHTTP connection failed: ${streamableError}`);
+        console.log('2. Falling back to deprecated SSE transport...');
+        
+        try {
+          client = new Client({
+            name: 'sse-client',
+            version: '1.0.0'
+          }, { capabilities: {} });
+          
+          // Set up notification handler
+          client.setNotificationHandler(LoggingMessageNotificationSchema, notification => {
+            console.debug('[server log]:', notification.params.data);
+          });
+          
+          transport = new SSEClientTransport(baseUrl);
+          await client.connect(transport);
+          
+          console.log('Successfully connected using SSE transport');
+          spinner.success(`Connected using legacy SSE transport`);
+          
+          this.client = client;
+          this.transport = transport;
+        } catch (sseError) {
+          console.error(`Failed to connect with either transport method:\n1. StreamableHTTP error: ${streamableError}\n2. SSE error: ${sseError}`);
+          throw new Error(`Could not connect to server with any available transport`);
+        }
+      }
 
       // Reset reconnect attempts on successful connection
       this.reconnectAttempts = 0;
@@ -496,15 +548,15 @@ async function listPrimitives(client: Client): Promise<Primitive[]> {
 const persistentClient = PersistentMcpClient.getInstance();
 
 /**
- * Call a tool on the MCP server using the persistent connection
+ * Call a tool on the MCP server using backwards compatible connection
  * @param uri The URI of the MCP server
  * @param toolName The name of the tool to call
  * @param args The arguments to pass to the tool as an object with string keys
  * @returns Promise that resolves to the result of the tool call
  */
-export async function callToolWithSSE(uri: string, toolName: string, args: { [key: string]: unknown }): Promise<any> {
+export async function callToolWithBackwardsCompatibility(uri: string, toolName: string, args: { [key: string]: unknown }): Promise<any> {
   try {
-    // Connect to the server if not already connected
+    // Connect to the server if not already connected (with backwards compatibility)
     await persistentClient.connect(uri);
 
     // Call the tool using the persistent connection
@@ -516,19 +568,27 @@ export async function callToolWithSSE(uri: string, toolName: string, args: { [ke
 }
 
 /**
- * Get all primitives from the MCP server using the persistent connection
+ * Legacy alias for backwards compatibility
+ * @deprecated Use callToolWithBackwardsCompatibility instead
+ */
+export async function callToolWithSSE(uri: string, toolName: string, args: { [key: string]: unknown }): Promise<any> {
+  return callToolWithBackwardsCompatibility(uri, toolName, args);
+}
+
+/**
+ * Get all primitives from the MCP server using backwards compatible connection
  * @param uri The URI of the MCP server
  * @param forceRefresh Whether to force a refresh and ignore the cache
  * @returns Promise that resolves to an array of primitives (resources, tools, and prompts)
  */
-export async function getPrimitivesWithSSE(uri: string, forceRefresh: boolean = false): Promise<Primitive[]> {
+export async function getPrimitivesWithBackwardsCompatibility(uri: string, forceRefresh: boolean = false): Promise<Primitive[]> {
   try {
-    // Connect to the server if not already connected
+    // Connect to the server if not already connected (with backwards compatibility)
     await persistentClient.connect(uri);
 
     // Clear cache if force refresh is requested
     if (forceRefresh) {
-      console.log('[getPrimitivesWithSSE] Force refresh requested, clearing cache');
+      console.log('[getPrimitivesWithBackwardsCompatibility] Force refresh requested, clearing cache');
       persistentClient.clearCache();
     }
 
@@ -538,6 +598,14 @@ export async function getPrimitivesWithSSE(uri: string, forceRefresh: boolean = 
     console.error('Error getting primitives:', error);
     throw error;
   }
+}
+
+/**
+ * Legacy alias for backwards compatibility
+ * @deprecated Use getPrimitivesWithBackwardsCompatibility instead
+ */
+export async function getPrimitivesWithSSE(uri: string, forceRefresh: boolean = false): Promise<Primitive[]> {
+  return getPrimitivesWithBackwardsCompatibility(uri, forceRefresh);
 }
 
 /**
@@ -627,14 +695,15 @@ async function callTool(client: Client, toolName: string, args: { [key: string]:
 }
 
 /**
- * Run the MCP client with SSE transport
+ * Run the MCP client with backwards compatibility
  * This function is used by the background script to initialize the connection
+ * It tries StreamableHTTP transport first, then falls back to SSE transport
  * @param uri The URI of the MCP server
  * @returns Promise that resolves when the connection is established
  */
-export async function runWithSSE(uri: string): Promise<void> {
+export async function runWithBackwardsCompatibility(uri: string): Promise<void> {
   try {
-    console.log(`Attempting to connect to SSE endpoint: ${uri}`);
+    console.log(`Attempting to connect to MCP server with backwards compatibility: ${uri}`);
 
     // First check if the server is available before attempting to connect
     const baseUrl = new URL(uri);
@@ -645,7 +714,7 @@ export async function runWithSSE(uri: string): Promise<void> {
       throw new Error(`Server at ${serverUrl} is not available`);
     }
 
-    // Connect to the server using the persistent client
+    // Connect to the server using the persistent client (with backwards compatibility)
     await persistentClient.connect(uri);
 
     // Get primitives to verify the connection works
@@ -660,9 +729,17 @@ export async function runWithSSE(uri: string): Promise<void> {
     // Don't disconnect - keep the connection open
     return;
   } catch (error) {
-    console.error('Error in SSE connection setup:', error);
+    console.error('Error in MCP connection setup:', error);
     throw error;
   }
+}
+
+/**
+ * Legacy alias for backwards compatibility
+ * @deprecated Use runWithBackwardsCompatibility instead
+ */
+export async function runWithSSE(uri: string): Promise<void> {
+  return runWithBackwardsCompatibility(uri);
 }
 
 // Export the callTool function for direct use
