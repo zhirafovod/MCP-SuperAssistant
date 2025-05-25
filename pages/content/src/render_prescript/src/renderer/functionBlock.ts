@@ -185,7 +185,14 @@ if (typeof window !== 'undefined') {
 export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { current: boolean }): boolean => {
   const functionInfo = containsFunctionCalls(block);
 
+  // Early exit for non-function call content or already rendered blocks
   if (!functionInfo.hasFunctionCalls || block.closest('.function-block')) {
+    return false;
+  }
+
+  // Quick check for minimal content - avoid processing if element is essentially empty
+  const textContent = block.textContent?.trim() || '';
+  if (textContent.length < 10) { // Minimum reasonable length for a function call
     return false;
   }
 
@@ -202,11 +209,12 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
   let isNewRender = false;
   let previousCompletionStatus: boolean | null = null;
 
+  // Optimize existing div lookup
   if (processedElements.has(block)) {
     if (!existingDiv) {
-      const existingDivs = document.querySelectorAll<HTMLDivElement>(`.function-block[data-block-id="${blockId}"]`);
-      if (existingDivs.length > 0) {
-        existingDiv = existingDivs[0];
+      // Use more efficient querySelector instead of querySelectorAll
+      existingDiv = document.querySelector<HTMLDivElement>(`.function-block[data-block-id="${blockId}"]`) || undefined;
+      if (existingDiv) {
         renderedFunctionBlocks.set(blockId, existingDiv);
       } else {
         processedElements.delete(block);

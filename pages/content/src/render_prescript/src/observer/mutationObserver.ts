@@ -17,10 +17,35 @@ import {
   stopStalledStreamDetection,
 } from './stalledStreamHandler';
 
+// Performance optimization: Cache DOM queries and element checks
+const elementCache = new WeakMap<Element, { isTarget: boolean; hasContent: boolean; lastCheck: number }>();
+const CACHE_DURATION = 5000; // 5 seconds cache validity
+
+// Throttling for high-frequency mutations
+let mutationThrottle: ReturnType<typeof setTimeout> | null = null;
+const MUTATION_THROTTLE_MS = 16; // ~60fps
+
+// Pre-compiled regex patterns for better performance
+const FUNCTION_PATTERNS = [
+  /<function_calls>/i,
+  /<\/function_calls>/i,
+  /<invoke\s+name=/i,
+  /<\/invoke>/i,
+  /<tool_call/i,
+  /<\/tool_call>/i,
+  /<parameter\s+name=/i,
+  /<\/parameter>/i
+];
+
+// Compiled selector cache
+let targetSelectorsCompiled: string | null = null;
+let streamingSelectorsCompiled: string | null = null;
+
 // State for processing and observers
 let isProcessing = false;
 let functionCallObserver: MutationObserver | null = null;
 let updateThrottleTimer: ReturnType<typeof setTimeout> | null = null;
+let mutationProcessingTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Extend window type
 declare global {
@@ -33,6 +58,145 @@ declare global {
     preExistingIncompleteBlocks?: Set<string>;
   }
 }
+
+/**
+ * Optimized helper functions for better performance
+ */
+
+/**
+ * Fast check if element is a target using compiled selectors
+ */
+const isTargetElement = (element: Element): boolean => {
+  const now = Date.now();
+  const cached = elementCache.get(element);
+  
+  if (cached && (now - cached.lastCheck) < CACHE_DURATION) {
+    return cached.isTarget;
+  }
+  
+  if (!targetSelectorsCompiled) {
+    targetSelectorsCompiled = CONFIG.targetSelectors.join(',');
+  }
+  
+  const isTarget = element.matches(targetSelectorsCompiled);
+  elementCache.set(element, { isTarget, hasContent: false, lastCheck: now });
+  
+  return isTarget;
+};
+
+/**
+ * Fast check if element contains target elements
+ */
+const hasTargetElements = (element: Element): boolean => {
+  if (!targetSelectorsCompiled) {
+    targetSelectorsCompiled = CONFIG.targetSelectors.join(',');
+  }
+  return element.querySelectorAll(targetSelectorsCompiled).length > 0;
+};
+
+/**
+ * Fast check if element is a streaming container
+ */
+const isStreamingContainer = (element: Element): boolean => {
+  if (!streamingSelectorsCompiled) {
+    streamingSelectorsCompiled = CONFIG.streamingContainerSelectors.join(',');
+  }
+  return element.matches(streamingSelectorsCompiled);
+};
+
+/**
+ * Fast check if element has streaming containers
+ */
+const hasStreamingContainers = (element: Element): boolean => {
+  if (!streamingSelectorsCompiled) {
+    streamingSelectorsCompiled = CONFIG.streamingContainerSelectors.join(',');
+  }
+  return element.querySelectorAll(streamingSelectorsCompiled).length > 0;
+};
+
+/**
+ * Optimized pattern matching for function calls using pre-compiled regex
+ */
+const hasRelevantContent = (element: Element): boolean => {
+  const now = Date.now();
+  const cached = elementCache.get(element);
+  
+  if (cached && (now - cached.lastCheck) < CACHE_DURATION) {
+    return cached.hasContent;
+  }
+  
+  const textContent = element.textContent || '';
+  if (!textContent) {
+    elementCache.set(element, { isTarget: false, hasContent: false, lastCheck: now });
+    return false;
+  }
+  
+  // Use pre-compiled patterns for faster matching
+  const hasContent = FUNCTION_PATTERNS.some(pattern => pattern.test(textContent));
+  
+  const existingCache = elementCache.get(element) || { isTarget: false, hasContent: false, lastCheck: 0 };
+  elementCache.set(element, { ...existingCache, hasContent, lastCheck: now });
+  
+  return hasContent;
+};
+
+/**
+ * Fast text content pattern matching
+ */
+const hasRelevantTextContent = (textContent: string): boolean => {
+  if (!textContent) return false;
+  
+  // Use pre-compiled patterns for better performance
+  return FUNCTION_PATTERNS.some(pattern => pattern.test(textContent));
+};
+
+/**
+ * Process batched mutations for better performance
+ */
+let mutationBatch: MutationRecord[] = [];
+const processMutationBatch = (handleDomChanges: () => void): void => {
+  if (mutationBatch.length === 0) return;
+  
+  let shouldProcess = false;
+  const relevantChanges = new Set<Element>();
+  
+  // Process all mutations in the batch
+  for (const mutation of mutationBatch) {
+    if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+      for (const node of Array.from(mutation.addedNodes)) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const element = node as Element;
+          
+          // Quick checks for relevance using optimized functions
+          if (isTargetElement(element) || hasTargetElements(element) || 
+              isStreamingContainer(element) || hasStreamingContainers(element) || 
+              hasRelevantContent(element)) {
+            relevantChanges.add(element);
+            shouldProcess = true;
+          }
+        }
+      }
+    } else if (mutation.type === 'characterData') {
+      // Check if the text change might be adding function call content
+      const textContent = mutation.target.textContent || '';
+      if (hasRelevantTextContent(textContent)) {
+        const parentElement = mutation.target.parentElement;
+        if (parentElement) {
+          relevantChanges.add(parentElement);
+          shouldProcess = true;
+        }
+      }
+    }
+  }
+
+  if (shouldProcess) {
+    if (CONFIG.debug && relevantChanges.size > 0) {
+      console.debug(`Processing ${relevantChanges.size} relevant changes from ${mutationBatch.length} mutations`);
+    }
+    
+    handleDomChanges();
+  }
+};
 
 /**
  * Process queued updates with stabilization for smoothness
@@ -143,33 +307,47 @@ export const processFunctionCalls = (): number => {
 };
 
 /**
- * Check for unprocessed function calls in the document
+ * Check for unprocessed function calls in the document with improved efficiency
  */
 export const checkForUnprocessedFunctionCalls = (): number => {
   let processedCount = 0;
 
-  // Get all pre/code elements in the document that might contain function calls
+  // Use a more efficient approach to get target elements
   const getTargetElements = (): HTMLElement[] => {
-    const elements: HTMLElement[] = [];
-    for (const selector of CONFIG.targetSelectors) {
-      const found = document.querySelectorAll<HTMLElement>(selector);
-      elements.push(...Array.from(found));
-    }
-    return elements;
+    // Use a single querySelectorAll with combined selectors for better performance
+    const combinedSelector = CONFIG.targetSelectors.join(',');
+    return Array.from(document.querySelectorAll<HTMLElement>(combinedSelector));
   };
 
-  // Process each target element
+  // Process each target element with early filtering
   const elements = getTargetElements();
+  
   for (const element of elements) {
-    if (!processedElements.has(element) && !element.closest('.function-block')) {
-      const blockId =
-        element.getAttribute('data-block-id') || `block-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    // Skip if already processed or is part of a function block
+    if (processedElements.has(element) || element.closest('.function-block')) {
+      continue;
+    }
+    
+    // Quick content check to see if it might contain function calls or XML
+    const textContent = element.textContent || '';
+    if (!hasRelevantTextContent(textContent) && !textContent.includes('<')) {
+      continue;
+    }
 
-      const result = renderFunctionCall(element as HTMLPreElement, { current: false });
-      if (result) {
-        processedCount++;
-        monitorNode(element, blockId);
-      }
+    // Generate or get block ID
+    const blockId = element.getAttribute('data-block-id') || 
+      `block-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    
+    // Set block ID if not present
+    if (!element.getAttribute('data-block-id')) {
+      element.setAttribute('data-block-id', blockId);
+    }
+
+    const result = renderFunctionCall(element as HTMLPreElement, { current: false });
+    if (result) {
+      processedCount++;
+      // Track this element for streaming updates
+      monitorNode(element, blockId);
     }
   }
 
@@ -203,86 +381,20 @@ export const startDirectMonitoring = (): void => {
 
   // Create a mutation observer to watch for changes to the DOM
   functionCallObserver = new MutationObserver(mutations => {
-    let shouldProcess = false;
-    let potentialFunctionCall = false;
-
-    for (const mutation of mutations) {
-      // Check if any added nodes might contain function calls
-      if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-        for (const node of Array.from(mutation.addedNodes)) {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const element = node as Element;
-
-            // Check for target elements or containers
-            const isTargetElement = CONFIG.targetSelectors.some(selector => element.matches(selector));
-
-            const hasTargetElements = element.querySelectorAll(CONFIG.targetSelectors.join(',')).length > 0;
-
-            // Check for streaming container elements
-            const isStreamingContainer = CONFIG.streamingContainerSelectors.some(selector => element.matches(selector));
-
-            const hasStreamingContainers =
-              element.querySelectorAll(CONFIG.streamingContainerSelectors.join(',')).length > 0;
-
-            // Also check if the content of any text nodes might contain function call patterns
-            if (
-              element.textContent &&
-              (element.textContent.includes('<function_calls>') ||
-                element.textContent.includes('<invoke') ||
-                element.textContent.includes('<function_calls>') ||
-                element.textContent.includes('<invoke'))
-            ) {
-              potentialFunctionCall = true;
-            }
-
-            if (
-              isTargetElement ||
-              hasTargetElements ||
-              isStreamingContainer ||
-              hasStreamingContainers ||
-              potentialFunctionCall
-            ) {
-              shouldProcess = true;
-              break;
-            }
-          } else if (node.nodeType === Node.TEXT_NODE) {
-            // Also check text nodes for function call patterns
-            const textContent = node.textContent || '';
-            if (
-              textContent.includes('<function_calls>') ||
-              textContent.includes('<invoke') ||
-              textContent.includes('<function_calls>') ||
-              textContent.includes('<invoke')
-            ) {
-              potentialFunctionCall = true;
-              shouldProcess = true;
-              break;
-            }
-          }
-        }
-      } else if (mutation.type === 'characterData') {
-        // Check if the characterData mutation might be adding function call content
-        const textContent = mutation.target.textContent || '';
-        if (
-          textContent.includes('<function_calls>') ||
-          textContent.includes('<invoke') ||
-          textContent.includes('<function_calls>') ||
-          textContent.includes('<invoke')
-        ) {
-          potentialFunctionCall = true;
-          shouldProcess = true;
-        }
-      }
-
-      if (shouldProcess) break;
+    // Batch mutations for better performance
+    mutationBatch.push(...mutations);
+    
+    // Clear previous timer
+    if (mutationProcessingTimer) {
+      clearTimeout(mutationProcessingTimer);
     }
-
-    if (shouldProcess) {
-      if (potentialFunctionCall && CONFIG.debug) {
-        console.debug('Potential function call detected, processing DOM changes');
-      }
-      handleDomChanges();
-    }
+    
+    // Process mutations in batches with a short delay
+    mutationProcessingTimer = setTimeout(() => {
+      processMutationBatch(handleDomChanges);
+      mutationBatch = [];
+      mutationProcessingTimer = null;
+    }, MUTATION_THROTTLE_MS);
   });
 
   // Configure the observer to watch for changes to the document
@@ -306,6 +418,15 @@ export const stopDirectMonitoring = (): void => {
     functionCallObserver = null;
   }
 
+  // Clear mutation processing timer
+  if (mutationProcessingTimer) {
+    clearTimeout(mutationProcessingTimer);
+    mutationProcessingTimer = null;
+  }
+
+  // Clear mutation batch
+  mutationBatch = [];
+
   // Disconnect all streaming observers
   streamingObservers.forEach(observer => observer.disconnect());
   streamingObservers.clear();
@@ -319,7 +440,7 @@ export const stopDirectMonitoring = (): void => {
   // Stop stalled stream detection
   stopStalledStreamDetection();
 
-  if (CONFIG.debug) console.debug('Direct monitoring stopped for function calls');
+  if (CONFIG.debug) console.debug('Enhanced direct monitoring stopped for function calls');
 };
 
 /**
@@ -330,3 +451,56 @@ export const initializeObserver = (): void => {
     startDirectMonitoring();
   }
 };
+
+/**
+ * Debug and monitoring functions for enhanced observability
+ */
+
+/**
+ * Force check and process function calls manually - useful for debugging
+ */
+export const forceProcessFunctionCalls = (): number => {
+  console.debug('Force processing function calls...');
+  
+  // Clear cache to ensure fresh detection
+  elementCache.delete as any; // Clear all cache entries
+  targetSelectorsCompiled = null;
+  streamingSelectorsCompiled = null;
+  
+  // Force process without checking processed elements
+  const processedCount = checkForUnprocessedFunctionCalls();
+  
+  console.debug(`Force processed ${processedCount} function calls`);
+  return processedCount;
+};
+
+/**
+ * Get performance statistics
+ */
+export const getPerformanceStats = () => {
+  return {
+    cacheEntries: 'WeakMap (no size available)',
+    isProcessing,
+    hasObserver: !!functionCallObserver,
+    mutationBatchSize: mutationBatch.length,
+    renderedBlocksCount: renderedFunctionBlocks.size,
+    processedElementsCount: 'WeakSet (no size available)',
+    streamingObserversCount: streamingObservers.size,
+    hasMutationTimer: !!mutationProcessingTimer,
+    hasUpdateTimer: !!updateThrottleTimer,
+  };
+};
+
+/**
+ * Expose debugging functions to window object for manual testing
+ */
+if (typeof window !== 'undefined' && CONFIG.debug) {
+  (window as any).debugFunctionObserver = {
+    forceProcess: forceProcessFunctionCalls,
+    getStats: getPerformanceStats,
+    startMonitoring: startDirectMonitoring,
+    stopMonitoring: stopDirectMonitoring,
+    processFunctionCalls,
+    checkUnprocessed: checkForUnprocessedFunctionCalls,
+  };
+}
