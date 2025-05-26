@@ -4,107 +4,173 @@ import { isDarkTheme } from '../utils/themeDetector';
 const useDarkTheme = isDarkTheme();
 
 export const styles = `
-  /* Base styles that apply to both light and dark themes */
+  /* CSS Custom Properties for Performance */
   .function-block {
-    margin: 20px 0;
-    padding: 18px;
-    border-radius: 10px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+    /* Light theme variables */
+    --light-bg: #ffffff;
+    --light-text: #202124;
+    --light-text-secondary: #5f6368;
+    --light-text-tertiary: #3c4043;
+    --light-border: rgba(0,0,0,0.03);
+    --light-border-secondary: rgba(0,0,0,0.06);
+    --light-border-tertiary: rgba(0,0,0,0.12);
+    --light-shadow: 0 3px 12px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05);
+    --light-surface: #f1f3f4;
+    --light-surface-secondary: #f5f7f9;
+    --light-surface-tertiary: #f8f9fa;
+    --light-primary: #1a73e8;
+    --light-primary-hover: #1967d2;
+    --light-primary-surface: #e8f0fe;
+    --light-success: #34a853;
+    --light-error: #ea4335;
+    --light-warning: #fbbc04;
+    
+    /* Dark theme variables */
+    --dark-bg: #1e1e1e;
+    --dark-text: #e8eaed;
+    --dark-text-secondary: #9aa0a6;
+    --dark-text-tertiary: #dadce0;
+    --dark-border: rgba(255,255,255,0.03);
+    --dark-border-secondary: rgba(255,255,255,0.05);
+    --dark-border-tertiary: rgba(255,255,255,0.12);
+    --dark-shadow: 0 3px 12px rgba(0,0,0,0.25), 0 1px 4px rgba(0,0,0,0.15);
+    --dark-surface: #2d2d2d;
+    --dark-surface-secondary: #282828;
+    --dark-surface-tertiary: #1e1e1e;
+    --dark-primary: #8ab4f8;
+    --dark-primary-hover: #7ba9f0;
+    --dark-primary-surface: #174ea6;
+    --dark-success: #34a853;
+    --dark-error: #f28b82;
+    --dark-warning: #ffcb6b;
+    
+    /* Common variables */
+    --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --font-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+    --border-radius: 8px;
+    --border-radius-sm: 4px;
+    --border-radius-lg: 10px;
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 18px;
+    --spacing-xxl: 20px;
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.2s ease;
+    --transition-slow: 0.25s ease-in-out;
+  }
+
+  /* Base styles with CSS variables */
+  .function-block {
+    margin: var(--spacing-xxl) 0;
+    padding: var(--spacing-xl);
+    border-radius: var(--border-radius-lg);
+    font-family: var(--font-system);
     position: relative;
-    transition: all 0.25s ease-in-out;
+    transition: all var(--transition-slow);
+    will-change: transform, opacity;
   }
   
-  /* Apply theme-specific styles */
+  /* Theme-specific styles using CSS variables */
   .function-block.theme-light,
   .function-block:not(.theme-dark) {
-    background: #ffffff;
-    color: #202124;
-    box-shadow: 0 3px 12px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05);
-    border: 1px solid rgba(0,0,0,0.03);
+    background: var(--light-bg);
+    color: var(--light-text);
+    box-shadow: var(--light-shadow);
+    border: 1px solid var(--light-border);
   }
   
   .function-block.theme-dark {
-    background: #1e1e1e;
-    color: #e8eaed;
-    box-shadow: 0 3px 12px rgba(0,0,0,0.25), 0 1px 4px rgba(0,0,0,0.15);
-    border: 1px solid rgba(255,255,255,0.03);
+    background: var(--dark-bg);
+    color: var(--dark-text);
+    box-shadow: var(--dark-shadow);
+    border: 1px solid var(--dark-border);
   }
-  /* Style for stabilized blocks during updates */
   
-  /* Style for stabilized blocks during updates */
+  /* Optimized stabilized blocks */
   .function-block-stabilized {
     position: fixed !important;
     z-index: 1000 !important;
     box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
-    // transition: none !important; /* Disable transitions during stabilization */
+    transform: translate3d(0,0,0); /* Hardware acceleration */
   }
   
+  /* Optimized function name styles */
   .function-name {
     font-weight: 600;
-    margin-bottom: 16px;
+    margin-bottom: var(--spacing-lg);
     display: flex;
-    align-items: flex-start; /* Changed from center to flex-start */
-    font-size: 16px;
+    align-items: flex-start;
+    font-size: var(--spacing-lg);
     position: relative;
     width: 100%;
-    gap: 8px;
+    gap: var(--spacing-sm);
     line-height: 1.4;
     border-bottom: 1px solid transparent;
     padding-bottom: 10px;
-    flex-wrap: wrap; /* Allow wrapping */
+    flex-wrap: wrap;
+    transition: border-color var(--transition-normal);
   }
   
-  /* Theme-specific function name colors */
+  /* Consolidated theme styles for function name */
   .function-block.theme-light .function-name,
   .function-block:not(.theme-dark) .function-name {
-    color: #1a73e8;
+    color: var(--light-primary);
     border-bottom-color: rgba(26, 115, 232, 0.2);
   }
   
   .function-block.theme-dark .function-name {
-    color: #8ab4f8;
+    color: var(--dark-primary);
     border-bottom-color: rgba(138, 180, 248, 0.2);
   }
   
+  /* Optimized function name text */
   .function-name-text {
     display: inline-block;
-    font-size: 16px;
+    font-size: var(--spacing-lg);
     letter-spacing: 0.3px;
-    max-width: calc(100% - 90px); /* Ensure space for call ID */
-    word-break: break-word; /* Break long function names */
+    max-width: calc(100% - 90px);
+    word-break: break-word;
+    contain: layout style;
   }
+  
+  /* Optimized call ID */
   .call-id {
     font-weight: normal;
     font-size: 0.85em;
-    padding: 3px 8px;
+    padding: 3px var(--spacing-sm);
     border-radius: 6px;
     letter-spacing: 0.2px;
-    transition: opacity 0.2s ease;
-    margin-left: auto; /* Push to the right */
-    align-self: flex-start; /* Align to top */
-    white-space: nowrap; /* Prevent wrapping */
-    overflow: hidden; /* Prevent overflow */
-    text-overflow: ellipsis; /* Add ellipsis for overflow */
-    max-width: 80px; /* Limit max width */
+    transition: opacity var(--transition-normal);
+    margin-left: auto;
+    align-self: flex-start;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80px;
+    contain: layout style;
   }
   
-  /* Theme-specific call ID styles */
+  /* Consolidated call ID theme styles */
   .function-block.theme-light .call-id,
   .function-block:not(.theme-dark) .call-id {
-    color: #5f6368;
+    color: var(--light-text-secondary);
     background-color: rgba(240, 240, 240, 0.9);
-    border: 1px solid rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--light-border-secondary);
   }
   
   .function-block.theme-dark .call-id {
-    color: #9aa0a6;
+    color: var(--dark-text-secondary);
     background-color: rgba(45, 45, 45, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--dark-border-secondary);
   }
   
   .function-block:hover .call-id {
     opacity: 1;
   }
+  
+  /* Optimized parameter styles */
   .param-name {
     font-weight: 500;
     margin-top: 14px;
@@ -113,34 +179,39 @@ export const styles = `
     font-size: 14px;
     display: flex;
     align-items: center;
+    contain: layout style;
   }
   
+  /* Consolidated parameter name theme styles */
   .function-block.theme-light .param-name,
   .function-block:not(.theme-dark) .param-name {
-    color: #3c4043;
+    color: var(--light-text);
   }
   
   .function-block.theme-dark .param-name {
-    color: #dadce0;
+    color: var(--dark-text);
   }
+  
+  /* Optimized parameter value with hardware acceleration */
   .param-value {
-    padding: 12px 14px;
-    border-radius: 8px;
-    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    padding: var(--spacing-md) 14px;
+    border-radius: var(--border-radius);
+    font-family: var(--font-mono);
     white-space: pre-wrap;
-    overflow-x: auto;
-    overflow-y: auto;
+    overflow: auto;
     font-size: 13px;
     line-height: 1.5;
     max-height: 300px;
     scrollbar-width: thin;
     position: relative;
-    pointer-events: auto !important; /* Ensure scrolling works during updates */
-    transition: background-color 0.2s ease, border-color 0.2s ease;
+    pointer-events: auto !important;
+    transition: background-color var(--transition-normal), border-color var(--transition-normal);
     border: 1px solid transparent;
+    contain: layout style;
+    transform: translate3d(0,0,0); /* Hardware acceleration for scrolling */
   }
   
-  /* Custom scrollbar styles for Webkit browsers */
+  /* Optimized scrollbar styles */
   .param-value::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -148,19 +219,20 @@ export const styles = `
   
   .param-value::-webkit-scrollbar-track {
     background: transparent;
-    margin: 4px;
+    margin: var(--spacing-xs);
   }
   
   .param-value::-webkit-scrollbar-thumb {
     background-color: rgba(0, 0, 0, 0.15);
     border-radius: 20px;
-    transition: background-color 0.2s ease;
+    transition: background-color var(--transition-normal);
   }
   
   .param-value::-webkit-scrollbar-thumb:hover {
     background-color: rgba(0, 0, 0, 0.25);
   }
   
+  /* Dark theme scrollbar */
   .function-block.theme-dark .param-value::-webkit-scrollbar-thumb {
     background-color: rgba(255, 255, 255, 0.15);
   }
@@ -169,46 +241,53 @@ export const styles = `
     background-color: rgba(255, 255, 255, 0.25);
   }
   
+  /* Consolidated parameter value theme styles */
   .function-block.theme-light .param-value,
   .function-block:not(.theme-dark) .param-value {
-    background-color: #f5f7f9;
-    border-color: rgba(0, 0, 0, 0.06);
+    background-color: var(--light-surface-secondary);
+    border-color: var(--light-border-secondary);
+    color: var(--light-text);
   }
   
   .function-block.theme-dark .param-value {
-    background-color: #282828;
-    border-color: rgba(255, 255, 255, 0.05);
+    background-color: var(--dark-surface-secondary);
+    border-color: var(--dark-border-secondary);
+    color: var(--dark-text);
   }
   
-  /* Styles for large content */
+  /* Optimized large content styles */
   .large-content {
     position: relative;
+    contain: layout;
   }
   
-  .large-content::after {
-    content: "";
-    display: none; /* Hide the streaming indicator */
-  }
-  
+  .large-content::after,
   .content-truncated {
-    display: none; /* Hide the truncation notice */
+    display: none;
   }
   
-  /* Code display improvements - Apply to any streaming parameter */
+  /* Optimized streaming parameter styles with hardware acceleration */
   .param-value[data-streaming="true"] {
     padding: 0;
-    overflow: auto; /* Changed from hidden to auto to enable scrolling */
+    overflow: auto;
     display: flex;
     flex-direction: column;
-    max-height: 300px; /* Ensure we have a max height for scrolling */
+    max-height: 300px;
     border-color: rgba(26, 115, 232, 0.3);
     animation: subtle-pulse 2s infinite ease-in-out;
+    will-change: border-color;
+    transform: translate3d(0,0,0);
   }
   
+  /* Optimized keyframe animations */
   @keyframes subtle-pulse {
-    0% { border-color: rgba(26, 115, 232, 0.2); }
+    0%, 100% { border-color: rgba(26, 115, 232, 0.2); }
     50% { border-color: rgba(26, 115, 232, 0.5); }
-    100% { border-color: rgba(26, 115, 232, 0.2); }
+  }
+  
+  @keyframes subtle-pulse-dark {
+    0%, 100% { border-color: rgba(138, 180, 248, 0.2); }
+    50% { border-color: rgba(138, 180, 248, 0.5); }
   }
   
   .function-block.theme-dark .param-value[data-streaming="true"] {
@@ -216,20 +295,14 @@ export const styles = `
     animation: subtle-pulse-dark 2s infinite ease-in-out;
   }
   
-  @keyframes subtle-pulse-dark {
-    0% { border-color: rgba(138, 180, 248, 0.2); }
-    50% { border-color: rgba(138, 180, 248, 0.5); }
-    100% { border-color: rgba(138, 180, 248, 0.2); }
-  }
-  
+  /* Optimized streaming pre element */
   .param-value[data-streaming="true"] > pre {
     margin: 0;
-    padding: 12px 14px;
-    overflow-x: auto;
-    overflow-y: auto;
+    padding: var(--spacing-md) 14px;
+    overflow: auto;
     max-height: 300px;
     flex: 1;
-    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-family: var(--font-mono);
     font-size: 13px;
     line-height: 1.5;
     white-space: pre-wrap;
@@ -237,276 +310,52 @@ export const styles = `
     color: inherit;
     border: none;
     scroll-behavior: smooth;
+    contain: layout style;
+    transform: translate3d(0,0,0);
   }
   
-  /* Streaming parameter styles */
+  /* Optimized streaming indicator */
   .streaming-param-name {
     position: relative;
     display: flex;
     align-items: center;
+    contain: layout style;
   }
   
-  .streaming-param-name:before {
+  .streaming-param-name::before {
     content: "";
-    margin-right: 8px;
-    width: 8px;
-    height: 8px;
+    margin-right: var(--spacing-sm);
+    width: var(--spacing-sm);
+    height: var(--spacing-sm);
     border-radius: 50%;
-    background-color: #1a73e8;
+    background-color: var(--light-primary);
     animation: pulse 1.5s infinite ease-in-out;
-    pointer-events: none; /* Ensure it doesn't interfere with interactions */
+    pointer-events: none;
     flex-shrink: 0;
+    will-change: opacity;
   }
   
-  .function-block.theme-dark .streaming-param-name:before {
-    background-color: #8ab4f8;
+  .function-block.theme-dark .streaming-param-name::before {
+    background-color: var(--dark-primary);
   }
   
-  /* Stalled stream indicator styles */
+  /* Optimized stalled indicator styles */
   .stalled-indicator {
     margin-top: 10px;
-    padding: 8px 12px;
-    background-color: rgba(255, 200, 0, 0.1);
-    border: 1px solid rgba(255, 200, 0, 0.3);
-    border-radius: 4px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--border-radius-sm);
     font-size: 14px;
-    color: #664d00;
     animation: fadeIn 0.3s ease-in-out;
+    contain: layout style;
   }
   
-  /* Pre-existing incomplete function call indicator */
   .stalled-indicator[data-pre-existing="true"] {
     background-color: rgba(180, 180, 180, 0.1);
     border: 1px solid rgba(180, 180, 180, 0.3);
     color: #555;
   }
   
-  .stalled-message {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  }
-  
-  .stalled-message svg {
-    flex-shrink: 0;
-  }
-  
-  .stalled-retry-button {
-    margin-top: 8px;
-    padding: 4px 10px;
-    background-color: rgba(255, 200, 0, 0.2);
-    border: 1px solid rgba(255, 200, 0, 0.4);
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    color: #664d00;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    transition: background-color 0.2s;
-  }
-  
-  .stalled-retry-button:hover {
-    background-color: rgba(255, 200, 0, 0.3);
-  }
-  
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-  
-  @keyframes pulse {
-    0% { opacity: 0.4; }
-    50% { opacity: 1; }
-    100% { opacity: 0.4; }
-  }
-  
-  .incomplete-tag {
-    border-left: 3px dashed #1a73e8 !important;
-    background-color: #e8f0fe !important;
-  }
-  
-  /* Button container for consistent alignment */
-  .function-buttons {
-    display: flex;
-    gap: 12px;
-    margin-top: 18px;
-    justify-content: flex-start;
-    align-items: center;
-  }
-
-  .raw-toggle,
-  .execute-button,
-  .insert-result-button,
-  .attach-file-button {
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-  }
-  
-  .execute-button:active,
-  .insert-result-button:active,
-  .attach-file-button:active,
-  .raw-toggle:active {
-    transform: translateY(1px);
-    box-shadow: 0 0 1px rgba(0,0,0,0.12);
-  }
-  
-  /* Theme-specific raw toggle styles */
-  .function-block.theme-light .raw-toggle,
-  .function-block:not(.theme-dark) .raw-toggle {
-    background: #f1f3f4;
-    color: #5f6368;
-    border: 1px solid rgba(0, 0, 0, 0.12);
-  }
-  
-  .function-block.theme-light .raw-toggle:hover,
-  .function-block:not(.theme-dark) .raw-toggle:hover {
-    background: #e8eaed;
-    color: #202124;
-  }
-  
-  .function-block.theme-dark .raw-toggle {
-    background: #2d2d2d;
-    color: #dadce0;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-  }
-  
-  .function-block.theme-dark .raw-toggle:hover {
-    background: #3c4043;
-    color: #e8eaed;
-  }
-  
-  /* Theme-specific button styles for execute and insert buttons - light theme */
-  .function-block.theme-light .execute-button,
-  .function-block:not(.theme-dark) .execute-button,
-  .function-block.theme-light .insert-result-button,
-  .function-block.theme-light .attach-file-button,
-  .function-block:not(.theme-dark) .insert-result-button,
-  .function-block:not(.theme-dark) .attach-file-button {
-    background: #1a73e8;
-    color: white;
-    background-image: linear-gradient(to bottom, #1a73e8, #1967d2);
-  }
-  
-  .function-block.theme-light .execute-button:hover,
-  .function-block:not(.theme-dark) .execute-button:hover,
-  .function-block.theme-light .insert-result-button:hover,
-  .function-block.theme-light .attach-file-button:hover,
-  .function-block:not(.theme-dark) .insert-result-button:hover,
-  .function-block:not(.theme-dark) .attach-file-button:hover {
-    background: #1967d2;
-    background-image: linear-gradient(to bottom, #1967d2, #1765cc);
-  }
-  
-  /* Theme-specific button styles for execute and insert buttons - dark theme */
-  .function-block.theme-dark .execute-button,
-  .function-block.theme-dark .insert-result-button,
-  .function-block.theme-dark .attach-file-button {
-    background: #8ab4f8;
-    color: #202124;
-    background-image: linear-gradient(to bottom, #8ab4f8, #7ba9f0);
-  }
-  
-  .function-block.theme-dark .execute-button:hover,
-  .function-block.theme-dark .insert-result-button:hover,
-  .function-block.theme-dark .attach-file-button:hover {
-    background: #7ba9f0;
-    background-image: linear-gradient(to bottom, #7ba9f0, #6ca0e8);
-  }
-  
-  /* Function results panel styles */
-  .mcp-function-results-panel {
-    border-radius: 6px;
-    margin-top: 10px;
-    overflow: auto;
-    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-    font-size: 13px;
-    line-height: 1.5;
-  }
-  
-  .function-results-loading {
-    padding: 10px;
-    color: #5f6368;
-    font-style: italic;
-  }
-  
-  .function-result-success pre {
-    margin: 0;
-    padding: 10px;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-  
-  .function-result-error {
-    padding: 10px;
-    color: #d32f2f;
-    background-color: rgba(211, 47, 47, 0.05);
-    border-radius: 4px;
-  }
-  
-  .language-tag {
-    display: inline-block;
-    background: #e8f0fe;
-    color: #1a73e8;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 12px;
-    margin-bottom: 8px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  }
-  
-  /* Dark mode styles */
-  /* Additional theme-specific styles */
-  .function-block.theme-light .param-name,
-  .function-block:not(.theme-dark) .param-name {
-    color: #202124;
-  }
-  
-  .function-block.theme-dark .param-name {
-    color: #e8eaed;
-  }
-  
-  .function-block.theme-light .param-value,
-  .function-block:not(.theme-dark) .param-value {
-    background-color: #f1f3f4;
-    color: #202124;
-  }
-  
-  .function-block.theme-dark .param-value {
-    background-color: #2d2d2d;
-    color: #e8eaed;
-  }
-  
-  .function-block.theme-light .language-tag,
-  .function-block:not(.theme-dark) .language-tag {
-    background: #e8f0fe;
-    color: #1a73e8;
-  }
-  
-  .function-block.theme-dark .language-tag {
-    background: #174ea6;
-    color: #e8eaed;
-  }
-  
-  .function-block.theme-light .incomplete-tag,
-  .function-block:not(.theme-dark) .incomplete-tag {
-    border-left: 3px dashed #1a73e8 !important;
-    background-color: #e8f0fe !important;
-  }
-  
-  .function-block.theme-dark .incomplete-tag {
-    border-left: 3px dashed #8ab4f8 !important;
-    background-color: #174ea6 !important;
-  }
-  
+  /* Consolidated stalled indicator theme styles */
   .function-block.theme-light .stalled-indicator,
   .function-block:not(.theme-dark) .stalled-indicator {
     background-color: rgba(255, 200, 0, 0.1);
@@ -517,53 +366,256 @@ export const styles = `
   .function-block.theme-dark .stalled-indicator {
     background-color: rgba(255, 200, 0, 0.15);
     border: 1px solid rgba(255, 200, 0, 0.3);
-    color: #ffcb6b;
+    color: var(--dark-warning);
   }
   
+  .stalled-message {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-family: var(--font-system);
+  }
+  
+  .stalled-message svg {
+    flex-shrink: 0;
+  }
+  
+  .stalled-retry-button {
+    margin-top: var(--spacing-sm);
+    padding: var(--spacing-xs) 10px;
+    background-color: rgba(255, 200, 0, 0.2);
+    border: 1px solid rgba(255, 200, 0, 0.4);
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    font-size: var(--spacing-md);
+    color: #664d00;
+    font-family: var(--font-system);
+    transition: background-color var(--transition-normal);
+  }
+  
+  .stalled-retry-button:hover {
+    background-color: rgba(255, 200, 0, 0.3);
+  }
+  
+  /* Optimized keyframe animations */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+  
+  /* Optimized incomplete tag */
+  .incomplete-tag {
+    border-left: 3px dashed var(--light-primary) !important;
+    background-color: var(--light-primary-surface) !important;
+  }
+  
+  .function-block.theme-dark .incomplete-tag {
+    border-left: 3px dashed var(--dark-primary) !important;
+    background-color: var(--dark-primary-surface) !important;
+  }
+  
+  /* Optimized button container */
+  .function-buttons {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-xl);
+    justify-content: flex-start;
+    align-items: center;
+    contain: layout;
+  }
+
+  /* Unified button base styles */
+  .raw-toggle,
+  .execute-button,
+  .insert-result-button,
+  .attach-file-button {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--border-radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    will-change: transform, box-shadow;
+    contain: layout style;
+  }
+  
+  /* Optimized active states with hardware acceleration */
+  .execute-button:active,
+  .insert-result-button:active,
+  .attach-file-button:active,
+  .raw-toggle:active {
+    transform: translateY(1px) translate3d(0,0,0);
+    box-shadow: 0 0 1px rgba(0,0,0,0.12);
+  }
+  
+  /* Consolidated raw toggle theme styles */
+  .function-block.theme-light .raw-toggle,
+  .function-block:not(.theme-dark) .raw-toggle {
+    background: var(--light-surface);
+    color: var(--light-text-secondary);
+    border: 1px solid var(--light-border-tertiary);
+  }
+  
+  .function-block.theme-light .raw-toggle:hover,
+  .function-block:not(.theme-dark) .raw-toggle:hover {
+    background: #e8eaed;
+    color: var(--light-text);
+  }
+  
+  .function-block.theme-dark .raw-toggle {
+    background: var(--dark-surface);
+    color: var(--dark-text-tertiary);
+    border: 1px solid var(--dark-border-tertiary);
+  }
+  
+  .function-block.theme-dark .raw-toggle:hover {
+    background: #3c4043;
+    color: var(--dark-text);
+  }
+  
+  /* Consolidated primary button styles - light theme */
+  .function-block.theme-light .execute-button,
+  .function-block:not(.theme-dark) .execute-button,
+  .function-block.theme-light .insert-result-button,
+  .function-block.theme-light .attach-file-button,
+  .function-block:not(.theme-dark) .insert-result-button,
+  .function-block:not(.theme-dark) .attach-file-button {
+    background: var(--light-primary);
+    color: white;
+    background-image: linear-gradient(to bottom, var(--light-primary), var(--light-primary-hover));
+  }
+  
+  .function-block.theme-light .execute-button:hover,
+  .function-block:not(.theme-dark) .execute-button:hover,
+  .function-block.theme-light .insert-result-button:hover,
+  .function-block.theme-light .attach-file-button:hover,
+  .function-block:not(.theme-dark) .insert-result-button:hover,
+  .function-block:not(.theme-dark) .attach-file-button:hover {
+    background: var(--light-primary-hover);
+    background-image: linear-gradient(to bottom, var(--light-primary-hover), #1765cc);
+  }
+  
+  /* Consolidated primary button styles - dark theme */
+  .function-block.theme-dark .execute-button,
+  .function-block.theme-dark .insert-result-button,
+  .function-block.theme-dark .attach-file-button {
+    background: var(--dark-primary);
+    color: var(--light-text);
+    background-image: linear-gradient(to bottom, var(--dark-primary), var(--dark-primary-hover));
+  }
+  
+  .function-block.theme-dark .execute-button:hover,
+  .function-block.theme-dark .insert-result-button:hover,
+  .function-block.theme-dark .attach-file-button:hover {
+    background: var(--dark-primary-hover);
+    background-image: linear-gradient(to bottom, var(--dark-primary-hover), #6ca0e8);
+  }
+  
+  /* Optimized function results panel */
+  .mcp-function-results-panel,
+  .xml-results-panel {
+    border-radius: 6px;
+    margin-top: 10px;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.5;
+    contain: layout style;
+    transform: translate3d(0,0,0);
+  }
+  
+  /* Consolidated results panel theme styles */
   .function-block.theme-light .mcp-function-results-panel,
   .function-block.theme-light .xml-results-panel,
   .function-block:not(.theme-dark) .mcp-function-results-panel,
   .function-block:not(.theme-dark) .xml-results-panel {
-    background-color: #f8f9fa;
+    background-color: var(--light-surface-tertiary);
     border: 1px solid #eaecef;
-    color: #202124;
-    border-radius: 8px;
+    color: var(--light-text);
     box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-    margin-top: 12px;
+    margin-top: var(--spacing-md);
   }
   
   .function-block.theme-dark .mcp-function-results-panel,
   .function-block.theme-dark .xml-results-panel {
-    background-color: #1e1e1e;
-    border: 1px solid rgba(255,255,255,0.03);
-    color: #e8eaed;
-    border-radius: 8px;
-    box-shadow: 0 3px 12px rgba(0,0,0,0.25), 0 1px 4px rgba(0,0,0,0.15);
-    margin-top: 12px;
+    background-color: var(--dark-surface-tertiary);
+    border: 1px solid var(--dark-border);
+    color: var(--dark-text);
+    box-shadow: var(--dark-shadow);
+    margin-top: var(--spacing-md);
   }
   
+  .function-results-loading {
+    padding: 10px;
+    color: var(--light-text-secondary);
+    font-style: italic;
+  }
+  
+  .function-result-success pre {
+    margin: 0;
+    padding: 10px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  
+  /* Consolidated error theme styles */
   .function-block.theme-light .function-result-error,
   .function-block:not(.theme-dark) .function-result-error {
-    color: #d32f2f;
+    padding: 10px;
+    color: var(--light-error);
     background-color: rgba(211, 47, 47, 0.05);
+    border-radius: var(--border-radius-sm);
   }
   
   .function-block.theme-dark .function-result-error {
-    color: #f28b82;
+    color: var(--dark-error);
     background-color: rgba(242, 139, 130, 0.1);
   }
   
-  /* XML pre element styles */
+  /* Consolidated language tag theme styles */
+  .function-block.theme-light .language-tag,
+  .function-block:not(.theme-dark) .language-tag {
+    background: var(--light-primary-surface);
+    color: var(--light-primary);
+  }
+  
+  .function-block.theme-dark .language-tag {
+    background: var(--dark-primary-surface);
+    color: var(--dark-text);
+  }
+  
+  .language-tag {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: var(--border-radius-sm);
+    font-size: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+    font-family: var(--font-system);
+    contain: layout style;
+  }
+  
+  /* Optimized XML pre element */
   .xml-pre {
     white-space: pre-wrap;
     margin: 0;
-    padding: 12px;
+    padding: var(--spacing-md);
     font-family: inherit;
     font-size: 13px;
     line-height: 1.5;
+    contain: layout style;
   }
   
-  /* Small layout adjustments for mobile */
+  /* Optimized mobile layout with efficient media query */
   @media (max-width: 768px) {
     .function-block {
       padding: 14px;
@@ -571,17 +623,17 @@ export const styles = `
     }
     .function-name {
       font-size: 15px;
-      padding-bottom: 8px;
-      margin-bottom: 12px;
+      padding-bottom: var(--spacing-sm);
+      margin-bottom: var(--spacing-md);
     }
     .param-name {
       font-size: 13px;
-      margin-top: 12px;
-      margin-bottom: 4px;
+      margin-top: var(--spacing-md);
+      margin-bottom: var(--spacing-xs);
     }
     .param-value {
       max-height: 200px;
-      padding: 10px 12px;
+      padding: 10px var(--spacing-md);
       font-size: 12.5px;
     }
     .call-id {
@@ -590,7 +642,7 @@ export const styles = `
     }
   }
   
-  /* Spinner animation for loading state */
+  /* Optimized spinner with hardware acceleration */
   .function-spinner {
     display: inline-block;
     width: 14px;
@@ -598,72 +650,70 @@ export const styles = `
     border-radius: 50%;
     animation: spin 1s linear infinite;
     flex-shrink: 0;
+    will-change: transform;
+    contain: layout style;
   }
   
-  /* Theme-specific spinner styles */
+  /* Consolidated spinner theme styles */
   .function-block.theme-light .function-spinner,
   .function-block:not(.theme-dark) .function-spinner {
     border: 2px solid rgba(26,115,232,0.3);
-    border-top: 2px solid rgba(26,115,232,1);
+    border-top: 2px solid var(--light-primary);
   }
   
   .function-block.theme-dark .function-spinner {
     border: 2px solid rgba(138, 180, 248, 0.3);
-    border-top: 2px solid rgba(138, 180, 248, 1);
+    border-top: 2px solid var(--dark-primary);
   }
   
+  /* Optimized keyframe with transform3d */
   @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% { transform: rotate(0deg) translate3d(0,0,0); }
+    100% { transform: rotate(360deg) translate3d(0,0,0); }
   }
   
   .function-loading .function-name {
     position: relative;
   }
   
-  /* Styles for insert button container */
+  /* Optimized insert button container */
   .insert-button-container {
     margin-top: 10px;
     margin-bottom: 10px;
     display: flex;
     justify-content: flex-end;
+    contain: layout;
   }
   
-  /* Button padding adjustments */
   .insert-result-button {
-    padding: 4px 12px; /* Slightly smaller padding than execute button */
+    padding: var(--spacing-xs) var(--spacing-md);
   }
   
-  /* Success and error states for insert button */
-  .insert-result-button.insert-success {
-    background: #34a853 !important;
+  /* Optimized button state styles */
+  .insert-result-button.insert-success,
+  .attach-file-button.attach-success {
+    background: var(--light-success) !important;
     color: white !important;
   }
   
-  .insert-result-button.insert-error {
-    background: #ea4335 !important;
+  .insert-result-button.insert-error,
+  .attach-file-button.attach-error {
+    background: var(--light-error) !important;
     color: white !important;
   }
   
-  /* Styles for attach file button */
   .attach-file-button {
-    padding: 4px 12px;
+    padding: var(--spacing-xs) var(--spacing-md);
     margin-left: 6px;
   }
-  .attach-file-button.attach-success {
-    background: #34a853 !important;
-    color: white !important;
-  }
-  .attach-file-button.attach-error {
-    background: #ea4335 !important;
-    color: white !important;
-  }
   
-  /* Styles for smooth content transitions */
+  /* Optimized content transitions with hardware acceleration */
   .function-content-wrapper {
     position: relative;
     width: 100%;
-    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+    transition: opacity var(--transition-normal), transform var(--transition-normal);
+    will-change: opacity, transform;
+    contain: layout;
   }
   
   .function-content-new {
@@ -677,27 +727,27 @@ export const styles = `
     position: relative;
   }
   
-  /* Transition styles end */
-  
-  /* Function history panel styles */
+  /* Optimized function history panel */
   .function-history-panel {
     margin-top: 10px;
-    padding: 8px 12px;
-    border-radius: 4px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--border-radius-sm);
     font-size: 0.9em;
+    contain: layout style;
   }
   
+  /* Consolidated history panel theme styles */
   .function-block.theme-light .function-history-panel,
   .function-block:not(.theme-dark) .function-history-panel {
-    background-color: #f8f9fa;
+    background-color: var(--light-surface-tertiary);
     border: 1px solid #dadce0;
-    color: #202124;
+    color: var(--light-text);
   }
   
   .function-block.theme-dark .function-history-panel {
-    background-color: #2d2d2d;
-    border: 1px solid #5f6368;
-    color: #e8eaed;
+    background-color: var(--dark-surface);
+    border: 1px solid var(--light-text-secondary);
+    color: var(--dark-text);
   }
   
   .function-history-header {
@@ -706,34 +756,32 @@ export const styles = `
   }
   
   .function-execution-info {
-    margin-bottom: 8px;
+    margin-bottom: var(--spacing-sm);
     line-height: 1.4;
   }
   
-  .function-reexecute-button {
-    padding: 4px 10px;
-    border-radius: 4px;
+  /* Consolidated re-execute button theme styles */
+  .function-block.theme-light .function-reexecute-button,
+  .function-block:not(.theme-dark) .function-reexecute-button {
+    background: var(--light-primary);
+    color: white;
+    border: none;
+    padding: var(--spacing-xs) 10px;
+    border-radius: var(--border-radius-sm);
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.2s, color 0.2s;
-  }
-  
-  .function-block.theme-light .function-reexecute-button,
-  .function-block:not(.theme-dark) .function-reexecute-button {
-    background: #1a73e8;
-    color: white;
-    border: none;
+    transition: background-color var(--transition-normal);
   }
   
   .function-block.theme-light .function-reexecute-button:hover,
   .function-block:not(.theme-dark) .function-reexecute-button:hover {
-    background: #1765cc;
+    background: var(--light-primary-hover);
   }
   
   .function-block.theme-dark .function-reexecute-button {
-    background: #8ab4f8;
-    color: #202124;
+    background: var(--dark-primary);
+    color: var(--light-text);
     border: none;
   }
   
