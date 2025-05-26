@@ -38,13 +38,42 @@ const renderSystemMessageBox = (block: HTMLElement, content: string): void => {
     const header = document.createElement('div');
     header.className = 'function-name system-header';
     
-    // Add system message label
+    // Create left section for system message label
+    const leftSection = document.createElement('div');
+    leftSection.className = 'function-name-left';
+    
     const nameText = document.createElement('div');
     nameText.className = 'function-name-text';
     nameText.textContent = 'MCP SuperAssistant';
-    header.appendChild(nameText);
+    leftSection.appendChild(nameText);
+    
+    // Create right section for expand button
+    const rightSection = document.createElement('div');
+    rightSection.className = 'function-name-right';
+    
+    // Create expand button
+    const expandButton = document.createElement('button');
+    expandButton.className = 'expand-button';
+    expandButton.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 10l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    `;
+    expandButton.title = 'Expand system message';
+    rightSection.appendChild(expandButton);
+    
+    header.appendChild(leftSection);
+    header.appendChild(rightSection);
 
-    // Create content area
+    // Create expandable content wrapper
+    const expandableContent = document.createElement('div');
+    expandableContent.className = 'expandable-content';
+    expandableContent.style.overflow = 'hidden';
+    expandableContent.style.maxHeight = '0px';
+    expandableContent.style.opacity = '0';
+    expandableContent.style.padding = '0 12px';
+
+    // Create content area inside expandable wrapper
     const contentArea = document.createElement('div');
     contentArea.className = 'param-value system-message-content';
     
@@ -64,9 +93,89 @@ const renderSystemMessageBox = (block: HTMLElement, content: string): void => {
     // Add the system message content
     contentArea.textContent = content;
 
+    // Add content area to expandable wrapper
+    expandableContent.appendChild(contentArea);
+
+    // Setup expand/collapse functionality
+    expandButton.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const isCurrentlyExpanded = systemContainer.classList.contains('expanded');
+      const expandIcon = expandButton.querySelector('svg path');
+      
+      if (isCurrentlyExpanded) {
+        // Collapse - get current height first for smooth transition
+        const currentHeight = expandableContent.scrollHeight;
+        expandableContent.style.maxHeight = currentHeight + 'px';
+        
+        // Force reflow
+        expandableContent.offsetHeight;
+        
+        // Start collapse animation
+        requestAnimationFrame(() => {
+          systemContainer.classList.remove('expanded');
+          expandableContent.style.maxHeight = '0px';
+          expandableContent.style.opacity = '0';
+          expandableContent.style.paddingTop = '0';
+          expandableContent.style.paddingBottom = '0';
+          
+          if (expandIcon) {
+            expandIcon.setAttribute('d', 'M8 10l4 4 4-4');
+          }
+          expandButton.title = 'Expand system message';
+        });
+        
+        // Hide after animation completes
+        setTimeout(() => {
+          if (!systemContainer.classList.contains('expanded')) {
+            expandableContent.style.display = 'none';
+          }
+        }, 500); // Match transition duration
+      } else {
+        // Expand - prepare for smooth animation
+        systemContainer.classList.add('expanded');
+        expandableContent.style.display = 'block';
+        expandableContent.style.maxHeight = '0px';
+        expandableContent.style.opacity = '0';
+        expandableContent.style.paddingTop = '0';
+        expandableContent.style.paddingBottom = '0';
+        
+        // Get target height
+        const targetHeight = expandableContent.scrollHeight;
+        
+        // Start expand animation
+        requestAnimationFrame(() => {
+          expandableContent.style.maxHeight = targetHeight + 'px';
+          expandableContent.style.opacity = '1';
+          expandableContent.style.paddingTop = '12px';
+          expandableContent.style.paddingBottom = '12px';
+          
+          if (expandIcon) {
+            expandIcon.setAttribute('d', 'M16 14l-4-4-4 4');
+          }
+          expandButton.title = 'Collapse system message';
+        });
+        
+        // Wait longer than transition duration to remove explicit height smoothly
+        setTimeout(() => {
+          if (systemContainer.classList.contains('expanded')) {
+            // Gradually transition to auto height to prevent jerk
+            expandableContent.style.transition = 'none';
+            expandableContent.style.maxHeight = 'none';
+            
+            // Re-enable transitions after a frame
+            requestAnimationFrame(() => {
+              expandableContent.style.transition = '';
+            });
+          }
+        }, 600); // Wait longer than the 500ms transition
+      }
+    };
+
     // Add components to container
     systemContainer.appendChild(header);
-    systemContainer.appendChild(contentArea);
+    systemContainer.appendChild(expandableContent);
 
     // Replace the original block with our rendered version
     while (block.firstChild) {
@@ -160,21 +269,50 @@ export const renderFunctionResult = (block: HTMLElement, isProcessingRef: { curr
       const header = document.createElement('div');
       header.className = 'function-name';
       
-      // Add function result label
+      // Create left section for function result label
+      const leftSection = document.createElement('div');
+      leftSection.className = 'function-name-left';
+      
       const nameText = document.createElement('div');
       nameText.className = 'function-name-text';
       nameText.textContent = 'Function Result';
-      header.appendChild(nameText);
+      leftSection.appendChild(nameText);
+      
+      // Create right section for call ID and expand button
+      const rightSection = document.createElement('div');
+      rightSection.className = 'function-name-right';
       
       // Add call ID if available
       if (callId) {
         const callIdElement = document.createElement('div');
         callIdElement.className = 'call-id';
         callIdElement.textContent = callId;
-        header.appendChild(callIdElement);
+        rightSection.appendChild(callIdElement);
       }
+      
+      // Create expand button
+      const expandButton = document.createElement('button');
+      expandButton.className = 'expand-button';
+      expandButton.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 10l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      `;
+      expandButton.title = 'Expand function result';
+      rightSection.appendChild(expandButton);
+      
+      header.appendChild(leftSection);
+      header.appendChild(rightSection);
 
-      // Create content area
+      // Create expandable content wrapper
+      const expandableContent = document.createElement('div');
+      expandableContent.className = 'expandable-content';
+      expandableContent.style.overflow = 'hidden';
+      expandableContent.style.maxHeight = '0px';
+      expandableContent.style.opacity = '0';
+      expandableContent.style.padding = '0 12px';
+
+      // Create content area inside expandable wrapper
       const contentArea = document.createElement('div');
       contentArea.className = 'param-value function-result-content';
       
@@ -259,9 +397,89 @@ export const renderFunctionResult = (block: HTMLElement, isProcessingRef: { curr
         contentArea.textContent = resultContent;
       }
 
+      // Add content area to expandable wrapper
+      expandableContent.appendChild(contentArea);
+
       // Add components to container
       resultContainer.appendChild(header);
-      resultContainer.appendChild(contentArea);
+      resultContainer.appendChild(expandableContent);
+
+      // Setup expand/collapse functionality
+      expandButton.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const isCurrentlyExpanded = resultContainer.classList.contains('expanded');
+        const expandIcon = expandButton.querySelector('svg path');
+        
+        if (isCurrentlyExpanded) {
+          // Collapse - get current height first for smooth transition
+          const currentHeight = expandableContent.scrollHeight;
+          expandableContent.style.maxHeight = currentHeight + 'px';
+          
+          // Force reflow
+          expandableContent.offsetHeight;
+          
+          // Start collapse animation
+          requestAnimationFrame(() => {
+            resultContainer.classList.remove('expanded');
+            expandableContent.style.maxHeight = '0px';
+            expandableContent.style.opacity = '0';
+            expandableContent.style.paddingTop = '0';
+            expandableContent.style.paddingBottom = '0';
+            
+            if (expandIcon) {
+              expandIcon.setAttribute('d', 'M8 10l4 4 4-4');
+            }
+            expandButton.title = 'Expand function result';
+          });
+          
+          // Hide after animation completes
+          setTimeout(() => {
+            if (!resultContainer.classList.contains('expanded')) {
+              expandableContent.style.display = 'none';
+            }
+          }, 500); // Match transition duration
+        } else {
+          // Expand - prepare for smooth animation
+          resultContainer.classList.add('expanded');
+          expandableContent.style.display = 'block';
+          expandableContent.style.maxHeight = '0px';
+          expandableContent.style.opacity = '0';
+          expandableContent.style.paddingTop = '0';
+          expandableContent.style.paddingBottom = '0';
+          
+          // Get target height
+          const targetHeight = expandableContent.scrollHeight;
+          
+          // Start expand animation
+          requestAnimationFrame(() => {
+            expandableContent.style.maxHeight = targetHeight + 'px';
+            expandableContent.style.opacity = '1';
+            expandableContent.style.paddingTop = '12px';
+            expandableContent.style.paddingBottom = '12px';
+            
+            if (expandIcon) {
+              expandIcon.setAttribute('d', 'M16 14l-4-4-4 4');
+            }
+            expandButton.title = 'Collapse function result';
+          });
+          
+          // Wait longer than transition duration to remove explicit height smoothly
+          setTimeout(() => {
+            if (resultContainer.classList.contains('expanded')) {
+              // Gradually transition to auto height to prevent jerk
+              expandableContent.style.transition = 'none';
+              expandableContent.style.maxHeight = 'none';
+              
+              // Re-enable transitions after a frame
+              requestAnimationFrame(() => {
+                expandableContent.style.transition = '';
+              });
+            }
+          }, 600); // Wait longer than the 500ms transition
+        }
+      };
 
       // Replace the original block with our rendered version
       // Don't use safelySetContent here as it might be causing the [object HTMLDivElement] issue

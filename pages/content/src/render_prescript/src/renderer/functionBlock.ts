@@ -466,24 +466,35 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     functionNameElement = document.createElement('div');
     functionNameElement.className = 'function-name';
 
+    // Create left section for function name and spinner
+    const leftSection = document.createElement('div');
+    leftSection.className = 'function-name-left';
+
     const functionNameText = document.createElement('span');
     functionNameText.className = 'function-name-text';
     functionNameText.textContent = functionName;
-    functionNameElement.appendChild(functionNameText);
-
-    // Add call ID to the function name element (positioned top right via CSS)
-    if (callId) {
-      const callIdElement = document.createElement('span');
-      callIdElement.className = 'call-id';
-      callIdElement.textContent = callId;
-      functionNameElement.appendChild(callIdElement);
-    }
+    leftSection.appendChild(functionNameText);
 
     // If function is not complete and not a pre-existing incomplete block, add spinner
     if (!functionInfo.isComplete && !isPreExistingIncomplete) {
       const spinner = document.createElement('div');
       spinner.className = 'spinner';
-      functionNameElement.appendChild(spinner);
+      leftSection.appendChild(spinner);
+    }
+
+    // Create right section for expand button and call ID
+    const rightSection = document.createElement('div');
+    rightSection.className = 'function-name-right';
+
+    functionNameElement.appendChild(leftSection);
+    functionNameElement.appendChild(rightSection);
+
+    // Add call ID to the right section
+    if (callId) {
+      const callIdElement = document.createElement('span');
+      callIdElement.className = 'call-id';
+      callIdElement.textContent = callId;
+      rightSection.appendChild(callIdElement);
     }
 
     blockDiv.appendChild(functionNameElement);
@@ -514,11 +525,47 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     }
   }
 
-  // Get existing or create a new parameter container
-  let paramsContainer = cachedElements.paramsContainer;
+  // Create expand/collapse functionality for the function block
+  let expandButton = functionNameElement?.querySelector('.expand-button') as HTMLButtonElement | null;
+  
+  if (!expandButton && functionNameElement) {
+    // Create expand button
+    expandButton = document.createElement('button');
+    expandButton.className = 'expand-button';
+    expandButton.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 10l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    `;
+    expandButton.title = 'Expand function details';
+    
+    // Add expand button to the right section
+    const rightSection = functionNameElement.querySelector('.function-name-right');
+    if (rightSection) {
+      rightSection.appendChild(expandButton);
+    } else {
+      functionNameElement.appendChild(expandButton);
+    }
+  }
 
+  // Get existing or create expandable content and parameter container
+  let paramsContainer = cachedElements.paramsContainer;
+  let expandableContent = blockDiv.querySelector('.expandable-content') as HTMLDivElement | null;
+
+  // Always create expandable content wrapper if it doesn't exist
+  if (!expandableContent) {
+    expandableContent = document.createElement('div');
+    expandableContent.className = 'expandable-content';
+    expandableContent.style.display = 'none'; // Initially collapsed
+    expandableContent.style.overflow = 'hidden';
+    expandableContent.style.transition = 'all 0.3s ease-in-out';
+    expandableContent.style.maxHeight = '0px';
+    expandableContent.style.opacity = '0';
+    blockDiv.appendChild(expandableContent);
+  }
+
+  // Create parameter container if it doesn't exist
   if (!paramsContainer) {
-    // Create parameter container if it doesn't exist
     paramsContainer = document.createElement('div');
     paramsContainer.className = 'function-params';
     
@@ -530,11 +577,92 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
       width: '100%'
     });
     
-    blockDiv.appendChild(paramsContainer);
+    expandableContent.appendChild(paramsContainer);
     
     // Update cache
     cachedElements.paramsContainer = paramsContainer;
     elementQueryCache.set(blockDiv, { ...cachedElements, lastCacheTime: Date.now() });
+  }
+
+  // Setup expand/collapse functionality
+  if (expandButton && expandableContent) {
+    const isExpanded = blockDiv.classList.contains('expanded');
+    
+    expandButton.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const isCurrentlyExpanded = blockDiv.classList.contains('expanded');
+      const expandIcon = expandButton.querySelector('svg path');
+      
+      if (isCurrentlyExpanded) {
+        // Collapse - get current height first for smooth transition
+        const currentHeight = expandableContent.scrollHeight;
+        expandableContent.style.maxHeight = currentHeight + 'px';
+        
+        // Force reflow
+        expandableContent.offsetHeight;
+        
+        // Start collapse animation
+        requestAnimationFrame(() => {
+          blockDiv.classList.remove('expanded');
+          expandableContent.style.maxHeight = '0px';
+          expandableContent.style.opacity = '0';
+          expandableContent.style.paddingTop = '0';
+          expandableContent.style.paddingBottom = '0';
+          
+          if (expandIcon) {
+            expandIcon.setAttribute('d', 'M8 10l4 4 4-4');
+          }
+          expandButton.title = 'Expand function details';
+        });
+        
+        // Hide after animation completes
+        setTimeout(() => {
+          if (!blockDiv.classList.contains('expanded')) {
+            expandableContent.style.display = 'none';
+          }
+        }, 400); // Match transition duration
+      } else {
+        // Expand - prepare for smooth animation
+        blockDiv.classList.add('expanded');
+        expandableContent.style.display = 'block';
+        expandableContent.style.maxHeight = '0px';
+        expandableContent.style.opacity = '0';
+        expandableContent.style.paddingTop = '0';
+        expandableContent.style.paddingBottom = '0';
+        
+        // Get target height
+        const targetHeight = expandableContent.scrollHeight;
+        
+        // Start expand animation
+        requestAnimationFrame(() => {
+          expandableContent.style.maxHeight = targetHeight + 'px';
+          expandableContent.style.opacity = '1';
+          expandableContent.style.paddingTop = '12px';
+          expandableContent.style.paddingBottom = '12px';
+          
+          if (expandIcon) {
+            expandIcon.setAttribute('d', 'M16 14l-4-4-4 4');
+          }
+          expandButton.title = 'Collapse function details';
+        });
+        
+        // Wait longer than transition duration to remove explicit height smoothly
+        setTimeout(() => {
+          if (blockDiv.classList.contains('expanded')) {
+            // Gradually transition to auto height to prevent jerk
+            expandableContent.style.transition = 'none';
+            expandableContent.style.maxHeight = 'none';
+            
+            // Re-enable transitions after a frame
+            requestAnimationFrame(() => {
+              expandableContent.style.transition = '';
+            });
+          }
+        }, 600); // Wait longer than the 500ms transition
+      }
+    };
   }
 
   // Performance: Use pre-parsed parameters from efficient parsing
@@ -571,18 +699,16 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     }
   }
 
-  // Create a button container if it doesn't exist
+  // Create a button container if it doesn't exist - buttons should always be visible
   let buttonContainer = cachedElements.buttonContainer;
   if (!buttonContainer) {
     // Create a container for the buttons
     buttonContainer = document.createElement('div');
     buttonContainer.className = 'function-buttons';
+    buttonContainer.style.marginTop = '12px';
+    
+    // Add buttons after expandable content (so they're always visible)
     blockDiv.appendChild(buttonContainer);
-
-    // Add spacing between parameters and buttons
-    const spacer = document.createElement('div');
-    spacer.style.height = '8px';
-    blockDiv.insertBefore(spacer, buttonContainer);
     
     // Update cache
     cachedElements.buttonContainer = buttonContainer;
@@ -591,12 +717,8 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
 
   // Add a raw XML toggle if the function is complete
   if (functionInfo.isComplete && !blockDiv.querySelector('.raw-toggle')) {
-    // If we're using the button container, pass it instead of blockDiv
-    if (buttonContainer) {
-      addRawXmlToggle(buttonContainer, rawContent);
-    } else {
-      addRawXmlToggle(blockDiv, rawContent);
-    }
+    // Always use the button container for buttons
+    addRawXmlToggle(buttonContainer!, rawContent);
   }
 
   // Add execute button if the function is complete and not already added
@@ -605,12 +727,8 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     if (!completeParameters) {
       completeParameters = extractFunctionParameters(rawContent);
     }
-    // If we're using the button container, pass it instead of blockDiv
-    if (buttonContainer) {
-      addExecuteButton(buttonContainer, rawContent); // rawContent has full data here
-    } else {
-      addExecuteButton(blockDiv, rawContent);
-    }
+    // Always use the button container for buttons
+    addExecuteButton(buttonContainer!, rawContent); // rawContent has full data here
 
     // Setup auto-execution with proper wait time for DOM stabilization
     // This ensures we wait until the function block is fully rendered and stable

@@ -61,7 +61,7 @@ export const styles = `
     --transition-slow: 0.25s ease-in-out;
   }
 
-  /* Base styles with CSS variables */
+  /* Base styles with CSS variables and GPU acceleration */
   .function-block {
     margin: var(--spacing-xxl) 0;
     padding: var(--spacing-xl);
@@ -69,7 +69,12 @@ export const styles = `
     font-family: var(--font-system);
     position: relative;
     transition: all var(--transition-slow);
-    will-change: transform, opacity;
+    will-change: transform, opacity, box-shadow;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+    box-sizing: border-box;
+    overflow: hidden;
   }
   
   /* Theme-specific styles using CSS variables */
@@ -96,78 +101,243 @@ export const styles = `
     transform: translate3d(0,0,0); /* Hardware acceleration */
   }
   
-  /* Optimized function name styles */
+  /* Optimized function name styles - Always visible header */
   .function-name {
     font-weight: 600;
-    margin-bottom: var(--spacing-lg);
     display: flex;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: space-between;
     font-size: var(--spacing-lg);
     position: relative;
     width: 100%;
-    gap: var(--spacing-sm);
+    max-width: 100%;
     line-height: 1.4;
-    border-bottom: 1px solid transparent;
-    padding-bottom: 10px;
-    flex-wrap: wrap;
-    transition: border-color var(--transition-normal);
+    padding: 12px;
+    margin-bottom: 0;
+    transition: all var(--transition-normal);
+    cursor: pointer;
+    border-radius: var(--border-radius-md) var(--border-radius-md) 0 0;
+    will-change: transform, opacity, background-color;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  
+  /* Left section of function header (function name) */
+  .function-name-left {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex: 1;
+    min-width: 0; /* Allow text truncation */
+    max-width: 100%;
+    overflow: hidden;
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+  }
+  
+  /* Right section of function header (expand button + call-id) */
+  .function-name-right {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-shrink: 0;
+    max-width: 40%;
+    overflow: hidden;
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+  }
+  
+  /* Collapsed state - rounded corners all around */
+  .function-block:not(.expanded) .function-name {
+    border-radius: var(--border-radius-md);
+    margin-bottom: 0;
+  }
+  
+  /* Expanded state - rounded top corners only */
+  .function-block.expanded .function-name {
+    border-radius: var(--border-radius-md) var(--border-radius-md) 0 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Optimized expand button styles */
+  .expand-button {
+    background: none;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: var(--border-radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-normal);
+    opacity: 0.8;
+    will-change: transform, opacity, box-shadow;
+    min-width: 28px;
+    height: 28px;
+    margin-left: var(--spacing-sm);
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+  }
+  
+  .expand-button:hover {
+    opacity: 1;
+    transform: scale(1.05) translate3d(0, 0, 0);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+  
+  .expand-button:active {
+    transform: scale(0.95) translate3d(0, 0, 0);
+  }
+  
+  .expand-button svg {
+    transition: transform var(--transition-normal);
+    will-change: transform;
+  }
+  
+  /* Consolidated expand button theme styles */
+  .function-block.theme-light .expand-button,
+  .function-block:not(.theme-dark) .expand-button {
+    color: var(--light-text-secondary);
+    border-color: rgba(26, 115, 232, 0.2);
+    background-color: rgba(26, 115, 232, 0.05);
+  }
+  
+  .function-block.theme-light .expand-button:hover,
+  .function-block:not(.theme-dark) .expand-button:hover {
+    color: var(--light-primary);
+    background-color: rgba(26, 115, 232, 0.1);
+    border-color: rgba(26, 115, 232, 0.4);
+  }
+  
+  .function-block.theme-dark .expand-button {
+    color: var(--dark-text-secondary);
+    border-color: rgba(138, 180, 248, 0.2);
+    background-color: rgba(138, 180, 248, 0.05);
+  }
+  
+  .function-block.theme-dark .expand-button:hover {
+    color: var(--dark-primary);
+    background-color: rgba(138, 180, 248, 0.1);
+    border-color: rgba(138, 180, 248, 0.4);
+  }
+  
+  /* Optimized expandable content with smooth animations */
+  .expandable-content {
+    overflow: hidden;
+    transition: max-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), 
+                opacity 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                padding 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                border-color 0.4s ease-out;
+    will-change: max-height, opacity, padding;
+    border: 1px solid transparent;
+    border-top: none;
+    border-radius: 0 0 var(--border-radius-md) var(--border-radius-md);
+    background-color: rgba(0, 0, 0, 0.02);
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    max-height: 0;
+    opacity: 0;
+    padding: 0 12px;
+  }
+  
+  .function-block:not(.expanded) .expandable-content {
+    max-height: 0;
+    opacity: 0;
+    padding: 0 12px;
+    border-color: transparent;
+  }
+  
+  .function-block.expanded .expandable-content {
+    max-height: 2000px; /* Large enough to accommodate content */
+    opacity: 1;
+    padding: 12px;
+  }
+  
+  /* Theme styles for expandable content */
+  .function-block.theme-light .expandable-content,
+  .function-block:not(.theme-dark) .expandable-content {
+    background-color: rgba(26, 115, 232, 0.02);
+    border-color: rgba(26, 115, 232, 0.2);
+  }
+  
+  .function-block.theme-dark .expandable-content {
+    background-color: rgba(138, 180, 248, 0.02);
+    border-color: rgba(138, 180, 248, 0.2);
   }
   
   /* Consolidated theme styles for function name */
   .function-block.theme-light .function-name,
   .function-block:not(.theme-dark) .function-name {
     color: var(--light-primary);
-    border-bottom-color: rgba(26, 115, 232, 0.2);
+    background-color: rgba(26, 115, 232, 0.05);
+    border: 1px solid rgba(26, 115, 232, 0.2);
   }
   
   .function-block.theme-dark .function-name {
     color: var(--dark-primary);
-    border-bottom-color: rgba(138, 180, 248, 0.2);
+    background-color: rgba(138, 180, 248, 0.05);
+    border: 1px solid rgba(138, 180, 248, 0.2);
   }
   
-  /* Optimized function name text */
+  /* Expanded state border styling */
+  .function-block.expanded.theme-light .function-name,
+  .function-block.expanded:not(.theme-dark) .function-name {
+    border-bottom-color: rgba(26, 115, 232, 0.3);
+  }
+  
+  .function-block.expanded.theme-dark .function-name {
+    border-bottom-color: rgba(138, 180, 248, 0.3);
+  }
+  
+  /* Hover effect for function name */
+  .function-name:hover {
+    opacity: 0.8;
+    transform: translateY(-1px) translate3d(0, 0, 0);
+  }
+  
+  /* Function name text styling */
   .function-name-text {
-    display: inline-block;
-    font-size: var(--spacing-lg);
-    letter-spacing: 0.3px;
-    max-width: calc(100% - 90px);
-    word-break: break-word;
-    contain: layout style;
-  }
-  
-  /* Optimized call ID */
-  .call-id {
-    font-weight: normal;
-    font-size: 0.85em;
-    padding: 3px var(--spacing-sm);
-    border-radius: 6px;
-    letter-spacing: 0.2px;
-    transition: opacity var(--transition-normal);
-    margin-left: auto;
-    align-self: flex-start;
-    white-space: nowrap;
+    font-weight: inherit;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 80px;
-    contain: layout style;
+    white-space: nowrap;
+    min-width: 0;
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+  }
+  
+  /* Call ID styling */
+  .call-id {
+    font-size: 0.85em;
+    opacity: 0.7;
+    font-weight: 400;
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 2px 6px;
+    border-radius: var(--border-radius-sm);
+    font-family: monospace;
+    flex-shrink: 0;
+    transition: opacity var(--transition-normal);
+    will-change: opacity;
+    transform: translate3d(0, 0, 0);
   }
   
   /* Consolidated call ID theme styles */
   .function-block.theme-light .call-id,
   .function-block:not(.theme-dark) .call-id {
+    background-color: rgba(26, 115, 232, 0.1);
     color: var(--light-text-secondary);
-    background-color: rgba(240, 240, 240, 0.9);
-    border: 1px solid var(--light-border-secondary);
   }
   
   .function-block.theme-dark .call-id {
+    background-color: rgba(138, 180, 248, 0.1);
     color: var(--dark-text-secondary);
-    background-color: rgba(45, 45, 45, 0.9);
-    border: 1px solid var(--dark-border-secondary);
   }
   
   .function-block:hover .call-id {
     opacity: 1;
+    transform: scale(1.02) translate3d(0, 0, 0);
   }
   
   /* Optimized parameter styles */
@@ -180,6 +350,8 @@ export const styles = `
     display: flex;
     align-items: center;
     contain: layout style;
+    will-change: opacity;
+    transform: translate3d(0, 0, 0);
   }
   
   /* Consolidated parameter name theme styles */
@@ -427,6 +599,8 @@ export const styles = `
     justify-content: flex-start;
     align-items: center;
     contain: layout;
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
   }
 
   /* Unified button base styles */
@@ -447,6 +621,8 @@ export const styles = `
     border: none;
     will-change: transform, box-shadow;
     contain: layout style;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
   }
   
   /* Optimized active states with hardware acceleration */
@@ -532,6 +708,13 @@ export const styles = `
     line-height: 1.5;
     contain: layout style;
     transform: translate3d(0,0,0);
+    will-change: transform, opacity;
+    transition: all var(--transition-normal);
+  }
+  
+  .mcp-function-results-panel:hover,
+  .xml-results-panel:hover {
+    transform: scale(1.005) translate3d(0, 0, 0);
   }
   
   /* Consolidated results panel theme styles */
@@ -602,6 +785,13 @@ export const styles = `
     margin-bottom: var(--spacing-sm);
     font-family: var(--font-system);
     contain: layout style;
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+    transition: all var(--transition-normal);
+  }
+  
+  .language-tag:hover {
+    transform: scale(1.02) translate3d(0, 0, 0);
   }
   
   /* Optimized XML pre element */
@@ -613,6 +803,27 @@ export const styles = `
     font-size: 13px;
     line-height: 1.5;
     contain: layout style;
+  }
+  
+  /* Optimized spinner with hardware acceleration for function name */
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(26, 115, 232, 0.3);
+    border-top: 2px solid var(--light-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    flex-shrink: 0;
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    contain: layout style;
+  }
+  
+  .function-block.theme-dark .spinner {
+    border: 2px solid rgba(138, 180, 248, 0.3);
+    border-top: 2px solid var(--dark-primary);
   }
   
   /* Optimized mobile layout with efficient media query */
