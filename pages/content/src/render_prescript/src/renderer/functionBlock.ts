@@ -19,6 +19,38 @@ declare global {
   }
 }
 
+// Performance optimizations: Pre-compiled regex patterns
+const REGEX_CACHE = {
+  paramStartRegex: /<parameter\s+name="([^"]+)"[^>]*>/gs,
+  invokeMatch: /<invoke name="([^"]+)"(?:\s+call_id="([^"]+)")?>/i,
+  cdataMatch: /<!\[CDATA\[(.*?)(?:\]\]>)?$/s,
+  endParameterTag: '</parameter>'
+} as const;
+
+// Performance: Content parsing cache
+const contentParsingCache = new WeakMap<HTMLElement, {
+  content: string;
+  functionName: string;
+  callId: string;
+  parameters: Record<string, string>;
+  lastHash: string;
+}>();
+
+// Performance: Element cache for DOM queries
+const elementQueryCache = new WeakMap<HTMLElement, {
+  functionNameElement?: HTMLDivElement;
+  paramsContainer?: HTMLDivElement;
+  buttonContainer?: HTMLDivElement;
+  lastCacheTime: number;
+}>();
+
+// Performance: Batch DOM operations
+const pendingDOMUpdates = new Map<string, (() => void)[]>();
+let rafScheduled = false;
+
+// Performance: Optimized timeout management
+const activeTimeouts = new Map<string, number>();
+
 // Monaco editor CSP-compatible configuration
 const configureMonacoEditorForCSP = () => {
   if (typeof window !== 'undefined' && (window as any).monaco) {
@@ -56,6 +88,141 @@ const configureMonacoEditorForCSP = () => {
 // State management for rendered elements
 export const processedElements = new WeakSet<HTMLElement>();
 export const renderedFunctionBlocks = new Map<string, HTMLDivElement>();
+
+// Performance: Fast content hash generation for change detection
+const generateContentHash = (content: string): string => {
+  let hash = 0;
+  for (let i = 0; i < content.length; i++) {
+    const char = content.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return hash.toString(36);
+};
+
+// Performance: Batch DOM operations using RAF
+const batchDOMOperation = (blockId: string, operation: () => void): void => {
+  if (!pendingDOMUpdates.has(blockId)) {
+    pendingDOMUpdates.set(blockId, []);
+  }
+  pendingDOMUpdates.get(blockId)!.push(operation);
+  
+  if (!rafScheduled) {
+    rafScheduled = true;
+    requestAnimationFrame(() => {
+      pendingDOMUpdates.forEach((operations) => {
+        operations.forEach(op => op());
+      });
+      pendingDOMUpdates.clear();
+      rafScheduled = false;
+    });
+  }
+};
+
+// Performance: Optimized element cache getter
+const getCachedElements = (blockDiv: HTMLElement): {
+  functionNameElement?: HTMLDivElement;
+  paramsContainer?: HTMLDivElement;
+  buttonContainer?: HTMLDivElement;
+} => {
+  const now = Date.now();
+  let cache = elementQueryCache.get(blockDiv);
+  
+  // Cache for 1 second to reduce DOM queries
+  if (!cache || (now - cache.lastCacheTime) > 1000) {
+    cache = {
+      functionNameElement: blockDiv.querySelector<HTMLDivElement>('.function-name') || undefined,
+      paramsContainer: blockDiv.querySelector<HTMLDivElement>('.function-params') || undefined,
+      buttonContainer: blockDiv.querySelector<HTMLDivElement>('.function-buttons') || undefined,
+      lastCacheTime: now
+    };
+    elementQueryCache.set(blockDiv, cache);
+  }
+  
+  return cache;
+};
+
+// Performance: Optimized content parsing with caching
+const parseContentEfficiently = (block: HTMLElement, rawContent: string): {
+  functionName: string;
+  callId: string;
+  parameters: Record<string, string>;
+} => {
+  const contentHash = generateContentHash(rawContent);
+  let cached = contentParsingCache.get(block);
+  
+  if (cached && cached.lastHash === contentHash) {
+    return {
+      functionName: cached.functionName,
+      callId: cached.callId,
+      parameters: cached.parameters
+    };
+  }
+  
+  // Parse content efficiently
+  const invokeMatch = REGEX_CACHE.invokeMatch.exec(rawContent);
+  const functionName = invokeMatch ? invokeMatch[1] : 'function';
+  const callId = invokeMatch && invokeMatch[2] ? invokeMatch[2] : `block-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  
+  // Parse parameters in a single pass
+  const parameters: Record<string, string> = {};
+  REGEX_CACHE.paramStartRegex.lastIndex = 0; // Reset regex state
+  
+  let match;
+  while ((match = REGEX_CACHE.paramStartRegex.exec(rawContent)) !== null) {
+    const paramName = match[1];
+    const startIndex = match.index + match[0].length;
+    const endTagIndex = rawContent.indexOf(REGEX_CACHE.endParameterTag, startIndex);
+    
+    let extractedValue = '';
+    if (endTagIndex !== -1) {
+      extractedValue = rawContent.substring(startIndex, endTagIndex);
+    } else {
+      extractedValue = rawContent.substring(startIndex);
+    }
+    
+    // Handle CDATA efficiently
+    const cdataMatch = REGEX_CACHE.cdataMatch.exec(extractedValue);
+    if (cdataMatch) {
+      extractedValue = cdataMatch[1];
+    } else {
+      extractedValue = extractedValue.trim();
+    }
+    
+    parameters[paramName] = extractedValue;
+  }
+  
+  // Cache the results
+  cached = {
+    content: rawContent,
+    functionName,
+    callId,
+    parameters,
+    lastHash: contentHash
+  };
+  contentParsingCache.set(block, cached);
+  
+  return { functionName, callId, parameters };
+};
+
+// Performance: Cleanup timeout management
+const cleanupTimeout = (key: string): void => {
+  const timeoutId = activeTimeouts.get(key);
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+    activeTimeouts.delete(key);
+  }
+};
+
+// Performance: Set managed timeout
+const setManagedTimeout = (key: string, callback: () => void, delay: number): void => {
+  cleanupTimeout(key);
+  const timeoutId = window.setTimeout(() => {
+    callback();
+    activeTimeouts.delete(key);
+  }, delay);
+  activeTimeouts.set(key, timeoutId);
+};
 
 // Maximum number of retry attempts before giving up on auto-execution
 const MAX_AUTO_EXECUTE_ATTEMPTS = 3;
@@ -209,7 +376,7 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
   let isNewRender = false;
   let previousCompletionStatus: boolean | null = null;
 
-  // Optimize existing div lookup
+  // Performance: Optimize existing div lookup with better caching
   if (processedElements.has(block)) {
     if (!existingDiv) {
       // Use more efficient querySelector instead of querySelectorAll
@@ -234,6 +401,9 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
 
   const rawContent = block.textContent?.trim() || '';
   const { tag, content } = extractLanguageTag(rawContent);
+
+  // Performance: Parse content efficiently with caching
+  const { functionName, callId, parameters: partialParameters } = parseContentEfficiently(block, rawContent);
 
   // CRITICAL: Use the existing div if available for streaming updates, or create a new one
   const blockDiv = existingDiv || document.createElement('div');
@@ -285,14 +455,11 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     }
   }
 
-  // Extract function name from the raw content
-  // Use regex to extract function name directly from content as a fallback for functionInfo
-  const invokeMatch = content.match(/<invoke name="([^"]+)"(?:\s+call_id="([^"]+)")?>/i);
-  const functionName = invokeMatch ? invokeMatch[1] : 'function';
-  const callId = invokeMatch && invokeMatch[2] ? invokeMatch[2] : blockId;
+  // Performance: Use cached elements instead of querying DOM repeatedly
+  const cachedElements = getCachedElements(blockDiv);
 
   // Handle function name creation or update
-  let functionNameElement = blockDiv.querySelector<HTMLDivElement>('.function-name');
+  let functionNameElement = cachedElements.functionNameElement;
 
   if (!functionNameElement) {
     // Create function name if not exists (new render)
@@ -320,6 +487,10 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     }
 
     blockDiv.appendChild(functionNameElement);
+    
+    // Update cache
+    cachedElements.functionNameElement = functionNameElement;
+    elementQueryCache.set(blockDiv, { ...cachedElements, lastCacheTime: Date.now() });
   } else {
     // Update existing function name (streaming update)
     const nameText = functionNameElement.querySelector<HTMLSpanElement>('.function-name-text');
@@ -344,57 +515,38 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
   }
 
   // Get existing or create a new parameter container
-  let paramsContainer = blockDiv.querySelector<HTMLDivElement>('.function-params');
+  let paramsContainer = cachedElements.paramsContainer;
 
   if (!paramsContainer) {
     // Create parameter container if it doesn't exist
     paramsContainer = document.createElement('div');
     paramsContainer.className = 'function-params';
-    paramsContainer.style.display = 'flex';
-    paramsContainer.style.flexDirection = 'column';
-    paramsContainer.style.gap = '4px';
-    paramsContainer.style.width = '100%';
+    
+    // Performance: Batch style updates
+    Object.assign(paramsContainer.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '4px',
+      width: '100%'
+    });
+    
     blockDiv.appendChild(paramsContainer);
+    
+    // Update cache
+    cachedElements.paramsContainer = paramsContainer;
+    elementQueryCache.set(blockDiv, { ...cachedElements, lastCacheTime: Date.now() });
   }
 
-  // --- START: Incremental Parameter Parsing and Rendering ---
-  const partialParameters: Record<string, string> = {};
-  const paramStartRegex = /<parameter\s+name="([^"]+)"[^>]*>/gs;
-  let match;
-  while ((match = paramStartRegex.exec(rawContent)) !== null) {
-    const paramName = match[1];
-    const startIndex = match.index + match[0].length;
-    const endTag = '</parameter>';
-    const endTagIndex = rawContent.indexOf(endTag, startIndex);
-
-    let extractedValue = '';
-    // Determine if parameter is complete (has ending tag) or still streaming
-    const isParamStreaming = endTagIndex === -1;
-    if (!isParamStreaming) {
-      // Full parameter content available (within the current rawContent)
-      extractedValue = rawContent.substring(startIndex, endTagIndex);
-    } else {
-      // Partial parameter content (streaming)
-      extractedValue = rawContent.substring(startIndex);
-    }
-
-    // Handle potential CDATA within the extracted value
-    const cdataMatch = extractedValue.match(/<!\[CDATA\[(.*?)(?:\]\]>)?$/s);
-    if (cdataMatch) {
-      // Use CDATA content, remove partial end tag if streaming
-      extractedValue = cdataMatch[1];
-    } else {
-      // Trim only if not CDATA, as CDATA preserves whitespace
-      extractedValue = extractedValue.trim();
-    }
-
-    partialParameters[paramName] = extractedValue;
-
-    // Create or update the parameter - use the found/created params container
-    // If paramsContainer doesn't exist, this will still work by using document-level lookup
-    createOrUpdateParamElement(paramsContainer!, paramName, extractedValue, blockId, isNewRender, isParamStreaming);
-  }
-  // --- END: Incremental Parameter Parsing and Rendering ---
+  // Performance: Use pre-parsed parameters from efficient parsing
+  Object.entries(partialParameters).forEach(([paramName, extractedValue]) => {
+    const isParamStreaming = !rawContent.includes(`</parameter>`) || 
+      rawContent.indexOf('</parameter>', rawContent.indexOf(`<parameter name="${paramName}"`)) === -1;
+    
+    // Performance: Batch parameter updates using RAF
+    batchDOMOperation(blockId, () => {
+      createOrUpdateParamElement(paramsContainer!, paramName, extractedValue, blockId, isNewRender, isParamStreaming);
+    });
+  });
 
   // Extract *complete* parameters using the function from components.ts *only when needed*
   let completeParameters: Record<string, any> | null = null;
@@ -420,7 +572,7 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
   }
 
   // Create a button container if it doesn't exist
-  let buttonContainer = blockDiv.querySelector<HTMLDivElement>('.function-buttons');
+  let buttonContainer = cachedElements.buttonContainer;
   if (!buttonContainer) {
     // Create a container for the buttons
     buttonContainer = document.createElement('div');
@@ -431,6 +583,10 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     const spacer = document.createElement('div');
     spacer.style.height = '8px';
     blockDiv.insertBefore(spacer, buttonContainer);
+    
+    // Update cache
+    cachedElements.buttonContainer = buttonContainer;
+    elementQueryCache.set(blockDiv, { ...cachedElements, lastCacheTime: Date.now() });
   }
 
   // Add a raw XML toggle if the function is complete
@@ -460,12 +616,8 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     // This ensures we wait until the function block is fully rendered and stable
     const autoExecuteEnabled = (window as any).toggleState?.autoExecute === true;
 
-    // Extract function information for execution tracking
-    const invokeMatch = content.match(/<invoke name="([^"]+)"(?:\s+call_id="([^"]+)")?>/i);
-    const extractedCallId = invokeMatch && invokeMatch[2] ? invokeMatch[2] : blockId;
-
     // Check if the function has already been executed using the complete signature
-    if (contentSignature && !executionTracker.isFunctionExecuted(extractedCallId, contentSignature, functionName)) {
+    if (contentSignature && !executionTracker.isFunctionExecuted(callId, contentSignature, functionName)) {
       // Proceed with auto-execution setup
       // STRICT CHECK #1: Is auto-execute enabled in UI settings?
       if (autoExecuteEnabled !== true) {
@@ -481,7 +633,7 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
 
       // At this point, we've passed all checks and can proceed with auto-execution
       // Immediately mark function as scheduled for execution to prevent race conditions
-      executionTracker.markFunctionExecuted(extractedCallId, contentSignature, functionName);
+      executionTracker.markFunctionExecuted(callId, contentSignature, functionName);
       executionTracker.markBlockExecuted(blockId);
 
       console.debug(`Setting up auto-execution for block ${blockId} (${functionName})`);
@@ -489,129 +641,111 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
       // Store function details for use in the retry mechanism (use completeParameters)
       const functionDetails = {
         functionName,
-        callId: extractedCallId,
+        callId,
         contentSignature,
         params: completeParameters || {}, // Ensure params is an object
       };
-      // Use a more robust retry mechanism with proper cleanup
-      const setupAutoExecution = () => {
-        const attempts = executionTracker.incrementAttempts(blockId);
-
-        if (attempts > MAX_AUTO_EXECUTE_ATTEMPTS) {
-          console.debug(`Auto-execute: Giving up on block ${blockId} after ${attempts - 1} attempts`);
-          executionTracker.cleanupBlock(blockId);
-          return;
-        }
-
-        console.debug(`Auto-execute attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS} for block ${blockId}`);
-
-        setTimeout(() => {
-          let currentBlock = document.querySelector<HTMLDivElement>(`.function-block[data-block-id="${blockId}"]`);
-
-          if (!currentBlock) {
-            console.debug(`Auto-execute: Original block ${blockId} not found. Searching for replacement...`);
-            const potentialBlocks = document.querySelectorAll<HTMLDivElement>('.function-block');
-            for (const block of potentialBlocks) {
-              const preElement = block.querySelector('pre');
-              if (!preElement || !preElement.textContent) continue; // Skip if no pre element or content
-
-              // Manually parse name and callId from content here
-              const content = preElement.textContent;
-              const invokeRegex = /<invoke name="([^"]+)"(?:\s+call_id="([^"]+)")?>/i;
-              const match = content.match(invokeRegex);
-
-              // Check if the parsed details match the function we are trying to execute
-              if (match && match[1] === functionDetails.functionName && match[2] === functionDetails.callId) {
-                const replacementBlockId = block.getAttribute('data-block-id');
-                // Use the imported getPreviousExecution which checks storage
-                const alreadyExecuted = getPreviousExecution(
-                  functionDetails.functionName,
-                  functionDetails.callId,
-                  functionDetails.contentSignature,
-                );
-                // Removed isBeingProcessed check
-
-                if (!alreadyExecuted) {
-                  console.debug(
-                    `Auto-execute: Found potential replacement block ${replacementBlockId || 'unknown ID'}. Attempting execution.`,
-                  );
-                  currentBlock = block; // Target the replacement block
-                  break;
-                } else {
-                  console.debug(
-                    `Auto-execute: Replacement block ${replacementBlockId || 'unknown ID'} skipped (already executed).`,
-                  ); // Updated log message
-                }
-              }
-            }
-          }
-
-          if (!currentBlock) {
-            console.debug(
-              `Auto-execute: Block ${blockId} (and suitable replacement) not found in DOM (attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS})`,
-            );
-            if (attempts < MAX_AUTO_EXECUTE_ATTEMPTS) {
-              setTimeout(setupAutoExecution, 500); // Retry
-            } else {
-              console.debug(`Auto-execute: Giving up on block ${blockId} - not found in DOM`);
-              executionTracker.cleanupBlock(blockId);
-            }
-            return;
-          }
-
-          // --- START: Added final check against persistent storage ---
-          // Use the imported getPreviousExecution which checks storage
-          const finalCheckExecuted = getPreviousExecution(
-            functionDetails.functionName,
-            functionDetails.callId,
-            functionDetails.contentSignature,
-          );
-          if (finalCheckExecuted) {
-            console.debug(
-              `Auto-execute: Function ${functionDetails.functionName} (callId: ${functionDetails.callId}) was found in execution history right before click. Skipping.`,
-            );
-            executionTracker.cleanupBlock(blockId); // Clean up tracker
-            return;
-          }
-          // --- END: Added final check against persistent storage ---
-
-          const executeButton = currentBlock.querySelector<HTMLButtonElement>('.execute-button');
-          if (executeButton) {
-            console.debug(
-              `Auto-execute: Executing function in block ${currentBlock.getAttribute('data-block-id') || blockId} (${functionDetails.functionName}) after DOM stabilization`,
-            );
-            executeButton.click();
-            // NOTE: Execution marking should happen *after* click success, likely handled by the execute button's click handler via functionHistory/storage.
-            executionTracker.cleanupBlock(blockId); // Clean up tracker for *this* attempt
-          } else {
-            console.debug(
-              `Auto-execute: Execute button not found in block ${currentBlock.getAttribute('data-block-id') || blockId} (attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS})`,
-            );
-            if (attempts < MAX_AUTO_EXECUTE_ATTEMPTS) {
-              setTimeout(setupAutoExecution, 500); // Retry
-            } else {
-              console.debug(`Auto-execute: Giving up on block ${blockId} - button not found`);
-              executionTracker.cleanupBlock(blockId);
-            }
-          }
-        }, 500); // Reduced initial wait to 500ms
-      };
-
-      setupAutoExecution();
+      
+      // Performance: Use optimized auto-execution setup
+      setupOptimizedAutoExecution(blockId, functionDetails);
     }
   }
 
   return true;
 };
 
+// Performance: Optimized auto-execution setup with better resource management
+const setupOptimizedAutoExecution = (blockId: string, functionDetails: any): void => {
+  const setupAutoExecution = () => {
+    const attempts = executionTracker.incrementAttempts(blockId);
+
+    if (attempts > MAX_AUTO_EXECUTE_ATTEMPTS) {
+      console.debug(`Auto-execute: Giving up on block ${blockId} after ${attempts - 1} attempts`);
+      executionTracker.cleanupBlock(blockId);
+      return;
+    }
+
+    console.debug(`Auto-execute attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS} for block ${blockId}`);
+
+    // Performance: Use managed timeout instead of raw setTimeout
+    setManagedTimeout(`auto-exec-${blockId}-${attempts}`, () => {
+      let currentBlock = document.querySelector<HTMLDivElement>(`.function-block[data-block-id="${blockId}"]`);
+
+      if (!currentBlock) {
+        console.debug(`Auto-execute: Original block ${blockId} not found. Searching for replacement...`);
+        
+        // Performance: Use more efficient replacement block search
+        const potentialBlocks = document.querySelectorAll<HTMLDivElement>('.function-block');
+        for (const block of potentialBlocks) {
+          const preElement = block.querySelector('pre');
+          if (!preElement?.textContent) continue;
+
+          // Use cached regex for better performance
+          const match = REGEX_CACHE.invokeMatch.exec(preElement.textContent);
+          REGEX_CACHE.invokeMatch.lastIndex = 0; // Reset regex state
+
+          if (match && match[1] === functionDetails.functionName && match[2] === functionDetails.callId) {
+            const alreadyExecuted = getPreviousExecution(
+              functionDetails.functionName,
+              functionDetails.callId,
+              functionDetails.contentSignature,
+            );
+
+            if (!alreadyExecuted) {
+              console.debug(`Auto-execute: Found replacement block, attempting execution.`);
+              currentBlock = block;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!currentBlock) {
+        console.debug(`Auto-execute: Block ${blockId} not found (attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS})`);
+        if (attempts < MAX_AUTO_EXECUTE_ATTEMPTS) {
+          setupAutoExecution(); // Retry without additional timeout
+        } else {
+          console.debug(`Auto-execute: Giving up on block ${blockId} - not found in DOM`);
+          executionTracker.cleanupBlock(blockId);
+        }
+        return;
+      }
+
+      // Final storage check
+      const finalCheckExecuted = getPreviousExecution(
+        functionDetails.functionName,
+        functionDetails.callId,
+        functionDetails.contentSignature,
+      );
+      if (finalCheckExecuted) {
+        console.debug(`Auto-execute: Function already executed, skipping.`);
+        executionTracker.cleanupBlock(blockId);
+        return;
+      }
+
+      const executeButton = currentBlock.querySelector<HTMLButtonElement>('.execute-button');
+      if (executeButton) {
+        console.debug(`Auto-execute: Executing function ${functionDetails.functionName}`);
+        executeButton.click();
+        executionTracker.cleanupBlock(blockId);
+      } else {
+        console.debug(`Auto-execute: Execute button not found (attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS})`);
+        if (attempts < MAX_AUTO_EXECUTE_ATTEMPTS) {
+          setupAutoExecution(); // Retry
+        } else {
+          console.debug(`Auto-execute: Giving up on block ${blockId} - button not found`);
+          executionTracker.cleanupBlock(blockId);
+        }
+      }
+    }, 500); // Optimized delay
+  };
+
+  setupAutoExecution();
+};
+
 /**
  * Create or update a parameter element in the function block
- *
- * @param blockDiv The function block container div
- * @param name The name of the parameter
- * @param value The value of the parameter
- * @param blockId ID of the block
- * @param isNewRender Whether this is a new render
+ * Performance optimized version with reduced DOM queries and better caching
  */
 export const createOrUpdateParamElement = (
   container: HTMLDivElement,
@@ -623,142 +757,235 @@ export const createOrUpdateParamElement = (
 ): void => {
   const paramId = `${blockId}-${name}`;
 
-  // First check within the passed container
-  let paramNameElement = container.querySelector<HTMLDivElement>(`.param-name[data-param-id="${paramId}"]`);
-  let paramValueElement = container.querySelector<HTMLDivElement>(`.param-value[data-param-id="${paramId}"]`);
+  // Performance: Cache parameter elements to avoid repeated queries
+  const paramElementCache = elementQueryCache.get(container) || { lastCacheTime: Date.now() };
+  const paramCache = paramElementCache as any; // Use any for dynamic keys
+  let paramNameElement = paramCache[`name-${paramId}`] as HTMLDivElement | undefined;
+  let paramValueElement = paramCache[`value-${paramId}`] as HTMLDivElement | undefined;
 
-  // If not found in the container, check the entire document (for backward compatibility)
-  if (!paramNameElement) {
-    paramNameElement = document.querySelector<HTMLDivElement>(`.param-name[data-param-id="${paramId}"]`);
-  }
-  if (!paramValueElement) {
-    paramValueElement = document.querySelector<HTMLDivElement>(`.param-value[data-param-id="${paramId}"]`);
+  // Only query DOM if not in cache
+  if (!paramNameElement || !paramValueElement) {
+    paramNameElement = paramNameElement || 
+                     container.querySelector<HTMLDivElement>(`.param-name[data-param-id="${paramId}"]`) || 
+                     document.querySelector<HTMLDivElement>(`.param-name[data-param-id="${paramId}"]`) || 
+                     undefined;
+    paramValueElement = paramValueElement ||
+                       container.querySelector<HTMLDivElement>(`.param-value[data-param-id="${paramId}"]`) || 
+                       document.querySelector<HTMLDivElement>(`.param-value[data-param-id="${paramId}"]`) ||
+                       undefined;
+    
+    // Update cache
+    if (paramNameElement) paramCache[`name-${paramId}`] = paramNameElement;
+    if (paramValueElement) paramCache[`value-${paramId}`] = paramValueElement;
+    elementQueryCache.set(container, paramCache);
   }
 
-  // Create parameter name and value elements if they don't exist
+  // Create parameter name element if it doesn't exist
   if (!paramNameElement) {
     paramNameElement = document.createElement('div');
     paramNameElement.className = 'param-name';
     paramNameElement.textContent = name;
     paramNameElement.setAttribute('data-param-id', paramId);
     container.appendChild(paramNameElement);
+    
+    // Update cache
+    paramCache[`name-${paramId}`] = paramNameElement;
+    elementQueryCache.set(container, paramCache);
   }
 
+  // Create parameter value element if it doesn't exist
   if (!paramValueElement) {
     paramValueElement = document.createElement('div');
     paramValueElement.className = 'param-value';
     paramValueElement.setAttribute('data-param-id', paramId);
     paramValueElement.setAttribute('data-param-name', name);
     container.appendChild(paramValueElement);
+    
+    // Update cache
+    paramCache[`value-${paramId}`] = paramValueElement;
+    elementQueryCache.set(container, paramCache);
   }
 
-  // Update or set the value display with proper formatting
+  // Performance: Only update content if it has actually changed
   const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+  const currentValue = paramValueElement.getAttribute('data-current-value');
+  
+  if (currentValue === displayValue && !isStreaming) {
+    return; // No update needed
+  }
 
-  // For streaming updates: if streaming or already has the streaming attribute
+  // Update the stored value
+  paramValueElement.setAttribute('data-current-value', displayValue);
+
+  // Performance: Handle streaming updates more efficiently
   if (isStreaming || paramValueElement.hasAttribute('data-streaming')) {
-    // Get or create a pre element to hold the content for better streaming control
     let preElement = paramValueElement.querySelector('pre');
     if (!preElement) {
       preElement = document.createElement('pre');
-      preElement.style.margin = '0';
-      preElement.style.padding = '0';
-      preElement.style.whiteSpace = 'pre-wrap';
-      preElement.style.width = '100%';
-      preElement.style.height = '100%';
-      preElement.style.fontFamily = 'inherit';
-      preElement.style.fontSize = 'inherit';
-      preElement.style.lineHeight = '1.5';
+      
+      // Performance: Batch style updates
+      Object.assign(preElement.style, {
+        margin: '0',
+        padding: '0',
+        whiteSpace: 'pre-wrap',
+        width: '100%',
+        height: '100%',
+        fontFamily: 'inherit',
+        fontSize: 'inherit',
+        lineHeight: '1.5'
+      });
 
-      // Clear the parameter value element and append the pre
-      paramValueElement.innerHTML = '';
+      // Clear and append efficiently
+      paramValueElement.textContent = '';
       paramValueElement.appendChild(preElement);
     }
 
-    // Always update content during streaming - this is crucial for real-time updates
-    preElement.textContent = displayValue;
+    // Performance: Only update if content actually changed
+    if (preElement.textContent !== displayValue) {
+      preElement.textContent = displayValue;
+    }
   } else {
-    // Normal parameter (not streaming): update directly
-    paramValueElement.textContent = displayValue;
+    // Performance: Only update if content actually changed
+    if (paramValueElement.textContent !== displayValue) {
+      paramValueElement.textContent = displayValue;
+    }
   }
 
-  // Set the initial value attribute for input elements if needed
+  // Set the parameter value attribute
   paramValueElement.setAttribute('data-param-value', JSON.stringify(value));
 
-  // Ensure the param value has appropriate styling for scrolling
+  // Performance: Only apply overflow styles when needed
   if (paramValueElement.scrollHeight > 300) {
-    paramValueElement.style.overflow = 'auto';
-    paramValueElement.style.scrollBehavior = 'smooth';
+    Object.assign(paramValueElement.style, {
+      overflow: 'auto',
+      scrollBehavior: 'smooth'
+    });
   }
 
-  // Clear any existing timeout for this parameter
+  // Performance: Optimized timeout management
   const timeoutKey = `streaming-timeout-${paramId}`;
-  const existingTimeout = (window as any)[timeoutKey];
-  if (existingTimeout) {
-    clearTimeout(existingTimeout);
-    (window as any)[timeoutKey] = null;
-  }
+  cleanupTimeout(timeoutKey);
 
-  // Handle streaming state
+  // Handle streaming state efficiently
   if (isStreaming) {
-    // Add streaming class to parameter name for visual indicator
-    paramNameElement.classList.add('streaming-param-name');
-    // Set data-streaming attribute on the parameter value element
+    // Performance: Batch DOM class changes
+    if (!paramNameElement.classList.contains('streaming-param-name')) {
+      paramNameElement.classList.add('streaming-param-name');
+    }
     paramValueElement.setAttribute('data-streaming', 'true');
 
-    // Force the parameter value element to have the right styling for streaming
-    paramValueElement.style.overflow = 'auto';
-    paramValueElement.style.maxHeight = '300px';
-    paramValueElement.style.scrollBehavior = 'smooth';
-
-    // Setup auto-scroll for both the container and any pre element inside
-    setupAutoScroll(paramValueElement as ParamValueElement);
-
-    const preElement = paramValueElement.querySelector('pre');
-    if (preElement) {
-      (preElement as any)._userHasScrolled = false; // Reset scroll state
-      (preElement as any)._autoScrollToBottom = () => {
-        preElement.scrollTop = preElement.scrollHeight;
-      };
-      (preElement as any)._autoScrollToBottom();
+    // Performance: Apply streaming styles only once
+    if (!paramValueElement.hasAttribute('data-streaming-styled')) {
+      Object.assign(paramValueElement.style, {
+        overflow: 'auto',
+        maxHeight: '300px',
+        scrollBehavior: 'smooth'
+      });
+      paramValueElement.setAttribute('data-streaming-styled', 'true');
     }
 
-    // Force scroll to bottom for all elements (immediate and after a short delay)
-    const scrollToBottom = () => {
-      if (
-        paramValueElement.scrollHeight > paramValueElement.clientHeight &&
-        !(paramValueElement as any)._userHasScrolled
-      ) {
-        paramValueElement.scrollTop = paramValueElement.scrollHeight;
-      }
+    // Setup auto-scroll for the parameter value element
+    setupAutoScroll(paramValueElement as ParamValueElement);
 
-      if (preElement && preElement.scrollHeight > preElement.clientHeight && !(preElement as any)._userHasScrolled) {
-        preElement.scrollTop = preElement.scrollHeight;
-      }
+    // Performance: Optimized scrolling with RAF
+    const performOptimizedScroll = () => {
+      const preElement = paramValueElement.querySelector('pre');
+      
+      requestAnimationFrame(() => {
+        if (paramValueElement.scrollHeight > paramValueElement.clientHeight && 
+            !(paramValueElement as any)._userHasScrolled) {
+          paramValueElement.scrollTop = paramValueElement.scrollHeight;
+        }
+
+        if (preElement && preElement.scrollHeight > preElement.clientHeight && 
+            !(preElement as any)._userHasScrolled) {
+          preElement.scrollTop = preElement.scrollHeight;
+        }
+      });
     };
 
-    // Execute immediately and after a delay to ensure content has rendered
-    scrollToBottom();
-    setTimeout(scrollToBottom, 10);
-    setTimeout(scrollToBottom, 50);
+    performOptimizedScroll();
 
-    // Store timeout in a global property to be able to clear it later
-    (window as any)[timeoutKey] = setTimeout(() => {
+    // Performance: Use managed timeout for cleanup
+    setManagedTimeout(timeoutKey, () => {
       if (paramNameElement && document.body.contains(paramNameElement)) {
         paramNameElement.classList.remove('streaming-param-name');
         if (paramValueElement) {
           paramValueElement.removeAttribute('data-streaming');
+          paramValueElement.removeAttribute('data-streaming-styled');
         }
       }
-      (window as any)[timeoutKey] = null;
-    }, 3000); // Reduced from 5000ms to 3000ms for more responsive feedback
+    }, 2000); // Reduced timeout for more responsive feedback
   } else {
-    // If parameter was previously streaming but is now complete, remove the indicator immediately
+    // Performance: Only clean up if previously streaming
     if (paramNameElement.classList.contains('streaming-param-name')) {
       paramNameElement.classList.remove('streaming-param-name');
-      if (paramValueElement) {
-        paramValueElement.removeAttribute('data-streaming');
-      }
+      paramValueElement.removeAttribute('data-streaming');
+      paramValueElement.removeAttribute('data-streaming-styled');
     }
   }
 };
+
+// Performance: Cleanup functions for memory management
+export const performanceCleanup = {
+  // Clear all caches (WeakMaps will be garbage collected when their keys are removed)
+  clearAllCaches: (): void => {
+    renderedFunctionBlocks.clear();
+    pendingDOMUpdates.clear();
+    
+    // Clean up active timeouts
+    activeTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+    activeTimeouts.clear();
+    
+    // Note: WeakMaps (contentParsingCache, elementQueryCache) will be automatically 
+    // garbage collected when their associated elements are removed from DOM
+  },
+
+  // Clear cache for specific block
+  clearBlockCache: (blockId: string): void => {
+    // Remove from rendered blocks
+    renderedFunctionBlocks.delete(blockId);
+    
+    // Clear any pending operations for this block
+    pendingDOMUpdates.delete(blockId);
+    
+    // Clean up timeouts for this block
+    const timeoutKeysToClean = Array.from(activeTimeouts.keys()).filter(key => 
+      key.includes(blockId)
+    );
+    timeoutKeysToClean.forEach(key => {
+      const timeoutId = activeTimeouts.get(key);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        activeTimeouts.delete(key);
+      }
+    });
+  },
+
+  // Get cache statistics
+  getCacheStats: () => ({
+    contentParsingCacheSize: 'WeakMap (size not available - auto-managed)',
+    elementQueryCacheSize: 'WeakMap (size not available - auto-managed)',
+    renderedFunctionBlocksSize: renderedFunctionBlocks.size,
+    pendingDOMUpdatesSize: pendingDOMUpdates.size,
+    activeTimeoutsSize: activeTimeouts.size
+  })
+};
+
+// Performance: Export utilities for external monitoring
+export const performanceUtils = {
+  generateContentHash,
+  parseContentEfficiently,
+  batchDOMOperation,
+  getCachedElements,
+  cleanupTimeout,
+  setManagedTimeout,
+  REGEX_CACHE
+};
+
+// Cleanup on page unload to prevent memory leaks
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    performanceCleanup.clearAllCaches();
+  });
+}
