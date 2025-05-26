@@ -449,26 +449,20 @@ export const styles = `
     animation: subtle-pulse 2s infinite ease-in-out;
     will-change: border-color;
     transform: translate3d(0,0,0);
+    scroll-behavior: smooth !important;
   }
   
-  /* Optimized keyframe animations */
-  @keyframes subtle-pulse {
-    0%, 100% { border-color: rgba(26, 115, 232, 0.2); }
-    50% { border-color: rgba(26, 115, 232, 0.5); }
-  }
-  
-  @keyframes subtle-pulse-dark {
-    0%, 100% { border-color: rgba(138, 180, 248, 0.2); }
-    50% { border-color: rgba(138, 180, 248, 0.5); }
-  }
-  
-  .function-block.theme-dark .param-value[data-streaming="true"] {
-    border-color: rgba(138, 180, 248, 0.3);
-    animation: subtle-pulse-dark 2s infinite ease-in-out;
+  /* Enhanced streaming content structure */
+  .param-value[data-streaming="true"] .content-wrapper {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    min-height: 50px;
   }
   
   /* Optimized streaming pre element */
-  .param-value[data-streaming="true"] > pre {
+  .param-value[data-streaming="true"] > pre,
+  .param-value[data-streaming="true"] .content-wrapper > pre {
     margin: 0;
     padding: var(--spacing-md) 14px;
     overflow: auto;
@@ -479,11 +473,54 @@ export const styles = `
     line-height: 1.5;
     white-space: pre-wrap;
     background-color: inherit;
-    color: inherit;
+    color: inherit !important;
     border: none;
     scroll-behavior: smooth;
     contain: layout style;
     transform: translate3d(0,0,0);
+    width: 100%;
+    min-height: inherit;
+  }
+  
+  /* Enhanced scrollbar for streaming content */
+  .param-value[data-streaming="true"]::-webkit-scrollbar,
+  .param-value[data-streaming="true"] pre::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .param-value[data-streaming="true"]::-webkit-scrollbar-track,
+  .param-value[data-streaming="true"] pre::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
+  }
+  
+  .param-value[data-streaming="true"]::-webkit-scrollbar-thumb,
+  .param-value[data-streaming="true"] pre::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.5);
+    border-radius: 3px;
+    transition: background 0.2s ease;
+  }
+  
+  .param-value[data-streaming="true"]::-webkit-scrollbar-thumb:hover,
+  .param-value[data-streaming="true"] pre::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 212, 255, 0.8);
+  }
+  
+  /* Dark theme scrollbar for streaming */
+  .function-block.theme-dark .param-value[data-streaming="true"]::-webkit-scrollbar-track,
+  .function-block.theme-dark .param-value[data-streaming="true"] pre::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  .function-block.theme-dark .param-value[data-streaming="true"]::-webkit-scrollbar-thumb,
+  .function-block.theme-dark .param-value[data-streaming="true"] pre::-webkit-scrollbar-thumb {
+    background: rgba(138, 180, 248, 0.5);
+  }
+  
+  .function-block.theme-dark .param-value[data-streaming="true"]::-webkit-scrollbar-thumb:hover,
+  .function-block.theme-dark .param-value[data-streaming="true"] pre::-webkit-scrollbar-thumb:hover {
+    background: rgba(138, 180, 248, 0.8);
   }
   
   /* Optimized streaming indicator */

@@ -24,8 +24,273 @@ const isProcessing = false;
 // Flag to detect abrupt ending of streams
 export const abruptlyEndedStreams = new Set<string>();
 
+// Map to track which blocks are currently resyncing to prevent jitter
+export const resyncingBlocks = new Set<string>();
+
 // Map to track which blocks have completed streaming
 export const completedStreams = new Map<string, boolean>();
+
+// Performance cache for pattern matching
+const PATTERN_CACHE = {
+  functionCallsStart: /<function_calls>/g,
+  functionCallsEnd: /<\/function_calls>/g,
+  invokeStart: /<invoke[^>]*>/g,
+  invokeEnd: /<\/invoke>/g,
+  parameterStart: /<parameter[^>]*>/g,
+  parameterEnd: /<\/parameter>/g,
+  allFunctionPatterns: /(<function_calls>|<\/function_calls>|<invoke[^>]*>|<\/invoke>|<parameter[^>]*>|<\/parameter>)/g
+};
+
+// Fast content analysis cache to avoid repeated parsing
+const contentAnalysisCache = new Map<string, {
+  hasFunction: boolean;
+  isComplete: boolean;
+  timestamp: number;
+}>();
+
+// Debounced rendering to prevent rapid-fire updates
+const renderingDebouncer = new Map<string, number>();
+const RENDER_DEBOUNCE_MS = 50; // 50ms debounce for smooth rendering
+
+// Make resyncingBlocks globally accessible to prevent re-rendering during resync
+if (typeof window !== 'undefined') {
+  (window as any).resyncingBlocks = resyncingBlocks;
+}
+
+// Fast chunk detection system for immediate response
+const CHUNK_PATTERNS = {
+  functionStart: /<function_calls>/,
+  invokeStart: /<invoke\s+name="[^"]*"/,
+  parameterStart: /<parameter\s+name="[^"]*">/,
+  anyClosingTag: /<\/(?:function_calls|invoke|parameter)>/,
+  // Pre-compiled for faster detection
+  functionChunkStart: /(<function_calls>|<invoke\s+name="[^"]*"|<parameter\s+name="[^"]*">)/,
+  significantChunk: /(<function_calls>|<invoke|<parameter|<\/)/
+};
+
+// Track parameter content during streaming to prevent loss
+const parameterContentCache = new Map<string, Map<string, string>>(); // blockId -> paramName -> content
+
+/**
+ * Store parameter content to prevent loss during streaming
+ */
+const cacheParameterContent = (blockId: string, content: string): void => {
+  const params = extractParameters(content);
+  if (params.length > 0) {
+    const blockCache = parameterContentCache.get(blockId) || new Map();
+    
+    params.forEach(param => {
+      // Only update if new content is longer (more complete)
+      const existing = blockCache.get(param.name) || '';
+      if (param.value.length > existing.length) {
+        blockCache.set(param.name, param.value);
+      }
+    });
+    
+    parameterContentCache.set(blockId, blockCache);
+    
+    if (CONFIG.debug) {
+      console.debug(`Cached parameter content for ${blockId}:`, Array.from(blockCache.entries()));
+    }
+  }
+};
+
+/**
+ * Get cached parameter content to prevent loss
+ */
+const getCachedParameterContent = (blockId: string): Map<string, string> => {
+  return parameterContentCache.get(blockId) || new Map();
+};
+
+/**
+ * Ultra-fast chunk detection for immediate streaming response
+ */
+const detectFunctionChunk = (content: string, previousContent: string = ''): {
+  hasNewChunk: boolean;
+  chunkType: 'function_start' | 'invoke' | 'parameter' | 'closing' | 'content' | null;
+  isSignificant: boolean;
+} => {
+  // Get only the new content since last check
+  const newContent = content.slice(previousContent.length);
+  
+  if (newContent.length === 0) {
+    return { hasNewChunk: false, chunkType: null, isSignificant: false };
+  }
+
+  // Fast pattern matching on just the new chunk
+  if (CHUNK_PATTERNS.functionStart.test(newContent)) {
+    return { hasNewChunk: true, chunkType: 'function_start', isSignificant: true };
+  }
+  
+  if (CHUNK_PATTERNS.invokeStart.test(newContent)) {
+    return { hasNewChunk: true, chunkType: 'invoke', isSignificant: true };
+  }
+  
+  if (CHUNK_PATTERNS.parameterStart.test(newContent)) {
+    return { hasNewChunk: true, chunkType: 'parameter', isSignificant: true };
+  }
+  
+  if (CHUNK_PATTERNS.anyClosingTag.test(newContent)) {
+    return { hasNewChunk: true, chunkType: 'closing', isSignificant: true };
+  }
+  
+  // Check if it's any significant content
+  if (CHUNK_PATTERNS.significantChunk.test(newContent) || newContent.length > 20) {
+    return { hasNewChunk: true, chunkType: 'content', isSignificant: newContent.length > 20 };
+  }
+
+  return { hasNewChunk: false, chunkType: null, isSignificant: false };
+};
+
+// Track previous content for chunk detection
+const previousContentCache = new Map<string, string>();
+
+/**
+ * Immediate chunk processor for instant response
+ */
+const processChunkImmediate = (blockId: string, newContent: string, chunkInfo: ReturnType<typeof detectFunctionChunk>): void => {
+  if (!chunkInfo.hasNewChunk || !chunkInfo.isSignificant) return;
+
+  // Find target element immediately
+  const target = document.querySelector(`pre[data-block-id="${blockId}"]`) as HTMLElement;
+  if (!target) return;
+
+  // Skip if already processing or complete
+  if (completedStreams.has(blockId) || resyncingBlocks.has(blockId)) return;
+
+  if (CONFIG.debug) {
+    console.debug(`Immediate chunk detected for ${blockId}: ${chunkInfo.chunkType}, content length: ${newContent.length}`);
+  }
+
+  // For parameter content, use longer delays to allow content to accumulate
+  let delay = 25; // Default delay
+  
+  if (chunkInfo.chunkType === 'function_start') {
+    delay = 10; // Very fast for function starts
+  } else if (chunkInfo.chunkType === 'parameter') {
+    delay = 100; // Longer delay for parameters to accumulate content
+  } else if (chunkInfo.chunkType === 'content') {
+    delay = 150; // Even longer for parameter content
+  }
+
+  // Use immediate scheduling with appropriate delay for chunk type
+  const timer = setTimeout(() => {
+    if (!completedStreams.has(blockId) && !resyncingBlocks.has(blockId)) {
+      const targetQueue = window._updateQueue || updateQueue;
+      targetQueue.set(blockId, target);
+
+      if (typeof window !== 'undefined' && window._processUpdateQueue) {
+        window._processUpdateQueue();
+      }
+    }
+  }, delay);
+
+  // Clear any existing timer and set new one
+  const existingTimer = renderingDebouncer.get(blockId);
+  if (existingTimer) clearTimeout(existingTimer);
+  renderingDebouncer.set(blockId, timer);
+};
+
+/**
+ * Fast content analysis using pre-compiled patterns and caching
+ */
+const analyzeFunctionContent = (content: string, useCache: boolean = true): {
+  hasFunction: boolean;
+  isComplete: boolean;
+  functionCallPattern: boolean;
+} => {
+  if (useCache) {
+    const cached = contentAnalysisCache.get(content);
+    if (cached && (Date.now() - cached.timestamp) < 1000) { // Cache for 1 second
+      return { 
+        hasFunction: cached.hasFunction, 
+        isComplete: cached.isComplete, 
+        functionCallPattern: cached.hasFunction 
+      };
+    }
+  }
+
+  // Reset regex states for accurate matching
+  PATTERN_CACHE.functionCallsStart.lastIndex = 0;
+  PATTERN_CACHE.functionCallsEnd.lastIndex = 0;
+  PATTERN_CACHE.invokeStart.lastIndex = 0;
+  PATTERN_CACHE.invokeEnd.lastIndex = 0;
+  PATTERN_CACHE.parameterStart.lastIndex = 0;
+  PATTERN_CACHE.parameterEnd.lastIndex = 0;
+
+  // Fast pattern detection using pre-compiled regex
+  const hasFunctionCalls = PATTERN_CACHE.functionCallsStart.test(content);
+  const hasInvoke = PATTERN_CACHE.invokeStart.test(content);
+  const hasParameter = PATTERN_CACHE.parameterStart.test(content);
+  
+  const hasFunction = hasFunctionCalls || hasInvoke || hasParameter;
+  
+  if (!hasFunction) {
+    const result = { hasFunction: false, isComplete: false, functionCallPattern: false };
+    if (useCache) {
+      contentAnalysisCache.set(content, { ...result, timestamp: Date.now() });
+    }
+    return result;
+  }
+
+  // Check completion using efficient counting
+  PATTERN_CACHE.functionCallsStart.lastIndex = 0;
+  PATTERN_CACHE.functionCallsEnd.lastIndex = 0;
+  PATTERN_CACHE.invokeStart.lastIndex = 0;
+  PATTERN_CACHE.invokeEnd.lastIndex = 0;
+  PATTERN_CACHE.parameterStart.lastIndex = 0;
+  PATTERN_CACHE.parameterEnd.lastIndex = 0;
+
+  const functionCallsOpen = (content.match(PATTERN_CACHE.functionCallsStart) || []).length;
+  const functionCallsClosed = (content.match(PATTERN_CACHE.functionCallsEnd) || []).length;
+  const invokeOpen = (content.match(PATTERN_CACHE.invokeStart) || []).length;
+  const invokeClosed = (content.match(PATTERN_CACHE.invokeEnd) || []).length;
+  const parameterOpen = (content.match(PATTERN_CACHE.parameterStart) || []).length;
+  const parameterClosed = (content.match(PATTERN_CACHE.parameterEnd) || []).length;
+
+  const isComplete = 
+    functionCallsOpen <= functionCallsClosed &&
+    invokeOpen <= invokeClosed &&
+    parameterOpen <= parameterClosed;
+
+  const result = { hasFunction, isComplete, functionCallPattern: hasFunction };
+  
+  if (useCache) {
+    contentAnalysisCache.set(content, { ...result, timestamp: Date.now() });
+  }
+  
+  return result;
+};
+
+/**
+ * Optimized debounced rendering to prevent excessive updates
+ */
+const scheduleOptimizedRender = (blockId: string, target: HTMLElement): void => {
+  // Clear any existing debounce timer
+  const existingTimer = renderingDebouncer.get(blockId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+
+  // Schedule new render with debouncing
+  const timer = setTimeout(() => {
+    renderingDebouncer.delete(blockId);
+    
+    // Only render if not completed or resyncing
+    if (!completedStreams.has(blockId) && !resyncingBlocks.has(blockId)) {
+      // Update the queue for rendering
+      const targetQueue = window._updateQueue || updateQueue;
+      targetQueue.set(blockId, target);
+
+      // Process updates using the global function if available
+      if (typeof window !== 'undefined' && window._processUpdateQueue) {
+        window._processUpdateQueue();
+      }
+    }
+  }, RENDER_DEBOUNCE_MS);
+
+  renderingDebouncer.set(blockId, timer);
+};
 
 /**
  * Monitors a node for changes to detect streaming content updates
@@ -109,47 +374,69 @@ export const monitorNode = (node: HTMLElement, blockId: string): void => {
     const isProcessingFlag = window._isProcessing !== undefined ? window._isProcessing : isProcessing;
     if (isProcessingFlag) return;
 
+    // Skip if this block is already complete to prevent thrashing
+    if (completedStreams.has(blockId)) return;
+
     let contentChanged = false;
     let significantChange = false;
     let functionCallPattern = false;
+    let contentToAnalyze = '';
 
+    // Batch analyze all mutations for better performance
     for (const mutation of mutations) {
       if (mutation.type === 'characterData' || mutation.type === 'childList') {
         contentChanged = true;
-
-        // Check if the content contains function call patterns
+        
+        // Get the content once for analysis
         const targetNode = mutation.target;
         const textContent = targetNode.textContent || '';
-
-        if (
-          textContent.includes('<function_calls>') ||
-          textContent.includes('<invoke') ||
-          textContent.includes('<parameter') ||
-          textContent.includes('</invoke>') ||
-          textContent.includes('</function_calls>') ||
-          textContent.includes('</parameter>')
-        ) {
-          functionCallPattern = true;
-          significantChange = true;
+        
+        // Use fast pattern matching instead of string includes
+        if (!functionCallPattern) {
+          PATTERN_CACHE.allFunctionPatterns.lastIndex = 0;
+          functionCallPattern = PATTERN_CACHE.allFunctionPatterns.test(textContent);
         }
 
         // Check for significant size changes in content
         if (mutation.type === 'characterData') {
           const oldValue = mutation.oldValue || '';
-          const newValue = targetNode.textContent || '';
+          const newValue = textContent;
 
-          // If content length has changed by more than 10 characters, consider it significant
-          if (Math.abs(newValue.length - oldValue.length) > 10) {
+          // Get previous content for chunk detection
+          const previousContent = previousContentCache.get(blockId) || '';
+          
+          // Use immediate chunk detection for instant response
+          const chunkInfo = detectFunctionChunk(newValue, previousContent);
+          
+          if (chunkInfo.hasNewChunk && chunkInfo.isSignificant) {
+            // Cache parameter content as it's being streamed to prevent loss
+            cacheParameterContent(blockId, newValue);
+            
+            // Process chunk immediately for fast response
+            processChunkImmediate(blockId, newValue, chunkInfo);
+            
+            // Update cache for next detection
+            previousContentCache.set(blockId, newValue);
+            
             significantChange = true;
+            contentToAnalyze = newValue;
+          } else if (Math.abs(newValue.length - oldValue.length) > 10) {
+            // Cache parameter content for any significant content change
+            cacheParameterContent(blockId, newValue);
+            
+            // If content length has changed by more than 10 characters, consider it significant
+            significantChange = true;
+            contentToAnalyze = newValue;
           }
         }
 
         if (mutation.type === 'childList' && (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0)) {
           significantChange = true;
+          contentToAnalyze = textContent;
         }
 
-        if (significantChange || functionCallPattern) {
-          break;
+        if (significantChange && functionCallPattern) {
+          break; // Early exit if we have enough info
         }
       }
     }
@@ -167,16 +454,6 @@ export const monitorNode = (node: HTMLElement, blockId: string): void => {
         abruptlyEndedStreams.delete(blockId);
       }
 
-      // // Remove stalled status if previously marked
-      // if (window._stalledStreams && window._stalledStreams.has(blockId)) {
-      //     window._stalledStreams.delete(blockId);
-      //     if (window._stalledStreamRetryCount) {
-      //         window._stalledStreamRetryCount.delete(blockId);
-      //     }
-      //     const stalledIndicator = document.querySelector(`.stalled-indicator[data-stalled-for="${blockId}"]`);
-      //     if (stalledIndicator) stalledIndicator.remove();
-      // }
-
       // Find the nearest element that contains our monitored node
       let target = node;
       while (target && !CONFIG.targetSelectors.includes(target.tagName.toLowerCase())) {
@@ -193,45 +470,81 @@ export const monitorNode = (node: HTMLElement, blockId: string): void => {
           });
         }
 
-        // Update the queue for rendering
-        const targetQueue = window._updateQueue || updateQueue;
-        targetQueue.set(blockId, target);
-
-        // Process updates using the global function if available
-        if (typeof window !== 'undefined' && window._processUpdateQueue) {
-          window._processUpdateQueue();
+        // Use optimized scheduling instead of immediate rendering
+        if (functionCallPattern || significantChange) {
+          scheduleOptimizedRender(blockId, target);
         }
 
-        // If this is a significant change and the content appears to be complete,
-        // mark it for post-streaming re-sync
-        if (significantChange && !functionCallPattern) {
-          // Check if content appears complete (no open tags)
-          const currentContent = node.textContent || '';
-          const hasOpenFunctionCallsTag =
-            currentContent.includes('<function_calls>') && !currentContent.includes('</function_calls>');
-          const hasOpenInvokeTag = currentContent.includes('<invoke') && !currentContent.includes('</invoke>');
-          const hasOpenParameterTags =
-            (currentContent.match(/<parameter[^>]*>/g) || []).length >
-            (currentContent.match(/<\/parameter>/g) || []).length;
-
-          if (!hasOpenFunctionCallsTag && !hasOpenInvokeTag && !hasOpenParameterTags) {
-            // Content appears complete, schedule a re-sync
-            completedStreams.set(blockId, true);
-            setTimeout(() => resyncWithOriginalContent(blockId), 500); // Small delay to ensure rendering is complete
+        // Use fast content analysis for completion detection
+        if (significantChange && contentToAnalyze) {
+          const analysis = analyzeFunctionContent(contentToAnalyze, true);
+          
+          if (analysis.hasFunction && analysis.isComplete) {
+            // Content appears complete - but be more conservative with completion detection
+            // Wait a bit longer to ensure all parameter content has been captured
+            if (!completedStreams.has(blockId)) {
+              // Use a longer delay to ensure all parameter content is captured
+              setTimeout(() => {
+                // Re-check completion after delay to ensure content is truly complete
+                const finalContent = node.textContent || '';
+                const finalAnalysis = analyzeFunctionContent(finalContent, false);
+                
+                if (finalAnalysis.hasFunction && finalAnalysis.isComplete) {
+                  completedStreams.set(blockId, true);
+                  
+                  // Use requestAnimationFrame for smooth completion transition
+                  requestAnimationFrame(() => {
+                    const functionBlock = document.querySelector(`.function-block[data-block-id="${blockId}"]`);
+                    if (functionBlock && functionBlock.classList.contains('function-loading')) {
+                      functionBlock.classList.remove('function-loading');
+                      functionBlock.classList.add('function-complete');
+                      
+                      // Remove spinner smoothly
+                      const spinner = functionBlock.querySelector('.spinner');
+                      if (spinner) {
+                        (spinner as HTMLElement).style.transition = 'opacity 0.2s ease';
+                        (spinner as HTMLElement).style.opacity = '0';
+                        setTimeout(() => spinner.remove(), 200);
+                      }
+                      
+                      // Clean up streaming attributes with minimal delay
+                      setTimeout(() => {
+                        const streamingParams = functionBlock.querySelectorAll('[data-streaming="true"]');
+                        streamingParams.forEach(param => {
+                          param.removeAttribute('data-streaming');
+                          param.removeAttribute('data-streaming-styled');
+                        });
+                        
+                        const streamingNames = functionBlock.querySelectorAll('.streaming-param-name');
+                        streamingNames.forEach(nameEl => {
+                          nameEl.classList.remove('streaming-param-name');
+                        });
+                      }, 50);
+                      
+                      if (CONFIG.debug) {
+                        console.debug(`Marked block ${blockId} as complete using conservative analysis`);
+                      }
+                    }
+                  });
+                }
+              }, 300); // Longer delay to ensure parameter content is captured
+            }
           }
         }
       }
     }
   });
 
-  // Configure the observer to watch the node and its descendants with more detailed options
+  // Configure the observer to watch the node and its descendants with optimized options
   observer.observe(node, {
     childList: true,
     characterData: true,
     characterDataOldValue: true, // Track old values for better change detection
     subtree: true,
-    attributes: true, // Watch for attribute changes too
-    attributeFilter: ['class', 'data-status', 'style'], // Focus on attributes that might signal streaming status
+    // Optimize by focusing only on critical attributes that indicate streaming state
+    attributes: false, // Disable general attribute watching for performance
+    // Only watch specific attributes if needed
+    // attributeFilter: ['class', 'data-status'], 
   });
 
   // Store the observer for later cleanup
@@ -271,12 +584,13 @@ export const checkStreamingUpdates = (): void => {
 export let progressiveUpdateTimer: ReturnType<typeof setInterval> | null = null;
 /**
  * Re-sync the rendered function block with the original pre block content
+ * This is a truly seamless update that never removes or replaces DOM elements
  *
  * @param blockId ID of the function block to re-sync
  */
 export const resyncWithOriginalContent = (blockId: string): void => {
   if (CONFIG.debug) {
-    console.debug(`Re-syncing block ${blockId} with original content`);
+    console.debug(`Starting seamless content resync for block ${blockId}`);
   }
 
   // Find the original pre element
@@ -285,6 +599,7 @@ export const resyncWithOriginalContent = (blockId: string): void => {
     if (CONFIG.debug) {
       console.debug(`Original pre element not found for block ${blockId}`);
     }
+    resyncingBlocks.delete(blockId);
     return;
   }
 
@@ -294,81 +609,153 @@ export const resyncWithOriginalContent = (blockId: string): void => {
     if (CONFIG.debug) {
       console.debug(`Rendered function block not found for block ${blockId}`);
     }
+    resyncingBlocks.delete(blockId);
     return;
   }
 
-  // Extract parameters and function name from the original content
+  // Extract final parameters from the original content
   const originalContent = originalPre.textContent.trim();
   const originalParams = extractParameters(originalContent);
+
+  // Get cached parameter content to ensure we don't lose any streaming content
+  const cachedParams = getCachedParameterContent(blockId);
+
+  // Merge original parameters with cached content (cached takes priority if longer)
+  const mergedParams = originalParams.map(param => {
+    const cachedContent = cachedParams.get(param.name);
+    if (cachedContent && cachedContent.length > param.value.length) {
+      if (CONFIG.debug) {
+        console.debug(`Using cached content for parameter ${param.name}: ${param.value.length} → ${cachedContent.length} chars`);
+      }
+      return { ...param, value: cachedContent };
+    }
+    return param;
+  });
 
   // Extract function name directly
   const invokeMatch = originalContent.match(/<invoke name="([^"]+)"(?:\s+call_id="([^"]+)")?>/);
   const originalFunctionName = invokeMatch && invokeMatch[1] ? invokeMatch[1] : null;
 
-  if (!originalParams.length && !originalFunctionName) {
-    if (CONFIG.debug) {
-      console.debug(`No parameters or function name found in original content for block ${blockId}`);
-    }
-    return;
+  if (CONFIG.debug) {
+    console.debug(`Resync found ${mergedParams.length} parameters and function name: ${originalFunctionName}`);
   }
 
-  // Compare and update parameters if needed
-  originalParams.forEach(originalParam => {
-    const paramId = `${blockId}-${originalParam.name}`;
-    const paramValueElement = functionBlock.querySelector(`.param-value[data-param-id="${paramId}"]`);
+  // **CRITICAL**: Only update content seamlessly within existing elements
+  // NEVER disconnect observers or modify DOM structure
 
-    if (paramValueElement) {
-      const currentContent = paramValueElement.textContent || '';
-      const originalContent = originalParam.value;
-
-      // Only update if there's a difference
-      if (currentContent !== originalContent) {
+  // Use a single requestAnimationFrame to batch all updates
+  requestAnimationFrame(() => {
+    // Update function name seamlessly if needed
+    if (originalFunctionName) {
+      const functionNameElement = functionBlock.querySelector('.function-name-text');
+      if (functionNameElement && functionNameElement.textContent !== originalFunctionName) {
         if (CONFIG.debug) {
-          console.debug(`Updating parameter ${originalParam.name} with original content`);
-          console.debug('Current:', currentContent);
-          console.debug('Original:', originalContent);
+          console.debug(`Updating function name: ${functionNameElement.textContent} → ${originalFunctionName}`);
         }
-
-        // Update the parameter value
-        const paramElement = document.createElement('div');
-        paramElement.innerHTML = originalContent;
-
-        // Replace content without re-rendering the entire block
-        while (paramValueElement.firstChild) {
-          paramValueElement.removeChild(paramValueElement.firstChild);
-        }
-
-        while (paramElement.firstChild) {
-          paramValueElement.appendChild(paramElement.firstChild);
-        }
+        functionNameElement.textContent = originalFunctionName;
       }
-    } else if (CONFIG.debug) {
-      console.debug(`Parameter element not found for ${originalParam.name}`);
     }
-  });
 
-  // Update function name if needed
-  if (originalFunctionName) {
-    const functionNameElement = functionBlock.querySelector('.function-name');
-    if (functionNameElement && functionNameElement.textContent !== originalFunctionName) {
+    // Update each parameter's content seamlessly
+    mergedParams.forEach((param) => {
+      const paramId = `${blockId}-${param.name}`;
+      const paramValueElement = functionBlock.querySelector(`.param-value[data-param-id="${paramId}"]`);
+
+      if (paramValueElement) {
+        const currentContent = paramValueElement.textContent || '';
+        const targetContent = param.value;
+
+        // Only update if content actually differs
+        if (currentContent !== targetContent) {
+          if (CONFIG.debug) {
+            console.debug(`Updating parameter ${param.name}: ${currentContent.length} → ${targetContent.length} chars`);
+          }
+
+          // Find the actual content container
+          const preElement = paramValueElement.querySelector('pre');
+          const contentWrapper = paramValueElement.querySelector('.content-wrapper');
+
+          if (preElement) {
+            // Update pre element content directly without any visual disruption
+            preElement.textContent = targetContent;
+          } else if (contentWrapper) {
+            // Update content wrapper directly
+            contentWrapper.textContent = targetContent;
+          } else {
+            // Direct update to the parameter element
+            paramValueElement.textContent = targetContent;
+          }
+
+          // Update the stored value for future comparisons
+          paramValueElement.setAttribute('data-current-value', targetContent);
+        }
+      } else if (CONFIG.debug) {
+        console.debug(`Parameter element not found for ${param.name} (this is normal during streaming)`);
+      }
+    });
+
+    // Smoothly transition out of streaming state
+    const wasLoading = functionBlock.classList.contains('function-loading');
+    if (wasLoading) {
       if (CONFIG.debug) {
-        console.debug(`Updating function name from ${functionNameElement.textContent} to ${originalFunctionName}`);
+        console.debug(`Transitioning block ${blockId} from loading to complete state`);
       }
-      functionNameElement.textContent = originalFunctionName;
+      
+      // Remove loading state smoothly
+      functionBlock.classList.remove('function-loading');
+      functionBlock.classList.add('function-complete');
+      
+      // Remove spinner if it exists
+      const spinner = functionBlock.querySelector('.spinner');
+      if (spinner) {
+        (spinner as HTMLElement).style.opacity = '0';
+        (spinner as HTMLElement).style.transition = 'opacity 0.3s ease';
+        setTimeout(() => {
+          if (spinner.parentNode) {
+            spinner.parentNode.removeChild(spinner);
+          }
+        }, 300);
+      }
     }
-  }
 
-  // Mark as no longer streaming
-  functionBlock.classList.remove('function-loading');
+    // Remove streaming attributes gradually
+    const streamingParams = functionBlock.querySelectorAll('[data-streaming="true"]');
+    streamingParams.forEach((param, index) => {
+      setTimeout(() => {
+        param.removeAttribute('data-streaming');
+        param.removeAttribute('data-streaming-styled');
+        
+        // Reset visual properties
+        const paramElement = param as HTMLElement;
+        paramElement.style.willChange = 'auto';
+        paramElement.style.containIntrinsicSize = 'auto';
+      }, index * 20); // Very fast staggered removal
+    });
 
-  // Remove streaming attributes from parameters
-  const streamingParams = functionBlock.querySelectorAll('[data-streaming="true"]');
-  streamingParams.forEach(param => {
-    param.removeAttribute('data-streaming');
+    // Remove streaming visual classes
+    const streamingNames = functionBlock.querySelectorAll('.streaming-param-name');
+    streamingNames.forEach((nameEl, index) => {
+      setTimeout(() => {
+        nameEl.classList.remove('streaming-param-name');
+      }, index * 20);
+    });
+
+    // Final cleanup after a short delay
+    setTimeout(() => {
+      completedStreams.delete(blockId);
+      resyncingBlocks.delete(blockId);
+      
+      // Clean up parameter content cache to free memory
+      parameterContentCache.delete(blockId);
+      
+      // **IMPORTANT**: DO NOT disconnect or delete the observer
+      // Let it continue monitoring for any future changes
+      
+      if (CONFIG.debug) {
+        console.debug(`Completed seamless resync for block ${blockId}`);
+      }
+    }, Math.max(streamingParams.length * 20, 100));
   });
-
-  // Clean up
-  completedStreams.delete(blockId);
 };
 
 /**

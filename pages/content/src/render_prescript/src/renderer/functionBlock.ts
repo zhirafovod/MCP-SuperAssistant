@@ -85,6 +85,101 @@ const configureMonacoEditorForCSP = () => {
   }
 };
 
+// Inject enhanced streaming styles for better UX
+const injectStreamingStyles = (() => {
+  let injected = false;
+  return () => {
+    if (injected) return;
+    injected = true;
+    
+    const style = document.createElement('style');
+    style.textContent = `
+      .streaming-param-name {
+        position: relative;
+        animation: pulse-glow 2s ease-in-out infinite alternate;
+      }
+      
+      .streaming-param-name::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -2px;
+        width: 3px;
+        height: 100%;
+        background: linear-gradient(45deg, #00d4ff, #0099cc);
+        border-radius: 2px;
+        animation: streaming-indicator 1.5s ease-in-out infinite;
+      }
+      
+      @keyframes pulse-glow {
+        0% { text-shadow: 0 0 2px rgba(0, 212, 255, 0.3); }
+        100% { text-shadow: 0 0 8px rgba(0, 212, 255, 0.6); }
+      }
+      
+      @keyframes streaming-indicator {
+        0%, 100% { opacity: 0.4; transform: scaleY(0.8); }
+        50% { opacity: 1; transform: scaleY(1.2); }
+      }
+      
+      .param-value[data-streaming="true"] {
+        position: relative;
+        background: linear-gradient(135deg, 
+          rgba(0, 212, 255, 0.03) 0%, 
+          rgba(0, 153, 204, 0.01) 100%);
+        border-left: 2px solid rgba(0, 212, 255, 0.2);
+        padding-left: 8px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      .param-value[data-streaming="true"] .content-wrapper {
+        animation: subtle-breathe 3s ease-in-out infinite;
+      }
+      
+      @keyframes subtle-breathe {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.001); }
+      }
+      
+      /* Enhanced scrolling styles */
+      .param-value[data-streaming="true"] {
+        overflow-y: auto !important;
+        max-height: 300px !important;
+        scroll-behavior: smooth !important;
+      }
+      
+      .param-value[data-streaming="true"]::-webkit-scrollbar {
+        width: 6px;
+      }
+      
+      .param-value[data-streaming="true"]::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 3px;
+      }
+      
+      .param-value[data-streaming="true"]::-webkit-scrollbar-thumb {
+        background: rgba(0, 212, 255, 0.5);
+        border-radius: 3px;
+        transition: background 0.2s ease;
+      }
+      
+      .param-value[data-streaming="true"]::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 212, 255, 0.8);
+      }
+      
+      /* Fix text color inheritance for both themes */
+      .function-block.theme-light .param-value[data-streaming="true"] pre,
+      .function-block:not(.theme-dark) .param-value[data-streaming="true"] pre {
+        color: inherit !important;
+      }
+      
+      .function-block.theme-dark .param-value[data-streaming="true"] pre {
+        color: inherit !important;
+      }
+    `;
+    document.head.appendChild(style);
+  };
+})();
+
 // State management for rendered elements
 export const processedElements = new WeakSet<HTMLElement>();
 export const renderedFunctionBlocks = new Map<string, HTMLDivElement>();
@@ -100,7 +195,10 @@ const generateContentHash = (content: string): string => {
   return hash.toString(36);
 };
 
-// Performance: Batch DOM operations using RAF
+// Performance: Enhanced batch DOM operations with debouncing for smoother streaming
+const streamingDebouncers = new Map<string, number>();
+const STREAMING_DEBOUNCE_MS = 16; // ~60fps for smooth updates
+
 const batchDOMOperation = (blockId: string, operation: () => void): void => {
   if (!pendingDOMUpdates.has(blockId)) {
     pendingDOMUpdates.set(blockId, []);
@@ -117,6 +215,21 @@ const batchDOMOperation = (blockId: string, operation: () => void): void => {
       rafScheduled = false;
     });
   }
+};
+
+// Enhanced streaming-specific batching with debouncing
+const batchStreamingUpdate = (paramId: string, operation: () => void): void => {
+  const existing = streamingDebouncers.get(paramId);
+  if (existing) {
+    clearTimeout(existing);
+  }
+  
+  streamingDebouncers.set(paramId, window.setTimeout(() => {
+    requestAnimationFrame(() => {
+      operation();
+      streamingDebouncers.delete(paramId);
+    });
+  }, STREAMING_DEBOUNCE_MS));
 };
 
 // Performance: Optimized element cache getter
@@ -350,6 +463,9 @@ if (typeof window !== 'undefined') {
 }
 
 export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { current: boolean }): boolean => {
+  // Inject streaming styles for better UX
+  injectStreamingStyles();
+  
   const functionInfo = containsFunctionCalls(block);
 
   // Early exit for non-function call content or already rendered blocks
@@ -365,6 +481,19 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
 
   const blockId =
     block.getAttribute('data-block-id') || `block-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+  // Check if this block is currently resyncing - if so, skip rendering to prevent jitter
+  if ((window as any).resyncingBlocks?.has(blockId)) {
+    if (CONFIG.debug) console.debug(`Skipping render for resyncing block ${blockId}`);
+    return false;
+  }
+
+  // Check if this block is already complete and stable - if so, skip re-rendering
+  const existingFunctionBlock = document.querySelector(`.function-block[data-block-id="${blockId}"]`);
+  if (existingFunctionBlock && existingFunctionBlock.classList.contains('function-complete')) {
+    if (CONFIG.debug) console.debug(`Skipping render for completed block ${blockId}`);
+    return false;
+  }
 
   // Get the set of pre-existing incomplete blocks if it exists
   const preExistingIncompleteBlocks = (window as any).preExistingIncompleteBlocks || new Set<string>();
@@ -670,8 +799,9 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     const isParamStreaming = !rawContent.includes(`</parameter>`) || 
       rawContent.indexOf('</parameter>', rawContent.indexOf(`<parameter name="${paramName}"`)) === -1;
     
-    // Performance: Batch parameter updates using RAF
-    batchDOMOperation(blockId, () => {
+    // Performance: Batch parameter updates using smooth streaming updates
+    const paramId = `${blockId}-${paramName}`;
+    batchStreamingUpdate(paramId, () => {
       createOrUpdateParamElement(paramsContainer!, paramName, extractedValue, blockId, isNewRender, isParamStreaming);
     });
   });
@@ -863,7 +993,7 @@ const setupOptimizedAutoExecution = (blockId: string, functionDetails: any): voi
 
 /**
  * Create or update a parameter element in the function block
- * Performance optimized version with reduced DOM queries and better caching
+ * Performance optimized version with smooth streaming and reduced jitter
  */
 export const createOrUpdateParamElement = (
   container: HTMLDivElement,
@@ -917,6 +1047,17 @@ export const createOrUpdateParamElement = (
     paramValueElement.className = 'param-value';
     paramValueElement.setAttribute('data-param-id', paramId);
     paramValueElement.setAttribute('data-param-name', name);
+    
+    // Enhanced: Set up smooth streaming styles from the start
+    Object.assign(paramValueElement.style, {
+      transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
+      transformOrigin: 'top left',
+      willChange: 'auto', // Initially auto, will be set to 'scroll-position, contents' during streaming
+      contain: 'layout style paint',
+      minHeight: '1.2em', // Prevent layout jumps
+      position: 'relative'
+    });
+    
     container.appendChild(paramValueElement);
     
     // Update cache
@@ -935,56 +1076,119 @@ export const createOrUpdateParamElement = (
   // Update the stored value
   paramValueElement.setAttribute('data-current-value', displayValue);
 
-  // Performance: Handle streaming updates more efficiently
+  // Enhanced: Handle streaming updates with smoother transitions
   if (isStreaming || paramValueElement.hasAttribute('data-streaming')) {
-    let preElement = paramValueElement.querySelector('pre');
-    if (!preElement) {
+    let preElement = paramValueElement.querySelector('pre') as HTMLPreElement;
+    let contentWrapper = paramValueElement.querySelector('.content-wrapper') as HTMLDivElement;
+    
+    if (!preElement || !contentWrapper) {
+      // Clear existing content and create optimized structure
+      paramValueElement.innerHTML = '';
+      
+      // Create content wrapper for better control
+      contentWrapper = document.createElement('div');
+      contentWrapper.className = 'content-wrapper';
+      Object.assign(contentWrapper.style, {
+        position: 'relative',
+        overflow: 'hidden',
+        minHeight: 'inherit'
+      });
+      
       preElement = document.createElement('pre');
       
-      // Performance: Batch style updates
+      // Performance: Batch style updates for smoother rendering
       Object.assign(preElement.style, {
         margin: '0',
-        padding: '0',
+        padding: '12px 14px',
         whiteSpace: 'pre-wrap',
+        wordWrap: 'break-word',
         width: '100%',
-        height: '100%',
-        fontFamily: 'inherit',
-        fontSize: 'inherit',
-        lineHeight: '1.5'
+        fontFamily: 'var(--font-mono)',
+        fontSize: '13px',
+        lineHeight: '1.5',
+        transition: 'opacity 0.1s ease-out',
+        transform: 'translateZ(0)', // Force hardware acceleration
+        backfaceVisibility: 'hidden',
+        perspective: '1000px',
+        color: 'inherit',
+        background: 'transparent',
+        border: 'none',
+        overflow: 'auto',
+        maxHeight: '300px',
+        scrollBehavior: 'smooth'
       });
 
-      // Clear and append efficiently
-      paramValueElement.textContent = '';
-      paramValueElement.appendChild(preElement);
+      contentWrapper.appendChild(preElement);
+      paramValueElement.appendChild(contentWrapper);
     }
 
-    // Performance: Only update if content actually changed
-    if (preElement.textContent !== displayValue) {
-      preElement.textContent = displayValue;
+    // Enhanced: Smooth content updating with micro-transitions
+    const updateContent = () => {
+      const currentText = preElement.textContent || '';
+      if (currentText !== displayValue) {
+        // Use a subtle fade for very rapid updates
+        if (isStreaming && displayValue.length > currentText.length + 50) {
+          preElement.style.opacity = '0.85';
+          setTimeout(() => {
+            preElement.textContent = displayValue;
+            preElement.style.opacity = '1';
+          }, 8); // Very short fade
+        } else {
+          preElement.textContent = displayValue;
+        }
+      }
+    };
+
+    // Enhanced: Use RAF for smoother updates during streaming
+    if (isStreaming) {
+      requestAnimationFrame(updateContent);
+    } else {
+      updateContent();
     }
   } else {
-    // Performance: Only update if content actually changed
+    // Enhanced: Smooth transition for non-streaming content
     if (paramValueElement.textContent !== displayValue) {
-      paramValueElement.textContent = displayValue;
+      if (paramValueElement.textContent && paramValueElement.textContent.length > 0) {
+        // Subtle transition for content changes
+        paramValueElement.style.opacity = '0.9';
+        setTimeout(() => {
+          paramValueElement.textContent = displayValue;
+          paramValueElement.style.opacity = '1';
+        }, 50);
+      } else {
+        paramValueElement.textContent = displayValue;
+      }
     }
   }
 
   // Set the parameter value attribute
   paramValueElement.setAttribute('data-param-value', JSON.stringify(value));
 
-  // Performance: Only apply overflow styles when needed
-  if (paramValueElement.scrollHeight > 300) {
-    Object.assign(paramValueElement.style, {
-      overflow: 'auto',
-      scrollBehavior: 'smooth'
-    });
-  }
+  // Enhanced: Adaptive overflow handling with smooth transitions
+  const checkAndApplyOverflow = () => {
+    const needsScroll = paramValueElement.scrollHeight > 300;
+    const hasScroll = paramValueElement.style.overflow === 'auto';
+    
+    if (needsScroll && !hasScroll) {
+      Object.assign(paramValueElement.style, {
+        overflow: 'auto',
+        maxHeight: '300px',
+        scrollBehavior: 'smooth',
+        scrollbarWidth: 'thin'
+      });
+    } else if (!needsScroll && hasScroll) {
+      Object.assign(paramValueElement.style, {
+        overflow: 'visible',
+        maxHeight: 'none'
+      });
+    }
+  };
 
   // Performance: Optimized timeout management
   const timeoutKey = `streaming-timeout-${paramId}`;
   cleanupTimeout(timeoutKey);
 
-  // Handle streaming state efficiently
+  // Enhanced: Handle streaming state with smoother visual feedback
   if (isStreaming) {
     // Performance: Batch DOM class changes
     if (!paramNameElement.classList.contains('streaming-param-name')) {
@@ -992,55 +1196,175 @@ export const createOrUpdateParamElement = (
     }
     paramValueElement.setAttribute('data-streaming', 'true');
 
-    // Performance: Apply streaming styles only once
+    // Enhanced: Apply streaming optimizations
     if (!paramValueElement.hasAttribute('data-streaming-styled')) {
       Object.assign(paramValueElement.style, {
-        overflow: 'auto',
-        maxHeight: '300px',
-        scrollBehavior: 'smooth'
+        willChange: 'scroll-position, contents', // Optimize for streaming
+        containIntrinsicSize: 'auto 1.2em' // Prevent layout shifts
       });
+      
+      checkAndApplyOverflow();
       paramValueElement.setAttribute('data-streaming-styled', 'true');
+      
+      // Apply scroll tracking immediately to new elements
+      const handleUserScroll = (element: HTMLElement) => {
+        if ((element as any)._scrollInitialized) return;
+        
+        let scrollTimeout: number;
+        
+        const onScroll = () => {
+          (element as any)._userHasScrolled = true;
+          
+          // Reset user scroll flag after 3 seconds of no scrolling
+          clearTimeout(scrollTimeout);
+          scrollTimeout = window.setTimeout(() => {
+            // Only reset if user is near the bottom (within 50px)
+            const isNearBottom = element.scrollTop >= (element.scrollHeight - element.clientHeight - 50);
+            if (isNearBottom) {
+              (element as any)._userHasScrolled = false;
+            }
+          }, 3000);
+        };
+        
+        element.addEventListener('scroll', onScroll, { passive: true });
+        (element as any)._scrollInitialized = true;
+        
+        // Store cleanup function
+        (element as any)._scrollCleanup = () => {
+          element.removeEventListener('scroll', onScroll);
+          clearTimeout(scrollTimeout);
+          (element as any)._scrollInitialized = false;
+        };
+      };
+      
+      // Apply scroll tracking immediately
+      handleUserScroll(paramValueElement);
+      const preElement = paramValueElement.querySelector('pre');
+      if (preElement) {
+        handleUserScroll(preElement);
+      }
     }
 
     // Setup auto-scroll for the parameter value element
     setupAutoScroll(paramValueElement as ParamValueElement);
 
-    // Performance: Optimized scrolling with RAF
-    const performOptimizedScroll = () => {
-      const preElement = paramValueElement.querySelector('pre');
+    // Enhanced: Add scroll event listeners to track user interaction
+    if (!(paramValueElement as any)._scrollHandlersInitialized) {
+      const handleUserScroll = (element: HTMLElement) => {
+        let scrollTimeout: number;
+        
+        const onScroll = () => {
+          (element as any)._userHasScrolled = true;
+          
+          // Reset user scroll flag after 3 seconds of no scrolling
+          clearTimeout(scrollTimeout);
+          scrollTimeout = window.setTimeout(() => {
+            // Only reset if user is near the bottom (within 50px)
+            const isNearBottom = element.scrollTop >= (element.scrollHeight - element.clientHeight - 50);
+            if (isNearBottom) {
+              (element as any)._userHasScrolled = false;
+            }
+          }, 3000);
+        };
+        
+        element.addEventListener('scroll', onScroll, { passive: true });
+        
+        // Store cleanup function
+        (element as any)._scrollCleanup = () => {
+          element.removeEventListener('scroll', onScroll);
+          clearTimeout(scrollTimeout);
+        };
+      };
       
+      // Apply scroll tracking to both container and pre element
+      handleUserScroll(paramValueElement);
+      const preElement = paramValueElement.querySelector('pre');
+      if (preElement) {
+        handleUserScroll(preElement);
+      }
+      
+      // Mark as initialized
+      (paramValueElement as any)._scrollHandlersInitialized = true;
+    }
+
+    // Enhanced: Optimized scrolling with better performance
+    const performOptimizedScroll = () => {
       requestAnimationFrame(() => {
-        if (paramValueElement.scrollHeight > paramValueElement.clientHeight && 
-            !(paramValueElement as any)._userHasScrolled) {
-          paramValueElement.scrollTop = paramValueElement.scrollHeight;
+        // Auto-scroll the parameter value container
+        if (paramValueElement.scrollHeight > paramValueElement.clientHeight) {
+          const shouldAutoScroll = !(paramValueElement as any)._userHasScrolled;
+          
+          if (shouldAutoScroll) {
+            const targetScroll = paramValueElement.scrollHeight - paramValueElement.clientHeight;
+            const currentScroll = paramValueElement.scrollTop;
+            const diff = targetScroll - currentScroll;
+            
+            // Use smooth interpolation for large content jumps
+            if (diff > 100) {
+              paramValueElement.scrollTo({
+                top: targetScroll,
+                behavior: 'smooth'
+              });
+            } else {
+              paramValueElement.scrollTop = targetScroll;
+            }
+          }
         }
 
-        if (preElement && preElement.scrollHeight > preElement.clientHeight && 
-            !(preElement as any)._userHasScrolled) {
-          preElement.scrollTop = preElement.scrollHeight;
+        // Auto-scroll the inner pre element if it exists and has content
+        const preElement = paramValueElement.querySelector('pre');
+        if (preElement && preElement.scrollHeight > preElement.clientHeight) {
+          const shouldAutoScrollPre = !(preElement as any)._userHasScrolled;
+          
+          if (shouldAutoScrollPre) {
+            const targetScroll = preElement.scrollHeight - preElement.clientHeight;
+            const currentScroll = preElement.scrollTop;
+            const diff = targetScroll - currentScroll;
+            
+            if (diff > 50) {
+              preElement.scrollTo({
+                top: targetScroll,
+                behavior: 'smooth'
+              });
+            } else {
+              preElement.scrollTop = targetScroll;
+            }
+          }
         }
       });
     };
 
     performOptimizedScroll();
 
-    // Performance: Use managed timeout for cleanup
+    // Enhanced: Use managed timeout with optimized cleanup
     setManagedTimeout(timeoutKey, () => {
       if (paramNameElement && document.body.contains(paramNameElement)) {
         paramNameElement.classList.remove('streaming-param-name');
         if (paramValueElement) {
           paramValueElement.removeAttribute('data-streaming');
           paramValueElement.removeAttribute('data-streaming-styled');
+          
+          // Reset will-change to auto for better performance after streaming
+          paramValueElement.style.willChange = 'auto';
+          paramValueElement.style.containIntrinsicSize = 'auto';
         }
       }
-    }, 2000); // Reduced timeout for more responsive feedback
+    }, 1500); // Slightly longer timeout for smoother experience
   } else {
-    // Performance: Only clean up if previously streaming
+    // Enhanced: Smooth cleanup of streaming state
     if (paramNameElement.classList.contains('streaming-param-name')) {
-      paramNameElement.classList.remove('streaming-param-name');
-      paramValueElement.removeAttribute('data-streaming');
-      paramValueElement.removeAttribute('data-streaming-styled');
+      // Gradual transition out of streaming mode
+      setTimeout(() => {
+        paramNameElement.classList.remove('streaming-param-name');
+        paramValueElement.removeAttribute('data-streaming');
+        paramValueElement.removeAttribute('data-streaming-styled');
+        paramValueElement.style.willChange = 'auto';
+        paramValueElement.style.containIntrinsicSize = 'auto';
+      }, 100);
     }
+    
+    // Apply overflow check for final content
+    setTimeout(checkAndApplyOverflow, 200);
   }
 };
 
