@@ -75,6 +75,8 @@ export const styles = `
     perspective: 1000px;
     box-sizing: border-box;
     overflow: hidden;
+    width: 100%;
+    min-width: 0;
   }
   
   /* Theme-specific styles using CSS variables */
@@ -226,6 +228,8 @@ export const styles = `
   /* Optimized expandable content with smooth animations */
   .expandable-content {
     overflow: hidden;
+    width: 100%;
+    box-sizing: border-box;
     transition: max-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), 
                 opacity 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
                 padding 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),

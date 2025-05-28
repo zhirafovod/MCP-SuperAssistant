@@ -13,6 +13,8 @@ declare global {
   }
 }
 
+// Import required functions
+
 // Maps to store observers and state for streaming content
 export const streamingObservers = new Map<string, MutationObserver>();
 export const streamingLastUpdated = new Map<string, number>(); // blockId -> timestamp
@@ -29,6 +31,51 @@ export const resyncingBlocks = new Set<string>();
 
 // Map to track which blocks have completed streaming
 export const completedStreams = new Map<string, boolean>();
+
+// Track completion stability to prevent rapid state changes that cause jitter
+const completionStabilityTracker = new Map<string, {
+  lastCheckTime: number;
+  isStable: boolean;
+  consecutiveCompletionChecks: number;
+}>();
+
+// Minimum time between completion checks to ensure stability
+const COMPLETION_STABILITY_THRESHOLD = 200; // 200ms
+const REQUIRED_STABLE_CHECKS = 2; // Require 2 consecutive stable checks
+
+/**
+ * Check if completion state is stable to prevent jitter
+ */
+const isCompletionStable = (blockId: string): boolean => {
+  const now = Date.now();
+  const tracker = completionStabilityTracker.get(blockId);
+  
+  if (!tracker) {
+    completionStabilityTracker.set(blockId, {
+      lastCheckTime: now,
+      isStable: false,
+      consecutiveCompletionChecks: 1
+    });
+    return false;
+  }
+  
+  // Check if enough time has passed since last check
+  if (now - tracker.lastCheckTime < COMPLETION_STABILITY_THRESHOLD) {
+    return false; // Too soon, not stable
+  }
+  
+  // Increment consecutive checks
+  tracker.consecutiveCompletionChecks++;
+  tracker.lastCheckTime = now;
+  
+  // Consider stable after required number of checks
+  if (tracker.consecutiveCompletionChecks >= REQUIRED_STABLE_CHECKS) {
+    tracker.isStable = true;
+    return true;
+  }
+  
+  return false;
+};
 
 // Performance cache for pattern matching
 const PATTERN_CACHE = {
@@ -377,6 +424,10 @@ export const monitorNode = (node: HTMLElement, blockId: string): void => {
     // Skip if this block is already complete to prevent thrashing
     if (completedStreams.has(blockId)) return;
 
+    // Skip if block is currently transitioning to prevent conflicts
+    const functionBlock = document.querySelector(`.function-block[data-block-id="${blockId}"]`);
+    if (functionBlock?.hasAttribute('data-completing')) return;
+
     let contentChanged = false;
     let significantChange = false;
     let functionCallPattern = false;
@@ -485,49 +536,21 @@ export const monitorNode = (node: HTMLElement, blockId: string): void => {
             if (!completedStreams.has(blockId)) {
               // Use a longer delay to ensure all parameter content is captured
               setTimeout(() => {
-                // Re-check completion after delay to ensure content is truly complete
-                const finalContent = node.textContent || '';
-                const finalAnalysis = analyzeFunctionContent(finalContent, false);
-                
-                if (finalAnalysis.hasFunction && finalAnalysis.isComplete) {
-                  completedStreams.set(blockId, true);
+                // Only proceed if still not marked as complete
+                if (!completedStreams.has(blockId)) {
+                  // Re-check completion after delay to ensure content is truly complete
+                  const finalContent = node.textContent || '';
+                  const finalAnalysis = analyzeFunctionContent(finalContent, false);
                   
-                  // Use requestAnimationFrame for smooth completion transition
-                  requestAnimationFrame(() => {
-                    const functionBlock = document.querySelector(`.function-block[data-block-id="${blockId}"]`);
-                    if (functionBlock && functionBlock.classList.contains('function-loading')) {
-                      functionBlock.classList.remove('function-loading');
-                      functionBlock.classList.add('function-complete');
-                      
-                      // Remove spinner smoothly
-                      const spinner = functionBlock.querySelector('.spinner');
-                      if (spinner) {
-                        (spinner as HTMLElement).style.transition = 'opacity 0.2s ease';
-                        (spinner as HTMLElement).style.opacity = '0';
-                        setTimeout(() => spinner.remove(), 200);
-                      }
-                      
-                      // Clean up streaming attributes with minimal delay
-                      setTimeout(() => {
-                        const streamingParams = functionBlock.querySelectorAll('[data-streaming="true"]');
-                        streamingParams.forEach(param => {
-                          param.removeAttribute('data-streaming');
-                          param.removeAttribute('data-streaming-styled');
-                        });
-                        
-                        const streamingNames = functionBlock.querySelectorAll('.streaming-param-name');
-                        streamingNames.forEach(nameEl => {
-                          nameEl.classList.remove('streaming-param-name');
-                        });
-                      }, 50);
-                      
-                      if (CONFIG.debug) {
-                        console.debug(`Marked block ${blockId} as complete using conservative analysis`);
-                      }
-                    }
-                  });
+                  if (finalAnalysis.hasFunction && finalAnalysis.isComplete) {
+                    // Mark as completed first to prevent duplicate attempts
+                    completedStreams.set(blockId, true);
+                    
+                    // Perform seamless completion transition without DOM disruption
+                    performSeamlessCompletion(blockId, finalContent);
+                  }
                 }
-              }, 300); // Longer delay to ensure parameter content is captured
+              }, 300); // Reduced delay but still conservative
             }
           }
         }
@@ -583,6 +606,96 @@ export const checkStreamingUpdates = (): void => {
  */
 export let progressiveUpdateTimer: ReturnType<typeof setInterval> | null = null;
 /**
+ * Perform seamless completion transition without DOM disruption
+ *
+ * @param blockId ID of the function block to complete
+ * @param finalContent Final content of the stream
+ */
+const performSeamlessCompletion = (blockId: string, finalContent: string): void => {
+  if (CONFIG.debug) {
+    console.debug(`Performing seamless completion for block ${blockId}`);
+  }
+
+  // Find the function block
+  const functionBlock = document.querySelector(`.function-block[data-block-id="${blockId}"]`);
+  if (!functionBlock) {
+    if (CONFIG.debug) {
+      console.debug(`Function block not found for completion: ${blockId}`);
+    }
+    return;
+  }
+
+  // Skip if already completed or currently transitioning
+  if (functionBlock.classList.contains('function-complete') || functionBlock.hasAttribute('data-completing')) {
+    if (CONFIG.debug) {
+      console.debug(`Block ${blockId} already completed or transitioning, skipping`);
+    }
+    return;
+  }
+
+  // Mark as transitioning to prevent duplicate completion attempts
+  functionBlock.setAttribute('data-completing', 'true');
+
+  // Use multiple requestAnimationFrame calls for ultra-smooth transition
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      // Transition from loading to complete state
+      if (functionBlock.classList.contains('function-loading')) {
+        functionBlock.classList.remove('function-loading');
+        functionBlock.classList.add('function-complete');
+        
+        // Remove spinner smoothly
+        const spinner = functionBlock.querySelector('.spinner');
+        if (spinner) {
+          (spinner as HTMLElement).style.transition = 'opacity 0.3s ease';
+          (spinner as HTMLElement).style.opacity = '0';
+          setTimeout(() => {
+            if (spinner.parentNode) {
+              spinner.parentNode.removeChild(spinner);
+            }
+          }, 300);
+        }
+        
+        // Clean up streaming attributes with staggered delays to prevent jitter
+        setTimeout(() => {
+          const streamingParams = functionBlock.querySelectorAll('[data-streaming="true"]');
+          streamingParams.forEach((param, index) => {
+            setTimeout(() => {
+              param.removeAttribute('data-streaming');
+              param.removeAttribute('data-streaming-styled');
+              
+              // Reset visual properties
+              const paramElement = param as HTMLElement;
+              paramElement.style.willChange = 'auto';
+            }, index * 5); // Very short staggered delays
+          });
+          
+          const streamingNames = functionBlock.querySelectorAll('.streaming-param-name');
+          streamingNames.forEach((nameEl, index) => {
+            setTimeout(() => {
+              nameEl.classList.remove('streaming-param-name');
+            }, index * 5);
+          });
+          
+          // Clean up parameter content cache
+          parameterContentCache.delete(blockId);
+          
+          // Remove transitioning flag
+          functionBlock.removeAttribute('data-completing');
+          
+          if (CONFIG.debug) {
+            console.debug(`Completed seamless transition for block ${blockId}`);
+          }
+        }, 100); // Short delay before cleanup
+      } else {
+        // If not loading, just clean up the flag
+        functionBlock.removeAttribute('data-completing');
+      }
+    });
+  });
+};
+
+/**
  * Re-sync the rendered function block with the original pre block content
  * This is a truly seamless update that never removes or replaces DOM elements
  *
@@ -592,6 +705,18 @@ export const resyncWithOriginalContent = (blockId: string): void => {
   if (CONFIG.debug) {
     console.debug(`Starting seamless content resync for block ${blockId}`);
   }
+
+  // Skip if already completed to prevent jitter
+  if (completedStreams.has(blockId)) {
+    if (CONFIG.debug) {
+      console.debug(`Block ${blockId} already completed, skipping resync to prevent jitter`);
+    }
+    resyncingBlocks.delete(blockId);
+    return;
+  }
+
+  // Mark as resyncing to prevent conflicting updates
+  resyncingBlocks.add(blockId);
 
   // Find the original pre element
   const originalPre = document.querySelector(`pre[data-block-id="${blockId}"]`);
@@ -642,11 +767,16 @@ export const resyncWithOriginalContent = (blockId: string): void => {
 
   // **CRITICAL**: Only update content seamlessly within existing elements
   // NEVER disconnect observers or modify DOM structure
+  // Use minimal, gradual updates to prevent jitter
+
+  // Check if the function block is already stable before making changes
+  const isAlreadyComplete = functionBlock.classList.contains('function-complete');
+  const isCurrentlyLoading = functionBlock.classList.contains('function-loading');
 
   // Use a single requestAnimationFrame to batch all updates
   requestAnimationFrame(() => {
-    // Update function name seamlessly if needed
-    if (originalFunctionName) {
+    // Only update function name if it's actually different and won't cause jitter
+    if (originalFunctionName && !isAlreadyComplete) {
       const functionNameElement = functionBlock.querySelector('.function-name-text');
       if (functionNameElement && functionNameElement.textContent !== originalFunctionName) {
         if (CONFIG.debug) {
@@ -656,7 +786,8 @@ export const resyncWithOriginalContent = (blockId: string): void => {
       }
     }
 
-    // Update each parameter's content seamlessly
+    // Update parameter content with minimal disruption
+    let hasContentChanges = false;
     mergedParams.forEach((param) => {
       const paramId = `${blockId}-${param.name}`;
       const paramValueElement = functionBlock.querySelector(`.param-value[data-param-id="${paramId}"]`);
@@ -665,96 +796,95 @@ export const resyncWithOriginalContent = (blockId: string): void => {
         const currentContent = paramValueElement.textContent || '';
         const targetContent = param.value;
 
-        // Only update if content actually differs
-        if (currentContent !== targetContent) {
+        // Only update if content actually differs and is significantly different
+        if (currentContent !== targetContent && Math.abs(currentContent.length - targetContent.length) > 5) {
+          hasContentChanges = true;
+          
           if (CONFIG.debug) {
             console.debug(`Updating parameter ${param.name}: ${currentContent.length} → ${targetContent.length} chars`);
           }
 
-          // Find the actual content container
+          // Find the actual content container and update with minimal disruption
           const preElement = paramValueElement.querySelector('pre');
           const contentWrapper = paramValueElement.querySelector('.content-wrapper');
 
-          if (preElement) {
-            // Update pre element content directly without any visual disruption
+          // Use the most direct path to update content without causing reflows
+          if (preElement && preElement.textContent !== targetContent) {
             preElement.textContent = targetContent;
-          } else if (contentWrapper) {
-            // Update content wrapper directly
+          } else if (contentWrapper && contentWrapper.textContent !== targetContent) {
             contentWrapper.textContent = targetContent;
-          } else {
-            // Direct update to the parameter element
+          } else if (paramValueElement.textContent !== targetContent) {
             paramValueElement.textContent = targetContent;
           }
 
           // Update the stored value for future comparisons
           paramValueElement.setAttribute('data-current-value', targetContent);
         }
-      } else if (CONFIG.debug) {
-        console.debug(`Parameter element not found for ${param.name} (this is normal during streaming)`);
       }
     });
 
-    // Smoothly transition out of streaming state
-    const wasLoading = functionBlock.classList.contains('function-loading');
-    if (wasLoading) {
+    // Only transition to complete state if there were actual content changes and we're not already complete
+    if (hasContentChanges && isCurrentlyLoading && !isAlreadyComplete) {
       if (CONFIG.debug) {
-        console.debug(`Transitioning block ${blockId} from loading to complete state`);
+        console.debug(`Transitioning block ${blockId} from loading to complete state (with content changes)`);
       }
       
-      // Remove loading state smoothly
+      // Mark as completed first to prevent conflicts
+      completedStreams.set(blockId, true);
+      
+      // Transition smoothly
       functionBlock.classList.remove('function-loading');
       functionBlock.classList.add('function-complete');
       
-      // Remove spinner if it exists
+      // Remove spinner with fade effect
       const spinner = functionBlock.querySelector('.spinner');
       if (spinner) {
         (spinner as HTMLElement).style.opacity = '0';
-        (spinner as HTMLElement).style.transition = 'opacity 0.3s ease';
+        (spinner as HTMLElement).style.transition = 'opacity 0.2s ease';
         setTimeout(() => {
           if (spinner.parentNode) {
             spinner.parentNode.removeChild(spinner);
           }
-        }, 300);
+        }, 200);
       }
+
+      // Clean up streaming attributes very gradually to prevent jitter
+      setTimeout(() => {
+        const streamingParams = functionBlock.querySelectorAll('[data-streaming="true"]');
+        streamingParams.forEach((param, index) => {
+          setTimeout(() => {
+            param.removeAttribute('data-streaming');
+            param.removeAttribute('data-streaming-styled');
+            
+            // Reset visual properties gradually
+            const paramElement = param as HTMLElement;
+            paramElement.style.willChange = 'auto';
+          }, index * 10); // Very fast staggered removal
+        });
+
+        const streamingNames = functionBlock.querySelectorAll('.streaming-param-name');
+        streamingNames.forEach((nameEl, index) => {
+          setTimeout(() => {
+            nameEl.classList.remove('streaming-param-name');
+          }, index * 10);
+        });
+      }, 100); // Longer delay before cleanup
+    } else if (isAlreadyComplete || !isCurrentlyLoading) {
+      // If already complete or not loading, just mark as complete without visual changes
+      completedStreams.set(blockId, true);
     }
 
-    // Remove streaming attributes gradually
-    const streamingParams = functionBlock.querySelectorAll('[data-streaming="true"]');
-    streamingParams.forEach((param, index) => {
-      setTimeout(() => {
-        param.removeAttribute('data-streaming');
-        param.removeAttribute('data-streaming-styled');
-        
-        // Reset visual properties
-        const paramElement = param as HTMLElement;
-        paramElement.style.willChange = 'auto';
-        paramElement.style.containIntrinsicSize = 'auto';
-      }, index * 20); // Very fast staggered removal
-    });
-
-    // Remove streaming visual classes
-    const streamingNames = functionBlock.querySelectorAll('.streaming-param-name');
-    streamingNames.forEach((nameEl, index) => {
-      setTimeout(() => {
-        nameEl.classList.remove('streaming-param-name');
-      }, index * 20);
-    });
-
-    // Final cleanup after a short delay
+    // Always clean up the resync state quickly
     setTimeout(() => {
-      completedStreams.delete(blockId);
       resyncingBlocks.delete(blockId);
       
       // Clean up parameter content cache to free memory
       parameterContentCache.delete(blockId);
       
-      // **IMPORTANT**: DO NOT disconnect or delete the observer
-      // Let it continue monitoring for any future changes
-      
       if (CONFIG.debug) {
-        console.debug(`Completed seamless resync for block ${blockId}`);
+        console.debug(`Completed seamless resync for block ${blockId} (hasContentChanges: ${hasContentChanges})`);
       }
-    }, Math.max(streamingParams.length * 20, 100));
+    }, 150); // Quick cleanup
   });
 };
 

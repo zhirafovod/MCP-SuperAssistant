@@ -22,6 +22,8 @@ const renderSystemMessageBox = (block: HTMLElement, content: string): void => {
     const systemContainer = document.createElement('div');
     systemContainer.className = 'function-block system-message-container';
     systemContainer.setAttribute('data-block-id', blockId);
+    systemContainer.style.width = '100%';
+    systemContainer.style.boxSizing = 'border-box';
     
     // Apply theme class
     if (CONFIG.useHostTheme) {
@@ -72,10 +74,14 @@ const renderSystemMessageBox = (block: HTMLElement, content: string): void => {
     expandableContent.style.maxHeight = '0px';
     expandableContent.style.opacity = '0';
     expandableContent.style.padding = '0 12px';
+    expandableContent.style.width = '100%';
+    expandableContent.style.boxSizing = 'border-box';
 
     // Create content area inside expandable wrapper
     const contentArea = document.createElement('div');
     contentArea.className = 'param-value system-message-content';
+    contentArea.style.width = '100%';
+    contentArea.style.boxSizing = 'border-box';
     
     // Apply theme-specific styles to content area
     if (isDarkTheme()) {
@@ -119,6 +125,8 @@ const renderSystemMessageBox = (block: HTMLElement, content: string): void => {
           expandableContent.style.opacity = '0';
           expandableContent.style.paddingTop = '0';
           expandableContent.style.paddingBottom = '0';
+          expandableContent.style.width = '100%';
+          expandableContent.style.boxSizing = 'border-box';
           
           if (expandIcon) {
             expandIcon.setAttribute('d', 'M8 10l4 4 4-4');
@@ -129,17 +137,23 @@ const renderSystemMessageBox = (block: HTMLElement, content: string): void => {
         // Hide after animation completes
         setTimeout(() => {
           if (!systemContainer.classList.contains('expanded')) {
-            expandableContent.style.display = 'none';
+            // Don't set display none as it affects width - just keep it collapsed
+            expandableContent.style.width = '100%';
+            expandableContent.style.boxSizing = 'border-box';
           }
         }, 500); // Match transition duration
       } else {
         // Expand - prepare for smooth animation
         systemContainer.classList.add('expanded');
+        systemContainer.style.width = '100%';
+        systemContainer.style.boxSizing = 'border-box';
         expandableContent.style.display = 'block';
         expandableContent.style.maxHeight = '0px';
         expandableContent.style.opacity = '0';
         expandableContent.style.paddingTop = '0';
         expandableContent.style.paddingBottom = '0';
+        expandableContent.style.width = '100%';
+        expandableContent.style.boxSizing = 'border-box';
         
         // Get target height
         const targetHeight = expandableContent.scrollHeight;
@@ -150,6 +164,8 @@ const renderSystemMessageBox = (block: HTMLElement, content: string): void => {
           expandableContent.style.opacity = '1';
           expandableContent.style.paddingTop = '12px';
           expandableContent.style.paddingBottom = '12px';
+          expandableContent.style.width = '100%';
+          expandableContent.style.boxSizing = 'border-box';
           
           if (expandIcon) {
             expandIcon.setAttribute('d', 'M16 14l-4-4-4 4');
@@ -163,10 +179,14 @@ const renderSystemMessageBox = (block: HTMLElement, content: string): void => {
             // Gradually transition to auto height to prevent jerk
             expandableContent.style.transition = 'none';
             expandableContent.style.maxHeight = 'none';
+            expandableContent.style.width = '100%';
+            expandableContent.style.boxSizing = 'border-box';
             
             // Re-enable transitions after a frame
             requestAnimationFrame(() => {
               expandableContent.style.transition = '';
+              expandableContent.style.width = '100%';
+              expandableContent.style.boxSizing = 'border-box';
             });
           }
         }, 600); // Wait longer than the 500ms transition
@@ -253,6 +273,8 @@ export const renderFunctionResult = (block: HTMLElement, isProcessingRef: { curr
       const resultContainer = document.createElement('div');
       resultContainer.className = 'function-block function-result-container';
       resultContainer.setAttribute('data-block-id', blockId);
+      resultContainer.style.width = '100%';
+      resultContainer.style.boxSizing = 'border-box';
       
       // Apply theme class
       if (CONFIG.useHostTheme) {
@@ -311,10 +333,14 @@ export const renderFunctionResult = (block: HTMLElement, isProcessingRef: { curr
       expandableContent.style.maxHeight = '0px';
       expandableContent.style.opacity = '0';
       expandableContent.style.padding = '0 12px';
+      expandableContent.style.width = '100%';
+      expandableContent.style.boxSizing = 'border-box';
 
       // Create content area inside expandable wrapper
       const contentArea = document.createElement('div');
       contentArea.className = 'param-value function-result-content';
+      contentArea.style.width = '100%';
+      contentArea.style.boxSizing = 'border-box';
       
       // Apply theme-specific styles to content area
       if (isDarkTheme()) {
@@ -427,6 +453,8 @@ export const renderFunctionResult = (block: HTMLElement, isProcessingRef: { curr
             expandableContent.style.opacity = '0';
             expandableContent.style.paddingTop = '0';
             expandableContent.style.paddingBottom = '0';
+            expandableContent.style.width = '100%';
+            expandableContent.style.boxSizing = 'border-box';
             
             if (expandIcon) {
               expandIcon.setAttribute('d', 'M8 10l4 4 4-4');
@@ -437,17 +465,23 @@ export const renderFunctionResult = (block: HTMLElement, isProcessingRef: { curr
           // Hide after animation completes
           setTimeout(() => {
             if (!resultContainer.classList.contains('expanded')) {
-              expandableContent.style.display = 'none';
+              // Don't set display none as it affects width - just keep it collapsed
+              expandableContent.style.width = '100%';
+              expandableContent.style.boxSizing = 'border-box';
             }
           }, 500); // Match transition duration
         } else {
           // Expand - prepare for smooth animation
           resultContainer.classList.add('expanded');
+          resultContainer.style.width = '100%';
+          resultContainer.style.boxSizing = 'border-box';
           expandableContent.style.display = 'block';
           expandableContent.style.maxHeight = '0px';
           expandableContent.style.opacity = '0';
           expandableContent.style.paddingTop = '0';
           expandableContent.style.paddingBottom = '0';
+          expandableContent.style.width = '100%';
+          expandableContent.style.boxSizing = 'border-box';
           
           // Get target height
           const targetHeight = expandableContent.scrollHeight;
@@ -458,6 +492,8 @@ export const renderFunctionResult = (block: HTMLElement, isProcessingRef: { curr
             expandableContent.style.opacity = '1';
             expandableContent.style.paddingTop = '12px';
             expandableContent.style.paddingBottom = '12px';
+            expandableContent.style.width = '100%';
+            expandableContent.style.boxSizing = 'border-box';
             
             if (expandIcon) {
               expandIcon.setAttribute('d', 'M16 14l-4-4-4 4');
@@ -471,10 +507,14 @@ export const renderFunctionResult = (block: HTMLElement, isProcessingRef: { curr
               // Gradually transition to auto height to prevent jerk
               expandableContent.style.transition = 'none';
               expandableContent.style.maxHeight = 'none';
+              expandableContent.style.width = '100%';
+              expandableContent.style.boxSizing = 'border-box';
               
               // Re-enable transitions after a frame
               requestAnimationFrame(() => {
                 expandableContent.style.transition = '';
+                expandableContent.style.width = '100%';
+                expandableContent.style.boxSizing = 'border-box';
               });
             }
           }, 600); // Wait longer than the 500ms transition

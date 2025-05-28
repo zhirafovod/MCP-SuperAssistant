@@ -243,8 +243,20 @@ export const smoothlyUpdateBlockContent = (
   // Performance: Check update lock more efficiently
   if (!isStreaming && block.hasAttribute('data-smooth-updating')) return;
 
-  // Cache essential properties for performance
+  // Skip updates for completed blocks to prevent jitter
   const blockId = block.getAttribute('data-block-id');
+  if (blockId && (window as any).completedStreams?.has(blockId)) {
+    if (CONFIG.debug) console.debug(`Skipping update for completed block ${blockId}`);
+    return;
+  }
+
+  // Skip updates if block is currently resyncing
+  if (blockId && (window as any).resyncingBlocks?.has(blockId)) {
+    if (CONFIG.debug) console.debug(`Skipping update for resyncing block ${blockId}`);
+    return;
+  }
+
+  // Cache essential properties for performance
   const originalClasses = Array.from(block.classList);
   const originalParent = block.parentNode;
   
@@ -428,7 +440,7 @@ export const smoothlyUpdateBlockContent = (
       
       if (scrollState.wasScrollable) {
         replacementBlock.scrollTop = scrollState.top;
-      }
+      } 
     } else if (document.body.contains(block)) {
       // Efficient content finalization
       while (newWrapper.firstChild) {
