@@ -417,29 +417,6 @@ const injectStreamingStyles = (() => {
     style.textContent = `
       .streaming-param-name {
         position: relative;
-        animation: pulse-glow 2s ease-in-out infinite alternate;
-      }
-      
-      .streaming-param-name::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -2px;
-        width: 3px;
-        height: 100%;
-        background: linear-gradient(45deg, #00d4ff, #0099cc);
-        border-radius: 2px;
-        animation: streaming-indicator 1.5s ease-in-out infinite;
-      }
-      
-      @keyframes pulse-glow {
-        0% { text-shadow: 0 0 2px rgba(0, 212, 255, 0.3); }
-        100% { text-shadow: 0 0 8px rgba(0, 212, 255, 0.6); }
-      }
-      
-      @keyframes streaming-indicator {
-        0%, 100% { opacity: 0.4; transform: scaleY(0.8); }
-        50% { opacity: 1; transform: scaleY(1.2); }
       }
       
       .param-value[data-streaming="true"] {
