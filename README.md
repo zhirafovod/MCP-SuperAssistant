@@ -13,9 +13,27 @@ Brings MCP to ChatGPT, Perplexity, Grok, Gemini, Google AI Studio, OpenRouter an
  <img src="chrome-extension/public/Cover3.jpg" alt="MCP SuperAssistant Cover" width="800">
 </div>
 
+## Installation
+
+<div align="center">
+   <a href="https://chromewebstore.google.com/detail/mcp-superassistant/kngiafgkdnlkgmefdafaibkibegkcaef?hl=en">
+      <img src="https://img.shields.io/badge/Chrome%20Web%20Store-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Chrome Web Store" />
+   </a>
+   <a href="https://addons.mozilla.org/en-US/firefox/addon/mcp-superassistant/">
+      <img src="https://img.shields.io/badge/Firefox%20Add--ons-FF7139?style=for-the-badge&logo=firefox&logoColor=white" alt="Firefox Add-ons" />
+   </a>
+</div>
+
+<br>
+
+<div align="center">
+   <h3>🚀 Quick Install</h3>
+   <p>Get MCP SuperAssistant for your browser:</p>
+</div>
+
 ## Overview
 
-MCP SuperAssistant is a Chrome extension that integrates the Model Context Protocol (MCP) tools with AI platforms like Perplexity, ChatGPT, Google Gemini, Google AI Studio and Grok. It allows users to execute MCP tools directly from these platforms and insert the results back into the conversation, enhancing the capabilities of web-based AI assistants.
+MCP SuperAssistant is a Chrome extension that integrates the Model Context Protocol (MCP) tools with AI platforms like Perplexity, ChatGPT, Google Gemini, Google AI Studio, Grokand more. It allows users to execute MCP tools directly from these platforms and insert the results back into the conversation, enhancing the capabilities of web-based AI assistants.
 
 ## Currently Supported Platforms
 
@@ -29,8 +47,6 @@ MCP SuperAssistant is a Chrome extension that integrates the Model Context Proto
 - [Kagi](https://kagi.com/assistant)
 - [T3 Chat](https://t3.chat/)
 
-
-More platforms coming soon! Pull Requests are welcome.
 
 ## Demo Video
 
@@ -71,14 +87,6 @@ flowchart TD
     C -->|Insert| F[Add Results Back to Chat]
 ```
 
-## Installation
-
-### From Chrome Web Store
-
-1. Visit the [Chrome Web Store page](https://chromewebstore.google.com/detail/mcp-superassistant/kngiafgkdnlkgmefdafaibkibegkcaef?hl=en) for MCP SuperAssistant
-2. Click "Add to Chrome"
-3. Confirm the installation
-
 ### Connecting to Local Proxy Server
 
 To connect the Chrome extension to a local server for proxying connections:
@@ -100,12 +108,27 @@ To connect the Chrome extension to a local server for proxying connections:
    Windows: %APPDATA%\Claude\claude_desktop_config.json
    ```
 
+   **Example mcpconfig.json:**
+   ```json
+   {
+     "mcpServers": {
+       "desktop-commander": {
+         "command": "npx",
+         "args": [
+           "-y",
+           "@wonderwhy-er/desktop-commander"
+         ]
+       }
+     }
+   }
+   ```
+
 #### Connection Steps:
 
 1. Start the proxy server using one of the commands above
 2. Open the MCP SuperAssistant sidebar in your AI platform
 3. Click on the server status indicator (usually showing as "Disconnected")
-4. Enter the local server URL (default: `http://localhost:3006`)
+4. Enter the local server URL (default: `http://localhost:3006/sse`)
 5. Click "Connect" to establish the connection
 6. The status indicator should change to "Connected" if successful
 
