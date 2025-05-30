@@ -1,7 +1,3 @@
-import { CONFIG } from '../core/config';
-import { renderFunctionCall } from '../renderer/index';
-import { extractParameters } from '../parser/index';
-
 // Declare global window properties for TypeScript
 declare global {
   interface Window {
@@ -14,6 +10,9 @@ declare global {
 }
 
 // Import required functions
+import { CONFIG } from '../core/config';
+import { renderFunctionCall } from '../renderer/index';
+import { extractParameters, containsFunctionCalls, extractLanguageTag } from '../parser/index';
 
 // Maps to store observers and state for streaming content
 export const streamingObservers = new Map<string, MutationObserver>();
@@ -431,7 +430,6 @@ export const monitorNode = (node: HTMLElement, blockId: string): void => {
     let contentChanged = false;
     let significantChange = false;
     let functionCallPattern = false;
-    let contentToAnalyze = '';
 
     // Batch analyze all mutations for better performance
     for (const mutation of mutations) {
@@ -460,34 +458,21 @@ export const monitorNode = (node: HTMLElement, blockId: string): void => {
           const chunkInfo = detectFunctionChunk(newValue, previousContent);
           
           if (chunkInfo.hasNewChunk && chunkInfo.isSignificant) {
-            // Cache parameter content as it's being streamed to prevent loss
+            significantChange = true;
+            // Cache parameter content during streaming
             cacheParameterContent(blockId, newValue);
-            
-            // Process chunk immediately for fast response
+            // Process chunk immediately for instant response
             processChunkImmediate(blockId, newValue, chunkInfo);
-            
-            // Update cache for next detection
-            previousContentCache.set(blockId, newValue);
-            
-            significantChange = true;
-            contentToAnalyze = newValue;
           } else if (Math.abs(newValue.length - oldValue.length) > 10) {
-            // Cache parameter content for any significant content change
-            cacheParameterContent(blockId, newValue);
-            
-            // If content length has changed by more than 10 characters, consider it significant
             significantChange = true;
-            contentToAnalyze = newValue;
           }
+          
+          // Update previous content cache
+          previousContentCache.set(blockId, newValue);
         }
 
         if (mutation.type === 'childList' && (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0)) {
           significantChange = true;
-          contentToAnalyze = textContent;
-        }
-
-        if (significantChange && functionCallPattern) {
-          break; // Early exit if we have enough info
         }
       }
     }
@@ -521,39 +506,8 @@ export const monitorNode = (node: HTMLElement, blockId: string): void => {
           });
         }
 
-        // Use optimized scheduling instead of immediate rendering
-        if (functionCallPattern || significantChange) {
-          scheduleOptimizedRender(blockId, target);
-        }
-
-        // Use fast content analysis for completion detection
-        if (significantChange && contentToAnalyze) {
-          const analysis = analyzeFunctionContent(contentToAnalyze, true);
-          
-          if (analysis.hasFunction && analysis.isComplete) {
-            // Content appears complete - but be more conservative with completion detection
-            // Wait a bit longer to ensure all parameter content has been captured
-            if (!completedStreams.has(blockId)) {
-              // Use a longer delay to ensure all parameter content is captured
-              setTimeout(() => {
-                // Only proceed if still not marked as complete
-                if (!completedStreams.has(blockId)) {
-                  // Re-check completion after delay to ensure content is truly complete
-                  const finalContent = node.textContent || '';
-                  const finalAnalysis = analyzeFunctionContent(finalContent, false);
-                  
-                  if (finalAnalysis.hasFunction && finalAnalysis.isComplete) {
-                    // Mark as completed first to prevent duplicate attempts
-                    completedStreams.set(blockId, true);
-                    
-                    // Perform seamless completion transition without DOM disruption
-                    performSeamlessCompletion(blockId, finalContent);
-                  }
-                }
-              }, 300); // Reduced delay but still conservative
-            }
-          }
-        }
+        // Use optimized scheduling for better performance
+        scheduleOptimizedRender(blockId, target);
       }
     }
   });
@@ -605,6 +559,7 @@ export const checkStreamingUpdates = (): void => {
  * Start progressive updates for large streaming content
  */
 export let progressiveUpdateTimer: ReturnType<typeof setInterval> | null = null;
+
 /**
  * Perform seamless completion transition without DOM disruption
  *
@@ -628,7 +583,7 @@ const performSeamlessCompletion = (blockId: string, finalContent: string): void 
   // Skip if already completed or currently transitioning
   if (functionBlock.classList.contains('function-complete') || functionBlock.hasAttribute('data-completing')) {
     if (CONFIG.debug) {
-      console.debug(`Block ${blockId} already completed or transitioning, skipping`);
+      console.debug(`Block ${blockId} already completed or completing`);
     }
     return;
   }
@@ -639,58 +594,21 @@ const performSeamlessCompletion = (blockId: string, finalContent: string): void 
   // Use multiple requestAnimationFrame calls for ultra-smooth transition
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      // Transition from loading to complete state
-      if (functionBlock.classList.contains('function-loading')) {
-        functionBlock.classList.remove('function-loading');
-        functionBlock.classList.add('function-complete');
-        
-        // Remove spinner smoothly
-        const spinner = functionBlock.querySelector('.spinner');
-        if (spinner) {
-          (spinner as HTMLElement).style.transition = 'opacity 0.3s ease';
-          (spinner as HTMLElement).style.opacity = '0';
-          setTimeout(() => {
-            if (spinner.parentNode) {
-              spinner.parentNode.removeChild(spinner);
-            }
-          }, 300);
-        }
-        
-        // Clean up streaming attributes with staggered delays to prevent jitter
-        setTimeout(() => {
-          const streamingParams = functionBlock.querySelectorAll('[data-streaming="true"]');
-          streamingParams.forEach((param, index) => {
-            setTimeout(() => {
-              param.removeAttribute('data-streaming');
-              param.removeAttribute('data-streaming-styled');
-              
-              // Reset visual properties
-              const paramElement = param as HTMLElement;
-              paramElement.style.willChange = 'auto';
-            }, index * 5); // Very short staggered delays
-          });
-          
-          const streamingNames = functionBlock.querySelectorAll('.streaming-param-name');
-          streamingNames.forEach((nameEl, index) => {
-            setTimeout(() => {
-              nameEl.classList.remove('streaming-param-name');
-            }, index * 5);
-          });
-          
-          // Clean up parameter content cache
-          parameterContentCache.delete(blockId);
-          
-          // Remove transitioning flag
-          functionBlock.removeAttribute('data-completing');
-          
-          if (CONFIG.debug) {
-            console.debug(`Completed seamless transition for block ${blockId}`);
-          }
-        }, 100); // Short delay before cleanup
-      } else {
-        // If not loading, just clean up the flag
-        functionBlock.removeAttribute('data-completing');
+      // Remove loading state and add complete state
+      functionBlock.classList.remove('function-loading');
+      functionBlock.classList.add('function-complete');
+      
+      // Remove spinner if present
+      const spinner = functionBlock.querySelector('.spinner');
+      if (spinner) {
+        spinner.remove();
       }
+      
+      // Remove data-completing attribute
+      functionBlock.removeAttribute('data-completing');
+      
+      // Mark as completed
+      completedStreams.set(blockId, true);
     });
   });
 };
@@ -709,7 +627,7 @@ export const resyncWithOriginalContent = (blockId: string): void => {
   // Skip if already completed to prevent jitter
   if (completedStreams.has(blockId)) {
     if (CONFIG.debug) {
-      console.debug(`Block ${blockId} already completed, skipping resync to prevent jitter`);
+      console.debug(`Skipping resync for already completed block ${blockId}`);
     }
     resyncingBlocks.delete(blockId);
     return;
@@ -749,9 +667,6 @@ export const resyncWithOriginalContent = (blockId: string): void => {
   const mergedParams = originalParams.map(param => {
     const cachedContent = cachedParams.get(param.name);
     if (cachedContent && cachedContent.length > param.value.length) {
-      if (CONFIG.debug) {
-        console.debug(`Using cached content for parameter ${param.name}: ${param.value.length} → ${cachedContent.length} chars`);
-      }
       return { ...param, value: cachedContent };
     }
     return param;
@@ -779,9 +694,6 @@ export const resyncWithOriginalContent = (blockId: string): void => {
     if (originalFunctionName && !isAlreadyComplete) {
       const functionNameElement = functionBlock.querySelector('.function-name-text');
       if (functionNameElement && functionNameElement.textContent !== originalFunctionName) {
-        if (CONFIG.debug) {
-          console.debug(`Updating function name: ${functionNameElement.textContent} → ${originalFunctionName}`);
-        }
         functionNameElement.textContent = originalFunctionName;
       }
     }
@@ -794,97 +706,35 @@ export const resyncWithOriginalContent = (blockId: string): void => {
 
       if (paramValueElement) {
         const currentContent = paramValueElement.textContent || '';
-        const targetContent = param.value;
-
-        // Only update if content actually differs and is significantly different
-        if (currentContent !== targetContent && Math.abs(currentContent.length - targetContent.length) > 5) {
-          hasContentChanges = true;
-          
-          if (CONFIG.debug) {
-            console.debug(`Updating parameter ${param.name}: ${currentContent.length} → ${targetContent.length} chars`);
+        if (currentContent !== param.value) {
+          // Find or create pre element for seamless update
+          let preElement = paramValueElement.querySelector('pre');
+          if (preElement) {
+            if (preElement.textContent !== param.value) {
+              preElement.textContent = param.value;
+              hasContentChanges = true;
+            }
+          } else if (paramValueElement.textContent !== param.value) {
+            paramValueElement.textContent = param.value;
+            hasContentChanges = true;
           }
-
-          // Find the actual content container and update with minimal disruption
-          const preElement = paramValueElement.querySelector('pre');
-          const contentWrapper = paramValueElement.querySelector('.content-wrapper');
-
-          // Use the most direct path to update content without causing reflows
-          if (preElement && preElement.textContent !== targetContent) {
-            preElement.textContent = targetContent;
-          } else if (contentWrapper && contentWrapper.textContent !== targetContent) {
-            contentWrapper.textContent = targetContent;
-          } else if (paramValueElement.textContent !== targetContent) {
-            paramValueElement.textContent = targetContent;
-          }
-
-          // Update the stored value for future comparisons
-          paramValueElement.setAttribute('data-current-value', targetContent);
         }
       }
     });
 
     // Only transition to complete state if there were actual content changes and we're not already complete
     if (hasContentChanges && isCurrentlyLoading && !isAlreadyComplete) {
-      if (CONFIG.debug) {
-        console.debug(`Transitioning block ${blockId} from loading to complete state (with content changes)`);
-      }
-      
-      // Mark as completed first to prevent conflicts
-      completedStreams.set(blockId, true);
-      
-      // Transition smoothly
-      functionBlock.classList.remove('function-loading');
-      functionBlock.classList.add('function-complete');
-      
-      // Remove spinner with fade effect
-      const spinner = functionBlock.querySelector('.spinner');
-      if (spinner) {
-        (spinner as HTMLElement).style.opacity = '0';
-        (spinner as HTMLElement).style.transition = 'opacity 0.2s ease';
-        setTimeout(() => {
-          if (spinner.parentNode) {
-            spinner.parentNode.removeChild(spinner);
-          }
-        }, 200);
-      }
-
-      // Clean up streaming attributes very gradually to prevent jitter
-      setTimeout(() => {
-        const streamingParams = functionBlock.querySelectorAll('[data-streaming="true"]');
-        streamingParams.forEach((param, index) => {
-          setTimeout(() => {
-            param.removeAttribute('data-streaming');
-            param.removeAttribute('data-streaming-styled');
-            
-            // Reset visual properties gradually
-            const paramElement = param as HTMLElement;
-            paramElement.style.willChange = 'auto';
-          }, index * 10); // Very fast staggered removal
-        });
-
-        const streamingNames = functionBlock.querySelectorAll('.streaming-param-name');
-        streamingNames.forEach((nameEl, index) => {
-          setTimeout(() => {
-            nameEl.classList.remove('streaming-param-name');
-          }, index * 10);
-        });
-      }, 100); // Longer delay before cleanup
+      // Use the seamless completion function
+      performSeamlessCompletion(blockId, originalContent);
     } else if (isAlreadyComplete || !isCurrentlyLoading) {
-      // If already complete or not loading, just mark as complete without visual changes
+      // Already in a stable state, just clean up
       completedStreams.set(blockId, true);
     }
 
     // Always clean up the resync state quickly
     setTimeout(() => {
       resyncingBlocks.delete(blockId);
-      
-      // Clean up parameter content cache to free memory
-      parameterContentCache.delete(blockId);
-      
-      if (CONFIG.debug) {
-        console.debug(`Completed seamless resync for block ${blockId} (hasContentChanges: ${hasContentChanges})`);
-      }
-    }, 150); // Quick cleanup
+    }, 150);
   });
 };
 

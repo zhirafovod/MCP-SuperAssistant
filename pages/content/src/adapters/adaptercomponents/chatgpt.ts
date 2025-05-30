@@ -22,6 +22,13 @@ import {
 
 // Find where to insert the MCP popover in ChatGPT UI
 function findChatGPTButtonInsertionPoint(): Element | null {
+  // Look for the composer footer actions container first
+  const composerFooter = document.querySelector('[data-testid="composer-footer-actions"]');
+  if (composerFooter) {
+    console.debug('[ChatGPT Adapter] Found composer footer actions container');
+    return composerFooter;
+  }
+
   // Try specific selectors first based on observed structure
   const specificContainer = document.querySelector('textarea + div .flex.items-center.gap-2');
   if (specificContainer) {
@@ -72,11 +79,19 @@ function insertChatGPTButtons(config: AdapterConfig, stateManager: ToggleStateMa
   }
 
   try {
+    // ChatGPT Specific: Create a wrapper div that matches other action buttons' structure
+    const buttonWrapper = document.createElement('div');
+    buttonWrapper.style.viewTransitionName = 'var(--vt-composer-mcp-action)';
+    
+    // Create the React container
     const reactContainer = document.createElement('div');
     reactContainer.id = 'mcp-popover-container';
     reactContainer.style.display = 'inline-block';
-    reactContainer.className = 'mcp-popover-wrapper'; // Add class if needed
+    reactContainer.className = 'mcp-popover-wrapper';
     reactContainer.style.margin = '0 4px'; // Consistent spacing
+
+    // Add the React container inside the wrapper
+    buttonWrapper.appendChild(reactContainer);
 
     // Ensure container is still in the DOM
     if (!document.body.contains(container)) {
@@ -85,26 +100,10 @@ function insertChatGPTButtons(config: AdapterConfig, stateManager: ToggleStateMa
       return;
     }
 
-    // ChatGPT Specific: Create a wrapper div that matches other buttons' style/structure if needed
-    const buttonWrapper = document.createElement('div');
-    // Add any necessary classes or styles to buttonWrapper if ChatGPT requires it
-    // buttonWrapper.className = 'some-chatgpt-button-wrapper-class';
-    buttonWrapper.style.viewTransitionName = 'var(--vt-composer-mcp-action)'; // Example style seen before
-
-    // Attempt to insert as the third button (index 2)
-    const children = Array.from(container.children);
-    if (children.length >= 2) {
-      // Insert before the element at index 2 (which is the third element)
-      container.insertBefore(buttonWrapper, children[2]);
-      console.debug(`[${config.adapterName}] Inserted wrapper before the third button.`);
-    } else {
-      // Fallback: Append if there are fewer than 2 buttons
-      container.appendChild(buttonWrapper);
-      console.debug(`[${config.adapterName}] Appended wrapper as fewer than 2 buttons exist.`);
-    }
-
-    // Add the React container inside the wrapper
-    buttonWrapper.appendChild(reactContainer);
+    // Insert the wrapper as a direct child of the composer footer actions container
+    // This places it at the same level as other action buttons
+    container.appendChild(buttonWrapper);
+    console.debug(`[${config.adapterName}] Inserted MCP button wrapper as direct child of actions container.`);
 
     // Render the React MCPPopover using the common method's approach
     ReactDOM.createRoot(reactContainer).render(

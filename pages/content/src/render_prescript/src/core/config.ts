@@ -123,9 +123,8 @@ export const WEBSITE_CONFIGS: Array<{
   {
     urlPattern: 'kagi.com',
     config: {
-      targetSelectors: ['.content pre'],
-      // targetSelectors: ['.codehilite'],
-      streamingContainerSelectors: ['pre'],
+      targetSelectors: ['.content pre', '.codehilite', 'pre'],
+      streamingContainerSelectors: ['pre', '.content'],
       function_result_selector: ['div[data-author="user"]'],
     },
   },
