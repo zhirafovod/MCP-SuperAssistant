@@ -27,7 +27,6 @@ const PARAM_REGEX = /<parameter\s+name="([^"]+)"\s*(?:type="([^"]+)")?\s*>(.*?)<
 const CDATA_REGEX = /<!\[CDATA\[([\s\S]*?)\]\]>/;
 const NUMBER_REGEX = /^-?\d+(\.\d+)?$/;
 const BOOLEAN_REGEX = /^(true|false)$/i;
-const JSON_LIKE_REGEX = /^[\{\[].*[\}\]]$/s;
 
 // SVG icons as constants for reuse
 const ICONS = {
@@ -701,18 +700,14 @@ export const extractFunctionParameters = (rawContent: string): Record<string, an
         break;
         
       default:
-        // Auto-detect using pre-compiled patterns for better performance
+        // Auto-detect only numeric and boolean values for better performance
+        // Note: JSON parsing should only happen when explicitly specified with type="json"
         if (NUMBER_REGEX.test(value)) {
           value = parseFloat(value);
         } else if (BOOLEAN_REGEX.test(value)) {
           value = value.toLowerCase() === 'true';
-        } else if (JSON_LIKE_REGEX.test(value)) {
-          try {
-            value = JSON.parse(value);
-          } catch (e) {
-            console.warn(`Failed to auto-parse JSON for parameter '${name}'.`, e);
-          }
         }
+        // Removed automatic JSON parsing to prevent string parameters from being converted to objects
     }
     
     parameters[name] = value;
