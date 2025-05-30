@@ -10,7 +10,7 @@ import { mcpInterface } from '../mcpclient/mcpinterfaceToContentScript';
 import { sendAnalyticsEvent, trackError } from '../../utils/analytics';
 
 // Default MCP server URL
-const DEFAULT_MCP_SERVER_URL = 'http://localhost:3006/mcp';
+const DEFAULT_MCP_SERVER_URL = 'http://localhost:3006/sse';
 
 // Define server connection state
 let isConnecting = false;
