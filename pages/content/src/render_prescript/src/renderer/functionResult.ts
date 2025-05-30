@@ -55,6 +55,7 @@ const createExpandableContent = (): HTMLDivElement => {
   expandableContent.style.padding = '0 12px';
   expandableContent.style.width = '100%';
   expandableContent.style.boxSizing = 'border-box';
+  expandableContent.style.transition = 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)';
   return expandableContent;
 };
 
@@ -121,74 +122,47 @@ const setupExpandCollapse = (
     
     if (isCurrentlyExpanded) {
       // Collapse
+      container.classList.remove('expanded');
+      
+      // Get current computed height including padding
       const currentHeight = expandableContent.scrollHeight;
       expandableContent.style.maxHeight = currentHeight + 'px';
       expandableContent.offsetHeight; // Force reflow
       
       requestAnimationFrame(() => {
-        container.classList.remove('expanded');
         expandableContent.style.maxHeight = '0px';
         expandableContent.style.opacity = '0';
         expandableContent.style.paddingTop = '0';
         expandableContent.style.paddingBottom = '0';
-        expandableContent.style.width = '100%';
-        expandableContent.style.boxSizing = 'border-box';
         
         if (expandIcon) {
           expandIcon.setAttribute('d', 'M8 10l4 4 4-4');
         }
         expandButton.title = config.expandTitle;
       });
-      
-      setTimeout(() => {
-        if (!container.classList.contains('expanded')) {
-          expandableContent.style.width = '100%';
-          expandableContent.style.boxSizing = 'border-box';
-        }
-      }, 500);
     } else {
       // Expand
       container.classList.add('expanded');
-      container.style.width = '100%';
-      container.style.boxSizing = 'border-box';
       expandableContent.style.display = 'block';
       expandableContent.style.maxHeight = '0px';
       expandableContent.style.opacity = '0';
       expandableContent.style.paddingTop = '0';
       expandableContent.style.paddingBottom = '0';
-      expandableContent.style.width = '100%';
-      expandableContent.style.boxSizing = 'border-box';
       
-      const targetHeight = expandableContent.scrollHeight;
+      // Calculate target height with padding
+      const targetHeight = expandableContent.scrollHeight + 24; // 12px top + 12px bottom padding
       
       requestAnimationFrame(() => {
         expandableContent.style.maxHeight = targetHeight + 'px';
         expandableContent.style.opacity = '1';
         expandableContent.style.paddingTop = '12px';
         expandableContent.style.paddingBottom = '12px';
-        expandableContent.style.width = '100%';
-        expandableContent.style.boxSizing = 'border-box';
         
         if (expandIcon) {
           expandIcon.setAttribute('d', 'M16 14l-4-4-4 4');
         }
         expandButton.title = config.collapseTitle;
       });
-      
-      setTimeout(() => {
-        if (container.classList.contains('expanded')) {
-          expandableContent.style.transition = 'none';
-          expandableContent.style.maxHeight = 'none';
-          expandableContent.style.width = '100%';
-          expandableContent.style.boxSizing = 'border-box';
-          
-          requestAnimationFrame(() => {
-            expandableContent.style.transition = '';
-            expandableContent.style.width = '100%';
-            expandableContent.style.boxSizing = 'border-box';
-          });
-        }
-      }, 600);
     }
   };
 };

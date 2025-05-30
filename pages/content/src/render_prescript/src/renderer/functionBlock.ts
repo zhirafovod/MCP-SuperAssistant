@@ -617,7 +617,7 @@ const BlockElementUtils = {
     DOMUtils.applyStyles(expandableContent, {
       display: 'none',
       overflow: 'hidden',
-      transition: 'all 0.3s ease-in-out',
+      transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
       maxHeight: '0px',
       opacity: '0'
     });
@@ -634,12 +634,14 @@ const BlockElementUtils = {
       
       if (isCurrentlyExpanded) {
         // Collapse
+        blockDiv.classList.remove('expanded');
+        
+        // Get current computed height including padding
         const currentHeight = expandableContent.scrollHeight;
         expandableContent.style.maxHeight = currentHeight + 'px';
         expandableContent.offsetHeight; // Force reflow
         
         requestAnimationFrame(() => {
-          blockDiv.classList.remove('expanded');
           DOMUtils.applyStyles(expandableContent, {
             maxHeight: '0px',
             opacity: '0',
@@ -653,14 +655,17 @@ const BlockElementUtils = {
           expandButton.title = 'Expand function details';
         });
         
+        // Hide after animation completes
         setTimeout(() => {
           if (!blockDiv.classList.contains('expanded')) {
             expandableContent.style.display = 'none';
           }
-        }, 400);
+        }, 250);
       } else {
         // Expand
         blockDiv.classList.add('expanded');
+        
+        // Prepare for expansion
         DOMUtils.applyStyles(expandableContent, {
           display: 'block',
           maxHeight: '0px',
@@ -669,7 +674,8 @@ const BlockElementUtils = {
           paddingBottom: '0'
         });
         
-        const targetHeight = expandableContent.scrollHeight;
+        // Calculate target height with padding
+        const targetHeight = expandableContent.scrollHeight + 24; // 12px top + 12px bottom padding
         
         requestAnimationFrame(() => {
           DOMUtils.applyStyles(expandableContent, {
@@ -684,16 +690,6 @@ const BlockElementUtils = {
           }
           expandButton.title = 'Collapse function details';
         });
-        
-        setTimeout(() => {
-          if (blockDiv.classList.contains('expanded')) {
-            expandableContent.style.transition = 'none';
-            expandableContent.style.maxHeight = 'none';
-            requestAnimationFrame(() => {
-              expandableContent.style.transition = '';
-            });
-          }
-        }, 600);
       }
     };
   }
