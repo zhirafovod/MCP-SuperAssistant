@@ -32,19 +32,22 @@ const BOOLEAN_REGEX = /^(true|false)$/i;
 const ICONS = {
   CODE: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z" fill="currentColor"/></svg>',
   PLAY: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>',
-  INSERT: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 12l-7-7v4H2v6h7v4l7-7z" fill="currentColor"/></svg>',
-  ATTACH: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="2" width="16" height="20" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 6h8M8 10h8M8 14h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
-  SPINNER: '<svg width="16" height="16" viewBox="0 0 50 50"><circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-dasharray="31.4 31.4" transform="rotate(-90 25 25)"><animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.8s" repeatCount="indefinite"/></circle></svg>'
+  INSERT:
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 12l-7-7v4H2v6h7v4l7-7z" fill="currentColor"/></svg>',
+  ATTACH:
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="2" width="16" height="20" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 6h8M8 10h8M8 14h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  SPINNER:
+    '<svg width="16" height="16" viewBox="0 0 50 50"><circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-dasharray="31.4 31.4" transform="rotate(-90 25 25)"><animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.8s" repeatCount="indefinite"/></circle></svg>',
 };
 
 // Performance utility: Object pooling for DOM elements
 class ElementPool {
   private static pools = new Map<string, HTMLElement[]>();
-  
+
   static get(tagName: string, className?: string): HTMLElement {
     const key = `${tagName}:${className || ''}`;
     const pool = this.pools.get(key) || [];
-    
+
     if (pool.length > 0) {
       const element = pool.pop()!;
       // Reset element state
@@ -53,17 +56,18 @@ class ElementPool {
       element.removeAttribute('style');
       return element;
     }
-    
+
     const element = document.createElement(tagName);
     if (className) element.className = className;
     return element;
   }
-  
+
   static release(element: HTMLElement): void {
     const key = `${element.tagName.toLowerCase()}:${element.className}`;
     const pool = this.pools.get(key) || [];
-    
-    if (pool.length < 10) { // Limit pool size
+
+    if (pool.length < 10) {
+      // Limit pool size
       pool.push(element);
       this.pools.set(key, pool);
     }
@@ -71,29 +75,32 @@ class ElementPool {
 }
 
 // Performance utility: Create optimized DOM elements with minimal reflows
-const createOptimizedElement = (tagName: string, options: {
-  className?: string;
-  textContent?: string;
-  innerHTML?: string;
-  styles?: Record<string, string>;
-  attributes?: Record<string, string>;
-} = {}): HTMLElement => {
+const createOptimizedElement = (
+  tagName: string,
+  options: {
+    className?: string;
+    textContent?: string;
+    innerHTML?: string;
+    styles?: Record<string, string>;
+    attributes?: Record<string, string>;
+  } = {},
+): HTMLElement => {
   const element = ElementPool.get(tagName, options.className);
-  
+
   // Batch DOM operations to minimize reflows
   if (options.textContent) element.textContent = options.textContent;
   if (options.innerHTML) element.innerHTML = options.innerHTML;
-  
+
   if (options.styles) {
     Object.assign(element.style, options.styles);
   }
-  
+
   if (options.attributes) {
     Object.entries(options.attributes).forEach(([key, value]) => {
       element.setAttribute(key, value);
     });
   }
-  
+
   return element;
 };
 /**
@@ -111,7 +118,7 @@ export const addRawXmlToggle = (blockDiv: HTMLDivElement, rawContent: string): v
 
   // Get the original pre element that contains the function call
   const blockId = blockDiv.getAttribute('data-block-id');
-  
+
   if (blockId) {
     // Try to find the original element with the complete XML
     const originalPre = document.querySelector(`pre[data-block-id="${blockId}"]`);
@@ -130,8 +137,8 @@ export const addRawXmlToggle = (blockDiv: HTMLDivElement, rawContent: string): v
     styles: {
       display: 'none',
       marginTop: '12px',
-      marginBottom: '4px'
-    }
+      marginBottom: '4px',
+    },
   });
 
   // Create the pre element for displaying raw XML with batch style assignment
@@ -143,8 +150,8 @@ export const addRawXmlToggle = (blockDiv: HTMLDivElement, rawContent: string): v
       padding: '12px',
       fontFamily: 'inherit',
       fontSize: '13px',
-      lineHeight: '1.5'
-    }
+      lineHeight: '1.5',
+    },
   });
 
   // Create toggle button with optimized element creation
@@ -155,8 +162,8 @@ export const addRawXmlToggle = (blockDiv: HTMLDivElement, rawContent: string): v
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: '6px'
-    }
+      gap: '6px',
+    },
   });
 
   // Cache references for performance
@@ -166,7 +173,7 @@ export const addRawXmlToggle = (blockDiv: HTMLDivElement, rawContent: string): v
   // Optimized toggle handler with requestAnimationFrame for smooth transitions
   toggleBtn.onclick = () => {
     isVisible = !isVisible;
-    
+
     // Use requestAnimationFrame for smooth visual updates
     requestAnimationFrame(() => {
       rawXmlContainer.style.display = isVisible ? 'block' : 'none';
@@ -179,10 +186,10 @@ export const addRawXmlToggle = (blockDiv: HTMLDivElement, rawContent: string): v
   fragment.appendChild(toggleBtn);
 
   // Efficiently determine parent and append
-  const targetParent = blockDiv.classList.contains('function-buttons') 
-    ? (blockDiv.closest('.function-block') || blockDiv)
+  const targetParent = blockDiv.classList.contains('function-buttons')
+    ? blockDiv.closest('.function-block') || blockDiv
     : blockDiv;
-    
+
   // Single batch DOM update
   blockDiv.appendChild(fragment);
   targetParent.appendChild(rawXmlContainer);
@@ -258,7 +265,7 @@ export const smoothlyUpdateBlockContent = (
   // Cache essential properties for performance
   const originalClasses = Array.from(block.classList);
   const originalParent = block.parentNode;
-  
+
   // Mark block as updating
   block.setAttribute('data-smooth-updating', 'true');
 
@@ -268,7 +275,7 @@ export const smoothlyUpdateBlockContent = (
     top: block.scrollTop,
     height: block.scrollHeight,
     clientHeight: block.clientHeight,
-    wasScrollable: block.scrollHeight > block.clientHeight
+    wasScrollable: block.scrollHeight > block.clientHeight,
   };
 
   // Optimized shadow tracker creation
@@ -276,10 +283,10 @@ export const smoothlyUpdateBlockContent = (
     styles: { display: 'none' },
     attributes: {
       'data-shadow-for': blockId || 'unknown-block',
-      'data-update-in-progress': 'true'
-    }
+      'data-update-in-progress': 'true',
+    },
   });
-  
+
   if (originalParent) {
     originalParent.insertBefore(shadowTracker, block.nextSibling);
   }
@@ -287,7 +294,7 @@ export const smoothlyUpdateBlockContent = (
   // Performance: Use more efficient content parsing
   const parseNewContent = (content: string | HTMLElement): DocumentFragment => {
     const fragment = document.createDocumentFragment();
-    
+
     if (typeof content === 'string') {
       // Optimized parsing with better error handling
       try {
@@ -303,7 +310,7 @@ export const smoothlyUpdateBlockContent = (
     } else {
       fragment.appendChild(content.cloneNode(true));
     }
-    
+
     return fragment;
   };
 
@@ -314,16 +321,16 @@ export const smoothlyUpdateBlockContent = (
         position: 'absolute',
         visibility: 'hidden',
         width: `${originalRect.width}px`,
-        left: '-9999px'
-      }
+        left: '-9999px',
+      },
     });
-    
+
     tempContainer.appendChild(fragment.cloneNode(true));
     document.body.appendChild(tempContainer);
     const height = tempContainer.offsetHeight;
     document.body.removeChild(tempContainer);
     ElementPool.release(tempContainer);
-    
+
     return height;
   };
 
@@ -335,7 +342,7 @@ export const smoothlyUpdateBlockContent = (
   Object.assign(block.style, {
     height: `${originalRect.height}px`,
     overflow: 'hidden',
-    transition: `height ${transitionDuration}ms ease-in-out`
+    transition: `height ${transitionDuration}ms ease-in-out`,
   });
 
   // Efficient content wrapper management
@@ -345,8 +352,8 @@ export const smoothlyUpdateBlockContent = (
       styles: {
         opacity,
         transform: opacity === '0' ? 'translateY(10px)' : 'translateY(0)',
-        transition: `opacity ${transitionDuration * 0.6}ms ease-out, transform ${transitionDuration * 0.6}ms ease-out`
-      }
+        transition: `opacity ${transitionDuration * 0.6}ms ease-out, transform ${transitionDuration * 0.6}ms ease-out`,
+      },
     });
   };
 
@@ -370,44 +377,48 @@ export const smoothlyUpdateBlockContent = (
   requestAnimationFrame(() => {
     // Start height transition
     block.style.height = `${newHeight}px`;
-    
+
     // Fade out old content
     Object.assign(oldWrapper.style, {
       opacity: '0',
-      transform: 'translateY(-10px)'
+      transform: 'translateY(-10px)',
     });
 
     // Delayed fade in of new content
-    setTimeout(() => {
-      requestAnimationFrame(() => {
-        Object.assign(newWrapper.style, {
-          opacity: '1',
-          transform: 'translateY(0)'
+    setTimeout(
+      () => {
+        requestAnimationFrame(() => {
+          Object.assign(newWrapper.style, {
+            opacity: '1',
+            transform: 'translateY(0)',
+          });
         });
-      });
-    }, isStreaming ? 30 : 50);
+      },
+      isStreaming ? 30 : 50,
+    );
   });
 
   // Optimized mutation observer for DOM changes
   let blockRemoved = false;
   let replacementBlock: HTMLElement | null = null;
 
-  const observer = new MutationObserver((mutations) => {
+  const observer = new MutationObserver(mutations => {
     for (const mutation of mutations) {
       if (mutation.type === 'childList' && Array.from(mutation.removedNodes).includes(block)) {
         blockRemoved = true;
-        
+
         // Efficiently find replacement block
-        const addedElement = Array.from(mutation.addedNodes).find((node): node is HTMLElement =>
-          node.nodeType === Node.ELEMENT_NODE &&
-          (node as HTMLElement).classList.contains('function-block') &&
-          (node as HTMLElement).getAttribute('data-block-id') === blockId
+        const addedElement = Array.from(mutation.addedNodes).find(
+          (node): node is HTMLElement =>
+            node.nodeType === Node.ELEMENT_NODE &&
+            (node as HTMLElement).classList.contains('function-block') &&
+            (node as HTMLElement).getAttribute('data-block-id') === blockId,
         ) as HTMLElement | undefined;
-        
+
         if (addedElement) {
           replacementBlock = addedElement;
         }
-        
+
         observer.disconnect();
         return;
       }
@@ -432,14 +443,14 @@ export const smoothlyUpdateBlockContent = (
       Object.assign(replacementBlock.style, {
         transition: '',
         height: '',
-        overflow: ''
+        overflow: '',
       });
-      
+
       replacementBlock.removeAttribute('data-smooth-updating');
-      
+
       if (scrollState.wasScrollable) {
         replacementBlock.scrollTop = scrollState.top;
-      } 
+      }
     } else if (document.body.contains(block)) {
       // Efficient content finalization
       while (newWrapper.firstChild) {
@@ -458,7 +469,7 @@ export const smoothlyUpdateBlockContent = (
       Object.assign(block.style, {
         height: '',
         overflow: '',
-        transition: ''
+        transition: '',
       });
 
       if (scrollState.wasScrollable) {
@@ -517,8 +528,8 @@ export const addExecuteButton = (blockDiv: HTMLDivElement, rawContent: string): 
       alignItems: 'center',
       justifyContent: 'center',
       gap: '6px',
-      marginLeft: '0'
-    }
+      marginLeft: '0',
+    },
   }) as HTMLButtonElement;
 
   // Create optimized results panel
@@ -527,12 +538,12 @@ export const addExecuteButton = (blockDiv: HTMLDivElement, rawContent: string): 
     styles: {
       display: 'none',
       maxHeight: '200px',
-      overflow: 'auto'
+      overflow: 'auto',
     },
     attributes: {
       'data-call-id': callId,
-      'data-function-name': functionName
-    }
+      'data-function-name': functionName,
+    },
   }) as HTMLDivElement;
 
   // Create optimized loading indicator
@@ -544,8 +555,8 @@ export const addExecuteButton = (blockDiv: HTMLDivElement, rawContent: string): 
       padding: '10px',
       borderRadius: '8px',
       backgroundColor: 'rgba(0, 0, 0, 0.03)',
-      border: '1px solid rgba(0, 0, 0, 0.06)'
-    }
+      border: '1px solid rgba(0, 0, 0, 0.06)',
+    },
   }) as HTMLDivElement;
 
   // Cache DOM references for performance
@@ -556,17 +567,17 @@ export const addExecuteButton = (blockDiv: HTMLDivElement, rawContent: string): 
     // Batch button state changes
     executeButton.disabled = true;
     buttonText.style.display = 'none';
-    
+
     // Add spinner efficiently
     const spinner = createOptimizedElement('span', {
       className: 'execute-spinner',
       innerHTML: ICONS.SPINNER,
       styles: {
         display: 'inline-flex',
-        marginLeft: '8px'
-      }
+        marginLeft: '8px',
+      },
     });
-    
+
     executeButton.appendChild(spinner);
 
     // Reset results panel state efficiently
@@ -588,7 +599,7 @@ export const addExecuteButton = (blockDiv: HTMLDivElement, rawContent: string): 
 
       mcpHandler.callTool(functionName, parameters, (result: any, error: any) => {
         resetButtonState();
-        
+
         // Show results panel
         resultsPanel.style.display = 'block';
         resultsPanel.innerHTML = '';
@@ -601,23 +612,27 @@ export const addExecuteButton = (blockDiv: HTMLDivElement, rawContent: string): 
 
           // Store execution and update history efficiently
           const executionData = storeExecutedFunction(functionName, callId, parameters, contentSignature);
-          const historyPanel = (blockDiv.querySelector('.function-history-panel') || 
-                              createHistoryPanel(blockDiv, callId, contentSignature)) as HTMLDivElement;
+          const historyPanel = (blockDiv.querySelector('.function-history-panel') ||
+            createHistoryPanel(blockDiv, callId, contentSignature)) as HTMLDivElement;
           updateHistoryPanel(historyPanel, executionData, mcpHandler);
         }
       });
     } catch (error) {
       resetButtonState();
       resultsPanel.style.display = 'block';
-      displayResult(resultsPanel, loadingIndicator, false, 
-        `Error: ${error instanceof Error ? error.message : String(error)}`);
+      displayResult(
+        resultsPanel,
+        loadingIndicator,
+        false,
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     // Optimized button reset function
     function resetButtonState() {
       executeButton.disabled = false;
       buttonText.style.display = '';
-      
+
       if (executeButton.contains(spinner)) {
         executeButton.removeChild(spinner);
         ElementPool.release(spinner);
@@ -630,10 +645,10 @@ export const addExecuteButton = (blockDiv: HTMLDivElement, rawContent: string): 
   blockDiv.appendChild(fragment);
 
   // Efficiently determine target parent
-  const targetParent = blockDiv.classList.contains('function-buttons') 
-    ? (blockDiv.closest('.function-block') || blockDiv)
+  const targetParent = blockDiv.classList.contains('function-buttons')
+    ? blockDiv.closest('.function-block') || blockDiv
     : blockDiv;
-    
+
   targetParent.appendChild(resultsPanel);
 
   // Check for previous executions efficiently
@@ -689,16 +704,16 @@ export const extractFunctionParameters = (rawContent: string): Record<string, an
           console.warn(`Failed to parse JSON for parameter '${name}'.`, e);
         }
         break;
-        
+
       case 'number':
         const num = parseFloat(value);
         if (!isNaN(num)) value = num;
         break;
-        
+
       case 'boolean':
         value = value.toLowerCase() === 'true';
         break;
-        
+
       default:
         // Auto-detect only numeric and boolean values for better performance
         // Note: JSON parsing should only happen when explicitly specified with type="json"
@@ -707,9 +722,9 @@ export const extractFunctionParameters = (rawContent: string): Record<string, an
         } else if (BOOLEAN_REGEX.test(value)) {
           value = value.toLowerCase() === 'true';
         }
-        // Removed automatic JSON parsing to prevent string parameters from being converted to objects
+      // Removed automatic JSON parsing to prevent string parameters from being converted to objects
     }
-    
+
     parameters[name] = value;
   }
 
@@ -733,7 +748,6 @@ const attachResultAsFile = async (
   iconSpan: HTMLElement,
   skipAutoInsertCheck: boolean = false,
 ): Promise<{ success: boolean; message: string | null }> => {
-  
   // Early validation for better performance
   if (!adapter?.supportsFileUpload?.() || typeof adapter.attachFile !== 'function') {
     // Efficient error state handling
@@ -741,14 +755,14 @@ const attachResultAsFile = async (
       const originalText = button.classList.contains('insert-result-button') ? 'Insert' : 'Attach File';
       button.textContent = 'Attach Not Supported';
       button.classList.add('attach-error');
-      
+
       setTimeout(() => {
         button.textContent = originalText;
         button.prepend(iconSpan);
         button.classList.remove('attach-error');
       }, 2000);
     };
-    
+
     handleUnsupported();
     console.error('Adapter not available or does not support file attachment.');
     return { success: false, message: null };
@@ -764,7 +778,7 @@ const attachResultAsFile = async (
     button.textContent = text;
     button.prepend(iconSpan);
     button.disabled = disabled;
-    
+
     if (className) {
       button.classList.add(className);
     }
@@ -781,10 +795,10 @@ const attachResultAsFile = async (
 
   try {
     setButtonState('Attaching...', undefined, true);
-    
+
     // Skip actual adapter.attachFile call as handled by Perplexity adapter
     const success = true;
-    
+
     if (success) {
       confirmationText = `Result attached as file: ${fileName}`;
       setButtonState('Attached!', 'attach-success', true);
@@ -858,7 +872,7 @@ export const displayResult = (
   // Optimized error message processing
   const processErrorMessage = (errorResult: any): string => {
     let errorMessage = '';
-    
+
     if (typeof errorResult === 'string') {
       errorMessage = errorResult;
     } else if (errorResult && typeof errorResult === 'object') {
@@ -866,23 +880,23 @@ export const displayResult = (
     } else {
       errorMessage = 'An unknown error occurred';
     }
-    
+
     // Optimize server error message handling
     if (typeof errorMessage === 'string') {
       const errorMap = {
-        'SERVER_UNAVAILABLE': 'Server is disconnected. Please check your connection settings.',
-        'CONNECTION_ERROR': 'Connection to server failed. Please try reconnecting.',
-        'RECONNECT_ERROR': 'Connection to server failed. Please try reconnecting.',
-        'SERVER_ERROR': 'Server error occurred. Please check server status.'
+        SERVER_UNAVAILABLE: 'Server is disconnected. Please check your connection settings.',
+        CONNECTION_ERROR: 'Connection to server failed. Please try reconnecting.',
+        RECONNECT_ERROR: 'Connection to server failed. Please try reconnecting.',
+        SERVER_ERROR: 'Server error occurred. Please check server status.',
       };
-      
+
       for (const [key, message] of Object.entries(errorMap)) {
         if (errorMessage.includes(key)) {
           return message;
         }
       }
     }
-    
+
     return errorMessage;
   };
 
@@ -893,10 +907,10 @@ export const displayResult = (
   if (success) {
     // Optimized success result processing
     let rawResultText = '';
-    
+
     // Create result content efficiently
     const resultContent = createOptimizedElement('div', {
-      className: 'function-result-success'
+      className: 'function-result-success',
     });
 
     // Process result data efficiently
@@ -910,8 +924,8 @@ export const displayResult = (
             fontSize: '13px',
             lineHeight: '1.5',
             padding: '0',
-            margin: '0'
-          }
+            margin: '0',
+          },
         });
         resultContent.appendChild(pre);
       } catch (e) {
@@ -934,8 +948,8 @@ export const displayResult = (
         display: 'flex',
         justifyContent: 'flex-end',
         marginTop: '10px',
-        marginBottom: '10px'
-      }
+        marginBottom: '10px',
+      },
     });
 
     // Create optimized insert button
@@ -946,11 +960,11 @@ export const displayResult = (
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: '6px'
+        gap: '6px',
       },
       attributes: {
-        'data-result-id': `result-${callId}-${Date.now()}`
-      }
+        'data-result-id': `result-${callId}-${Date.now()}`,
+      },
     }) as HTMLButtonElement;
 
     // Cache button text element
@@ -969,31 +983,40 @@ export const displayResult = (
             insertButton.classList.remove('insert-error');
           }, 2000);
         };
-        
+
         setErrorState();
         console.error('Adapter not available.');
         return;
       }
 
       const wrapperText = `<function_result call_id="${callId}">\n${rawResultText}\n</function_result>`;
-      
+
       // Check result length and handle accordingly
       if (rawResultText.length > MAX_INSERT_LENGTH && WEBSITE_NAME_FOR_MAX_INSERT_LENGTH_CHECK.includes(websiteName)) {
         console.log(`Result length (${wrapperText.length}) exceeds ${MAX_INSERT_LENGTH}. Attaching as file.`);
-        await attachResultAsFile(adapter, functionName, callId, wrapperText, insertButton, 
-                                insertButton.querySelector('span') as HTMLElement, true);
+        await attachResultAsFile(
+          adapter,
+          functionName,
+          callId,
+          wrapperText,
+          insertButton,
+          insertButton.querySelector('span') as HTMLElement,
+          true,
+        );
       } else {
         if (typeof adapter.insertTextIntoInput === 'function') {
           // Efficient event dispatch with requestAnimationFrame
           requestAnimationFrame(() => {
-            document.dispatchEvent(new CustomEvent('mcp:tool-execution-complete', {
-              detail: {
-                result: wrapperText,
-                isFileAttachment: false,
-                fileName: '',
-                skipAutoInsertCheck: true,
-              },
-            }));
+            document.dispatchEvent(
+              new CustomEvent('mcp:tool-execution-complete', {
+                detail: {
+                  result: wrapperText,
+                  isFileAttachment: false,
+                  fileName: '',
+                  skipAutoInsertCheck: true,
+                },
+              }),
+            );
           });
 
           // Optimized success state handling
@@ -1028,23 +1051,30 @@ export const displayResult = (
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: '6px'
+        gap: '6px',
       },
       attributes: {
-        'data-result-id': `attach-${callId}-${Date.now()}`
-      }
+        'data-result-id': `attach-${callId}-${Date.now()}`,
+      },
     }) as HTMLButtonElement;
 
     // Optimized attach button handler
     attachButton.onclick = async () => {
       const adapter = window.mcpAdapter || window.getCurrentAdapter?.();
-      await attachResultAsFile(adapter, functionName, callId, rawResultText, attachButton,
-                              attachButton.querySelector('span') as HTMLElement, true);
+      await attachResultAsFile(
+        adapter,
+        functionName,
+        callId,
+        rawResultText,
+        attachButton,
+        attachButton.querySelector('span') as HTMLElement,
+        true,
+      );
     };
 
     // Efficiently build button container
     buttonContainer.appendChild(insertButton);
-    
+
     // Only add attach button if supported
     const adapter = window.mcpAdapter || window.getCurrentAdapter?.();
     if (adapter?.supportsFileUpload?.()) {
@@ -1056,21 +1086,22 @@ export const displayResult = (
     resultsPanel.parentNode?.insertBefore(fragment, resultsPanel.nextSibling);
 
     // Handle auto-attachment for large results
-    if (rawResultText.length > MAX_INSERT_LENGTH && 
-        adapter?.supportsFileUpload?.() && 
-        WEBSITE_NAME_FOR_MAX_INSERT_LENGTH_CHECK.includes(websiteName)) {
-      
+    if (
+      rawResultText.length > MAX_INSERT_LENGTH &&
+      adapter?.supportsFileUpload?.() &&
+      WEBSITE_NAME_FOR_MAX_INSERT_LENGTH_CHECK.includes(websiteName)
+    ) {
       console.debug(`Auto-attaching file: Result length (${rawResultText.length}) exceeds ${MAX_INSERT_LENGTH}`);
-      
+
       // Create efficient fake button for auto-attachment
       const fakeElements = {
-        button: createOptimizedElement('button', { 
+        button: createOptimizedElement('button', {
           className: 'insert-result-button',
-          styles: { display: 'none' }
+          styles: { display: 'none' },
         }) as HTMLButtonElement,
-        icon: createOptimizedElement('span', { 
-          styles: { display: 'none' }
-        })
+        icon: createOptimizedElement('span', {
+          styles: { display: 'none' },
+        }),
       };
 
       attachResultAsFile(adapter, functionName, callId, rawResultText, fakeElements.button, fakeElements.icon, false)
@@ -1082,7 +1113,7 @@ export const displayResult = (
             // Fallback to manual attach button
             setTimeout(() => attachButton.click(), 100);
           }
-          
+
           // Cleanup fake elements
           ElementPool.release(fakeElements.button);
           ElementPool.release(fakeElements.icon);
@@ -1096,18 +1127,20 @@ export const displayResult = (
       // Dispatch event for normal-sized results
       const wrappedResult = `<function_result call_id="${callId}">\n${rawResultText}\n</function_result>`;
       requestAnimationFrame(() => {
-        document.dispatchEvent(new CustomEvent('mcp:tool-execution-complete', {
-          detail: { result: wrappedResult, skipAutoInsertCheck: false },
-        }));
+        document.dispatchEvent(
+          new CustomEvent('mcp:tool-execution-complete', {
+            detail: { result: wrappedResult, skipAutoInsertCheck: false },
+          }),
+        );
       });
     }
   } else {
     // Optimized error result handling
     const errorMessage = processErrorMessage(result);
-    
+
     const resultContent = createOptimizedElement('div', {
       className: 'function-result-error',
-      textContent: errorMessage
+      textContent: errorMessage,
     });
 
     resultsPanel.appendChild(resultContent);

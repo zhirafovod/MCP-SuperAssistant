@@ -39,23 +39,25 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
   // Add unique ID to track component instances
   const componentId = useRef(`sidebar-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
-  logMessage(`[Sidebar] Component initializing with preferences: ${initialPreferences ? 'loaded' : 'null'} (ID: ${componentId.current})`);
-  
+  logMessage(
+    `[Sidebar] Component initializing with preferences: ${initialPreferences ? 'loaded' : 'null'} (ID: ${componentId.current})`,
+  );
+
   const adapter = useSiteAdapter();
-  
+
   // No error states that could block rendering
   const [initializationError, setInitializationError] = useState<string | null>(null);
-  
+
   // Get communication methods with guaranteed safe fallbacks
   const communicationMethods = useBackgroundCommunication();
-  
+
   // Always render immediately - use safe defaults for all communication methods
   const serverStatus = communicationMethods?.serverStatus || 'disconnected';
   const availableTools = communicationMethods?.availableTools || [];
   const sendMessage = communicationMethods?.sendMessage || (async () => 'Communication not available');
   const refreshTools = communicationMethods?.refreshTools || (async () => []);
   const forceReconnect = communicationMethods?.forceReconnect || (async () => false);
-  
+
   // Debug logging for serverStatus changes
   useEffect(() => {
     logMessage(`[Sidebar] serverStatus changed to: "${serverStatus}", passing to ServerStatus component`);
@@ -69,7 +71,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
       logMessage(`[Sidebar] Using initialPreferences for isMinimized: ${value}`);
       return value;
     }
-    
+
     // Fallback to shadow host attribute
     try {
       const sidebarManager = (window as any).activeSidebarManager;
@@ -77,14 +79,16 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
       if (shadowHost) {
         const attrValue = shadowHost.getAttribute('data-initial-minimized');
         logMessage(`[Sidebar] DEBUG: Raw attribute value: ${JSON.stringify(attrValue)}`);
-        
+
         if (attrValue === null || attrValue === undefined) {
           logMessage(`[Sidebar] WARNING: data-initial-minimized attribute is null/undefined, defaulting to false`);
           return false;
         }
-        
+
         const isMinimized = attrValue === 'true';
-        logMessage(`[Sidebar] Shadow host attribute 'data-initial-minimized' = '${attrValue}', interpreted as: ${isMinimized}`);
+        logMessage(
+          `[Sidebar] Shadow host attribute 'data-initial-minimized' = '${attrValue}', interpreted as: ${isMinimized}`,
+        );
         return isMinimized;
       } else {
         logMessage(`[Sidebar] Shadow host not found, defaulting to false`);
@@ -98,7 +102,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
 
   // Initialize states with proper defaults to prevent flash
   const isInitiallyMinimized = getInitialMinimizedState();
-  
+
   // CRITICAL FIX: If attribute was null but we expect it to have a value, set it
   useEffect(() => {
     try {
@@ -117,7 +121,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
       logMessage(`[Sidebar] Error correcting data-initial-minimized: ${error}`);
     }
   }, [isInitiallyMinimized]);
-  
+
   const [isMinimized, setIsMinimized] = useState(isInitiallyMinimized);
   const [detectedTools, setDetectedTools] = useState<DetectedTool[]>([]);
   const [activeTab, setActiveTab] = useState<'availableTools' | 'instructions'>('availableTools');
@@ -159,7 +163,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
   // Effect to apply theme and listen for system changes
   // OPTIMIZATION: Throttle theme changes to avoid excessive calls
   const lastThemeChangeRef = useRef<number>(0);
-  
+
   useEffect(() => {
     // Throttle theme applications to once every 100ms
     const now = Date.now();
@@ -172,7 +176,9 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     try {
       applyTheme(theme);
     } catch (error) {
-      logMessage(`[Sidebar] Theme application error during useEffect: ${error instanceof Error ? error.message : String(error)}`);
+      logMessage(
+        `[Sidebar] Theme application error during useEffect: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -183,7 +189,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
           return; // Throttle system theme changes
         }
         lastThemeChangeRef.current = changeNow;
-        
+
         try {
           applyTheme('system'); // Re-apply system theme on change
         } catch (error) {
@@ -218,7 +224,9 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
         logMessage(`[Sidebar] Loaded preferences: ${JSON.stringify(preferences)}`);
 
         // Apply stored settings - use batched state updates
-        logMessage(`[Sidebar] Applying preferences - isPushMode: ${preferences.isPushMode}, isMinimized: ${preferences.isMinimized}, sidebarWidth: ${preferences.sidebarWidth}`);
+        logMessage(
+          `[Sidebar] Applying preferences - isPushMode: ${preferences.isPushMode}, isMinimized: ${preferences.isMinimized}, sidebarWidth: ${preferences.sidebarWidth}`,
+        );
         setIsPushMode(preferences.isPushMode);
         setSidebarWidth(preferences.sidebarWidth || SIDEBAR_DEFAULT_WIDTH);
         setIsMinimized(preferences.isMinimized ?? false);
@@ -227,11 +235,11 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
         previousWidthRef.current = preferences.sidebarWidth || SIDEBAR_DEFAULT_WIDTH;
 
         logMessage('[Sidebar] Preferences applied successfully');
-        
+
         // Mark preferences as loaded
         logMessage('[Sidebar] Setting preferencesLoaded to true');
         setPreferencesLoaded(true);
-        
+
         // Clean up initial state attributes after preferences are applied
         setTimeout(() => {
           try {
@@ -244,10 +252,11 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
               logMessage('[Sidebar] Cleaned up initial state attributes');
             }
           } catch (error) {
-            logMessage(`[Sidebar] Error cleaning up initial state: ${error instanceof Error ? error.message : String(error)}`);
+            logMessage(
+              `[Sidebar] Error cleaning up initial state: ${error instanceof Error ? error.message : String(error)}`,
+            );
           }
         }, 100);
-        
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logMessage(`[Sidebar] Error loading preferences (non-blocking): ${errorMessage}`);
@@ -337,7 +346,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     }
 
     logMessage(`[Sidebar] Preferences loaded - applying initial push mode settings`);
-    
+
     const sidebarManager = (window as any).activeSidebarManager;
     if (sidebarManager) {
       try {
@@ -364,7 +373,9 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
           sidebarManager.setPushContentMode(false);
         }
       } catch (error) {
-        logMessage(`[Sidebar] Error applying push mode settings: ${error instanceof Error ? error.message : String(error)}`);
+        logMessage(
+          `[Sidebar] Error applying push mode settings: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     } else {
       logMessage('[Sidebar] Sidebar manager not found when trying to apply push mode/width.');
@@ -384,14 +395,14 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
     if (!preferencesLoaded) {
       return;
     }
-    
+
     // Skip during initial load to prevent duplicate applications
     if (isInitialLoadRef.current) {
       return;
     }
 
     logMessage(`[Sidebar] Push mode settings changed - updating BaseSidebarManager`);
-    
+
     const sidebarManager = (window as any).activeSidebarManager;
     if (sidebarManager) {
       try {
@@ -412,7 +423,9 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
           sidebarManager.setPushContentMode(false);
         }
       } catch (error) {
-        logMessage(`[Sidebar] Error updating push mode settings: ${error instanceof Error ? error.message : String(error)}`);
+        logMessage(
+          `[Sidebar] Error updating push mode settings: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
   }, [isPushMode, sidebarWidth, isMinimized, adapter]); // Dependencies for live updates
@@ -443,7 +456,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
 
   const toggleMinimize = () => {
     startTransition();
-    
+
     // Add a subtle bounce effect to the toggle
     if (sidebarRef.current) {
       sidebarRef.current.style.transform = 'scale(0.98)';
@@ -453,7 +466,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
         }
       }, 100);
     }
-    
+
     setIsMinimized(!isMinimized);
   };
 
@@ -552,7 +565,9 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
       await refreshTools(true);
       logMessage('[Sidebar] Tools refreshed successfully');
     } catch (error) {
-      logMessage(`[Sidebar] Error refreshing tools (non-blocking): ${error instanceof Error ? error.message : String(error)}`);
+      logMessage(
+        `[Sidebar] Error refreshing tools (non-blocking): ${error instanceof Error ? error.message : String(error)}`,
+      );
       // Don't show error to user - this is a background operation
     } finally {
       setIsRefreshing(false);
@@ -733,7 +748,7 @@ const Sidebar: React.FC<SidebarProps> = ({ initialPreferences }) => {
                 </div>
               </div>
             )}
-            
+
             {/* Status and Settings section */}
             <div className="py-4 px-4 space-y-4 overflow-y-auto flex-shrink-0">
               <ServerStatus status={serverStatus} />

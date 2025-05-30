@@ -274,7 +274,7 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
               <input
                 type="checkbox"
                 checked={customInstructionsEnabled}
-                onChange={(e) => handleCustomInstructionsToggle(e.target.checked)}
+                onChange={e => handleCustomInstructionsToggle(e.target.checked)}
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
               />
               <span className="text-xs text-slate-600 dark:text-slate-400">Enable</span>
@@ -287,9 +287,9 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
                 <ActionButton onClick={handleCustomInstructionsCancel} color="red" label="Cancel" />
               </>
             ) : (
-              <ActionButton 
-                onClick={() => setIsEditingCustom(true)} 
-                color="blue" 
+              <ActionButton
+                onClick={() => setIsEditingCustom(true)}
+                color="blue"
                 label="Edit"
                 disabled={!customInstructionsEnabled}
               />
@@ -301,7 +301,7 @@ const InstructionManager: React.FC<InstructionManagerProps> = ({ adapter, tools 
           {isEditingCustom ? (
             <textarea
               value={customInstructions}
-              onChange={(e) => setCustomInstructions(e.target.value)}
+              onChange={e => setCustomInstructions(e.target.value)}
               placeholder="Enter your custom instructions here..."
               className="w-full h-32 p-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200"
             />

@@ -466,11 +466,12 @@ const ToggleItem: React.FC<ToggleItemProps> = ({ id, label, checked, disabled, o
         borderBottom: `1px solid ${toggleTheme.itemBorderColor}`,
         backgroundColor: toggleTheme.itemBackground,
       }}>
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center',
-        justifyContent: 'flex-start'
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+        }}>
         <div style={{ width: '36px', marginRight: '10px' }}>
           <label className="mcp-toggle-checkbox" style={{ display: 'block' }}>
             <input

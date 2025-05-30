@@ -253,10 +253,9 @@ export const submitChatInput = async (maxWaitTime = 5000): Promise<boolean> => {
   try {
     // Find the chat input element
     let chatInput: HTMLElement | null = null;
-    if(window.location.hostname === 'chat.deepseek.com') {
-
+    if (window.location.hostname === 'chat.deepseek.com') {
       chatInput = findChatInputElement();
-      
+
       if (!chatInput) {
         logMessage('Could not find DeepSeek input element for submission');
         return false;
@@ -333,7 +332,7 @@ export const submitChatInput = async (maxWaitTime = 5000): Promise<boolean> => {
           resolve(false);
           return;
         }
-        
+
         const form = chatInput.closest('form');
         if (form) {
           logMessage('Found form, submitting it');

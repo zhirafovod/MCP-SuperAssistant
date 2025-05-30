@@ -11,7 +11,7 @@ import Ajv from 'ajv';
  */
 export const useBackgroundCommunication = (): BackgroundCommunication => {
   // No default config - always fetch from background storage
-  
+
   // Always start as initialized to ensure immediate rendering
   const [isInitialized, setIsInitialized] = useState(true);
   const [initializationError, setInitializationError] = useState<string | null>(null);
@@ -32,15 +32,15 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
   const [availableTools, setAvailableTools] = useState<Tool[]>([]);
   // Keep a ref in sync with availableTools so we can access the latest value
   const availableToolsRef = useRef<Tool[]>([]);
-  
+
   // Connection management state
   const [retryCount, setRetryCount] = useState<number>(0);
   const retryTimeoutRef = useRef<number | null>(null);
   const lastConnectionAttemptRef = useRef<number>(0);
   const [circuitBreakerOpen, setCircuitBreakerOpen] = useState<boolean>(false);
   const circuitBreakerTimeoutRef = useRef<number | null>(null);
-  const logThrottleRef = useRef<{[key: string]: number}>({});
-  
+  const logThrottleRef = useRef<{ [key: string]: number }>({});
+
   // Function to fetch available tools from the MCP server - declare early to avoid reference errors
   const getAvailableTools = useCallback(async (): Promise<Tool[]> => {
     return new Promise((resolve, reject) => {
@@ -63,24 +63,24 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
       });
     });
   }, []);
-  
+
   // Track tool fetch requests to prevent duplicates with improved locking mechanism
-  const toolFetchRequestRef = useRef<{ 
-    inProgress: boolean; 
-    lastFetch: number; 
+  const toolFetchRequestRef = useRef<{
+    inProgress: boolean;
+    lastFetch: number;
     promise: Promise<Tool[]> | null;
     lockAcquired: boolean;
     lockTimestamp: number;
     toolsHash: string; // Hash to detect changes in tool list
-  }>({ 
-    inProgress: false, 
+  }>({
+    inProgress: false,
     lastFetch: 0,
     promise: null,
     lockAcquired: false,
     lockTimestamp: 0,
-    toolsHash: ''
+    toolsHash: '',
   });
-  
+
   // Function to calculate a simple hash of the tools list to detect changes
   const calculateToolsHash = useCallback((tools: Tool[]): string => {
     // Sort tools by name to ensure consistent hash
@@ -90,7 +90,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
     // Return a simple hash of the string
     return String(toolsString.split('').reduce((a, b) => (a * 31 + b.charCodeAt(0)) | 0, 0));
   }, []);
-  
+
   // Function to refresh the tools list with smarter caching and better locking
   const refreshTools = useCallback(
     async (forceRefresh: boolean = false): Promise<Tool[]> => {
@@ -125,19 +125,23 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
       // Check if we already have tools and if a recent fetch was made (within last 30 seconds)
       const now = Date.now();
       const CACHE_TTL = 30000; // 30 seconds cache
-      
+
       // If we have tools and it's not a force refresh, use the cache
-      if (!forceRefresh && availableToolsRef.current.length > 0 && (now - toolFetchRequestRef.current.lastFetch < CACHE_TTL)) {
+      if (
+        !forceRefresh &&
+        availableToolsRef.current.length > 0 &&
+        now - toolFetchRequestRef.current.lastFetch < CACHE_TTL
+      ) {
         logMessage('[Background Communication] Using cached tools list (recent fetch)');
         return availableToolsRef.current;
       }
-      
+
       // If there's already a request in progress, return the existing promise
       if (toolFetchRequestRef.current.inProgress && toolFetchRequestRef.current.promise) {
         logMessage('[Background Communication] Tool fetch already in progress, reusing request');
         return toolFetchRequestRef.current.promise;
       }
-      
+
       // Try to acquire lock
       if (!acquireLock()) {
         // If we couldn't acquire the lock, wait for the existing request
@@ -157,7 +161,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
           return availableToolsRef.current;
         }
       }
-      
+
       logMessage(`[Background Communication] Refreshing tools list (forceRefresh: ${forceRefresh})`);
 
       // Create a new promise for this fetch request
@@ -207,7 +211,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
           // Calculate hash of the new tools list
           const newToolsHash = calculateToolsHash(tools);
           const hashChanged = newToolsHash !== toolFetchRequestRef.current.toolsHash;
-          
+
           if (hashChanged) {
             logMessage('[Background Communication] Tool list has changed, updating cache');
             // Update the tools hash
@@ -217,7 +221,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
           // Update the tools list
           setAvailableTools(tools);
           availableToolsRef.current = tools;
-          
+
           // Update the last fetch time
           toolFetchRequestRef.current.lastFetch = Date.now();
 
@@ -235,11 +239,11 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
           releaseLock();
         }
       })();
-      
+
       // Store the promise and mark request as in progress
       toolFetchRequestRef.current.promise = fetchPromise;
       toolFetchRequestRef.current.inProgress = true;
-      
+
       return fetchPromise;
     },
     [getAvailableTools],
@@ -251,7 +255,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
   }, [availableTools]);
   // State to track if we're currently reconnecting
   const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
-  
+
   const ajv = useMemo(() => new Ajv(), []);
 
   /**
@@ -261,7 +265,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
   const throttledLogMessage = useCallback((message: string, key: string, minIntervalMs: number = 60000) => {
     const now = Date.now();
     const lastLog = logThrottleRef.current[key] || 0;
-    
+
     if (now - lastLog >= minIntervalMs) {
       logMessage(message);
       logThrottleRef.current[key] = now;
@@ -288,13 +292,13 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
       window.clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
     }
-    
+
     // Clear any pending circuit breaker timeout
     if (circuitBreakerTimeoutRef.current !== null) {
       window.clearTimeout(circuitBreakerTimeoutRef.current);
       circuitBreakerTimeoutRef.current = null;
     }
-    
+
     // Reset retry count and circuit breaker state
     setRetryCount(0);
     setCircuitBreakerOpen(false);
@@ -311,65 +315,70 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
       throttledLogMessage(
         '[Background Communication] Circuit breaker open, skipping automatic reconnection',
         'circuit-breaker',
-        60000
+        60000,
       );
       return;
     }
-    
+
     // Record the connection attempt time
     lastConnectionAttemptRef.current = Date.now();
-    
+
     // Attempt to connect using mcpHandler
     mcpHandler.forceReconnect((result: any, error?: string) => {
       if (error) {
         // Enhanced error messaging for better user feedback
         let userFriendlyError = error;
         if (error.includes('404') || error.includes('not found')) {
-          userFriendlyError = 'Server URL not found (404). Please verify your MCP server URL is correct and the server is running at the specified address.';
+          userFriendlyError =
+            'Server URL not found (404). Please verify your MCP server URL is correct and the server is running at the specified address.';
         } else if (error.includes('403')) {
           userFriendlyError = 'Access forbidden (403). Please check server permissions and authentication settings.';
         } else if (error.includes('500') || error.includes('502') || error.includes('503')) {
-          userFriendlyError = 'Server error detected. The MCP server may be experiencing issues. Please try again later.';
+          userFriendlyError =
+            'Server error detected. The MCP server may be experiencing issues. Please try again later.';
         } else if (error.includes('Connection refused') || error.includes('ECONNREFUSED')) {
-          userFriendlyError = 'Connection refused. Please verify the MCP server is running and accessible at the configured URL.';
+          userFriendlyError =
+            'Connection refused. Please verify the MCP server is running and accessible at the configured URL.';
         } else if (error.includes('timeout') || error.includes('ETIMEDOUT')) {
-          userFriendlyError = 'Connection timeout. The server may be slow to respond or unreachable. Please check your network connection and server status.';
+          userFriendlyError =
+            'Connection timeout. The server may be slow to respond or unreachable. Please check your network connection and server status.';
         } else if (error.includes('ENOTFOUND')) {
           userFriendlyError = 'Server not found. Please check the server URL and your network connection.';
         } else if (error.includes('Unable to connect to MCP server')) {
-          userFriendlyError = 'Unable to establish connection. Please verify the server URL and ensure the MCP server is running and accessible.';
+          userFriendlyError =
+            'Unable to establish connection. Please verify the server URL and ensure the MCP server is running and accessible.';
         }
-        
+
         // Store the enhanced error message
         setLastConnectionError(userFriendlyError);
-        
+
         // Connection failed
         throttledLogMessage(
           `[Background Communication] Connection attempt ${retryCount + 1}/${MAX_RECONNECT_ATTEMPTS} failed: ${userFriendlyError}`,
           'connection-failed',
-          60000
+          60000,
         );
-      
+
         // Increment retry count
         const newRetryCount = retryCount + 1;
         setRetryCount(newRetryCount);
-        
+
         // Check if we've reached the maximum retry attempts
         if (newRetryCount >= MAX_RECONNECT_ATTEMPTS) {
           // Open the circuit breaker
           throttledLogMessage(
             '[Background Communication] Maximum retry attempts reached, opening circuit breaker',
             'circuit-breaker-open',
-            60000
+            60000,
           );
           setCircuitBreakerOpen(true);
-          
+
           // Schedule circuit breaker reset
           circuitBreakerTimeoutRef.current = window.setTimeout(() => {
             throttledLogMessage(
               '[Background Communication] Circuit breaker reset after timeout',
               'circuit-breaker-reset',
-              60000
+              60000,
             );
             setCircuitBreakerOpen(false);
             setRetryCount(0);
@@ -381,18 +390,14 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
           throttledLogMessage(
             `[Background Communication] Connection failed. User can manually reconnect via the UI.`,
             'manual-reconnect-required',
-            60000
+            60000,
           );
         }
       } else {
         // Connection successful
         const isConnected = result?.isConnected || false;
         if (isConnected) {
-          throttledLogMessage(
-            '[Background Communication] Connection successful',
-            'connection-success',
-            60000
-          );
+          throttledLogMessage('[Background Communication] Connection successful', 'connection-success', 60000);
           // Reset connection state on successful connection
           resetConnectionState();
           // Refresh tools
@@ -400,7 +405,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
             throttledLogMessage(
               `[Background Communication] Error refreshing tools after connection: ${err instanceof Error ? err.message : String(err)}`,
               'refresh-error',
-              60000
+              60000,
             );
           });
         }
@@ -409,95 +414,104 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
   }, [retryCount, circuitBreakerOpen, calculateBackoffDelay, resetConnectionState, refreshTools, throttledLogMessage]);
 
   // Enhanced error categorization for better tool vs connection error distinction
-  const categorizeError = useCallback((error: string): { isConnectionError: boolean; isToolError: boolean; category: string } => {
-    const errorMessage = error.toLowerCase();
-    
-    // Tool-specific errors that definitely don't indicate connection issues
-    const toolErrorPatterns = [
-      /tool .* not found/i,
-      /tool not found/i,
-      /not found in cached primitives/i,  // Added this pattern
-      /method not found/i,
-      /invalid arguments/i,
-      /invalid parameters/i,
-      /mcp error -32602/i,  // Invalid params
-      /mcp error -32601/i,  // Method not found
-      /mcp error -32600/i,  // Invalid request
-      /tool '[^']+' is not available/i,
-      /tool '[^']+' not found on server/i,
-    ];
-    
-    // Connection-related errors that indicate server is unavailable
-    const connectionErrorPatterns = [
-      /connection refused/i,
-      /econnrefused/i,
-      /timeout/i,
-      /etimedout/i,
-      /enotfound/i,
-      /network error/i,
-      /server unavailable/i,
-      /could not connect/i,
-      /connection failed/i,
-      /transport error/i,
-      /fetch failed/i,
-    ];
-    
-    // Check tool errors first (highest priority)
-    if (toolErrorPatterns.some(pattern => pattern.test(errorMessage))) {
-      return { isConnectionError: false, isToolError: true, category: 'tool_error' };
-    }
-    
-    // Check connection errors
-    if (connectionErrorPatterns.some(pattern => pattern.test(errorMessage))) {
-      return { isConnectionError: true, isToolError: false, category: 'connection_error' };
-    }
-    
-    // Default to tool error for ambiguous cases to prevent unnecessary disconnections
-    return { isConnectionError: false, isToolError: true, category: 'unknown_tool_error' };
-  }, []);
+  const categorizeError = useCallback(
+    (error: string): { isConnectionError: boolean; isToolError: boolean; category: string } => {
+      const errorMessage = error.toLowerCase();
+
+      // Tool-specific errors that definitely don't indicate connection issues
+      const toolErrorPatterns = [
+        /tool .* not found/i,
+        /tool not found/i,
+        /not found in cached primitives/i, // Added this pattern
+        /method not found/i,
+        /invalid arguments/i,
+        /invalid parameters/i,
+        /mcp error -32602/i, // Invalid params
+        /mcp error -32601/i, // Method not found
+        /mcp error -32600/i, // Invalid request
+        /tool '[^']+' is not available/i,
+        /tool '[^']+' not found on server/i,
+      ];
+
+      // Connection-related errors that indicate server is unavailable
+      const connectionErrorPatterns = [
+        /connection refused/i,
+        /econnrefused/i,
+        /timeout/i,
+        /etimedout/i,
+        /enotfound/i,
+        /network error/i,
+        /server unavailable/i,
+        /could not connect/i,
+        /connection failed/i,
+        /transport error/i,
+        /fetch failed/i,
+      ];
+
+      // Check tool errors first (highest priority)
+      if (toolErrorPatterns.some(pattern => pattern.test(errorMessage))) {
+        return { isConnectionError: false, isToolError: true, category: 'tool_error' };
+      }
+
+      // Check connection errors
+      if (connectionErrorPatterns.some(pattern => pattern.test(errorMessage))) {
+        return { isConnectionError: true, isToolError: false, category: 'connection_error' };
+      }
+
+      // Default to tool error for ambiguous cases to prevent unnecessary disconnections
+      return { isConnectionError: false, isToolError: true, category: 'unknown_tool_error' };
+    },
+    [],
+  );
 
   // Subscribe to connection status changes
   useEffect(() => {
     const handleConnectionStatus = (isConnected: boolean) => {
-    const prevStatus = serverStatus;
-    const newStatus = isConnected ? 'connected' : 'disconnected';
-    
-    // CRITICAL FIX: Always log connection status changes for debugging
-    logMessage(`[Background Communication] Connection status change received: ${isConnected ? 'Connected' : 'Disconnected'}, current UI status: ${prevStatus}`);
-    
-    // CRITICAL FIX: ALWAYS update the UI status to match the actual connection status
-    // This ensures the UI always reflects the actual server status, regardless of any conditions
-    logMessage(`[Background Communication] FORCE UPDATING status from ${prevStatus} to ${newStatus} (isReconnecting: ${isReconnecting})`);
-    setServerStatus(newStatus);
-    
-    // Handle disconnection
-    if (newStatus === 'disconnected') {
-      logMessage('[Background Communication] Server disconnected. User can manually reconnect via the UI.');
-      
-      // Force a state update to ensure the UI reflects the disconnected state
-      setTimeout(() => {
-        if (serverStatus !== 'disconnected') {
-          logMessage('[Background Communication] Forcing disconnected state update after timeout');
-          setServerStatus('disconnected');
-        }
-      }, 500);
-    }
-    // Handle connection
-    else if (newStatus === 'connected') {
-      resetConnectionState();
-      
-      // If we have no tools cached, fetch them
-      if (availableToolsRef.current.length === 0) {
-        logMessage('[Background Communication] Connected with empty tool cache, refreshing tools');
-        refreshTools(true).catch(err => {
-          logMessage(`[Background Communication] Error refreshing tools after connection: ${err instanceof Error ? err.message : String(err)}`);
-        });
+      const prevStatus = serverStatus;
+      const newStatus = isConnected ? 'connected' : 'disconnected';
+
+      // CRITICAL FIX: Always log connection status changes for debugging
+      logMessage(
+        `[Background Communication] Connection status change received: ${isConnected ? 'Connected' : 'Disconnected'}, current UI status: ${prevStatus}`,
+      );
+
+      // CRITICAL FIX: ALWAYS update the UI status to match the actual connection status
+      // This ensures the UI always reflects the actual server status, regardless of any conditions
+      logMessage(
+        `[Background Communication] FORCE UPDATING status from ${prevStatus} to ${newStatus} (isReconnecting: ${isReconnecting})`,
+      );
+      setServerStatus(newStatus);
+
+      // Handle disconnection
+      if (newStatus === 'disconnected') {
+        logMessage('[Background Communication] Server disconnected. User can manually reconnect via the UI.');
+
+        // Force a state update to ensure the UI reflects the disconnected state
+        setTimeout(() => {
+          if (serverStatus !== 'disconnected') {
+            logMessage('[Background Communication] Forcing disconnected state update after timeout');
+            setServerStatus('disconnected');
+          }
+        }, 500);
       }
-    }
-    
-    // We no longer attempt automatic reconnection for disconnected states
-    // This is now handled through the UI's reconnect button
-  };
+      // Handle connection
+      else if (newStatus === 'connected') {
+        resetConnectionState();
+
+        // If we have no tools cached, fetch them
+        if (availableToolsRef.current.length === 0) {
+          logMessage('[Background Communication] Connected with empty tool cache, refreshing tools');
+          refreshTools(true).catch(err => {
+            logMessage(
+              `[Background Communication] Error refreshing tools after connection: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          });
+        }
+      }
+
+      // We no longer attempt automatic reconnection for disconnected states
+      // This is now handled through the UI's reconnect button
+    };
 
     // Register the callback with mcpHandler
     mcpHandler.onConnectionStatusChanged(handleConnectionStatus);
@@ -559,7 +573,9 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
       const toolEntry = availableTools.find(t => t.name === toolName);
       if (!toolEntry) {
         // Tool not found in available tools - provide user-friendly error
-        throw new Error(`Tool '${toolName}' is not found in the current MCP Server. Check the list of available tools in the sidebar.`);
+        throw new Error(
+          `Tool '${toolName}' is not found in the current MCP Server. Check the list of available tools in the sidebar.`,
+        );
       }
 
       // Schema validation for tool arguments
@@ -584,25 +600,33 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
           if (error) {
             // Enhanced error categorization to prevent unnecessary connection status changes
             const errorCategory = categorizeError(error);
-            
+
             // Check for specific tool not found errors and make them user-friendly
-            if (error.includes('not found in cached primitives') || 
-                error.includes('Tool not found') || 
-                error.includes('not available') ||
-                error.includes('TOOL_NOT_FOUND')) {
-              reject(new Error(`Tool '${toolName}' is not found in the current MCP Server. Check the list of available tools in the sidebar.`));
+            if (
+              error.includes('not found in cached primitives') ||
+              error.includes('Tool not found') ||
+              error.includes('not available') ||
+              error.includes('TOOL_NOT_FOUND')
+            ) {
+              reject(
+                new Error(
+                  `Tool '${toolName}' is not found in the current MCP Server. Check the list of available tools in the sidebar.`,
+                ),
+              );
               return;
             }
-            
+
             // Only update connection status for actual connection errors, not tool errors
             if (errorCategory.isConnectionError && !errorCategory.isToolError) {
               logMessage(`[Background Communication] Connection error detected during tool call: ${error}`);
               setServerStatus('disconnected');
             } else if (errorCategory.isToolError) {
-              logMessage(`[Background Communication] Tool-specific error detected (${errorCategory.category}), maintaining connection status`);
+              logMessage(
+                `[Background Communication] Tool-specific error detected (${errorCategory.category}), maintaining connection status`,
+              );
               // Don't update connection status for tool-specific errors
             }
-            
+
             reject(new Error(error));
           } else {
             resolve(result);
@@ -621,7 +645,9 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
       logMessage('[Background Communication] Fetching fresh server configuration from background storage');
       return await fetchServerConfig();
     } catch (error) {
-      logMessage(`[Background Communication] Error fetching config: ${error instanceof Error ? error.message : String(error)}`);
+      logMessage(
+        `[Background Communication] Error fetching config: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw error; // Don't fallback to default, let the caller handle the error
     }
   }, []);
@@ -661,7 +687,9 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
       const config = await Promise.race([fetchPromise, timeoutPromise]);
       return config;
     } catch (error) {
-      logMessage(`[Background Communication] Error in fetchServerConfig: ${error instanceof Error ? error.message : String(error)}`);
+      logMessage(
+        `[Background Communication] Error in fetchServerConfig: ${error instanceof Error ? error.message : String(error)}`,
+      );
       // Don't fallback to default - throw the error so caller knows fetch failed
       throw error;
     }
@@ -689,11 +717,15 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
 
   // Function to force reconnect to the MCP server (user-initiated)
   const forceReconnect = useCallback(async (): Promise<boolean> => {
-    throttledLogMessage('[Background Communication] User-initiated reconnection to MCP server', 'force-reconnect', 1000);
-    
+    throttledLogMessage(
+      '[Background Communication] User-initiated reconnection to MCP server',
+      'force-reconnect',
+      1000,
+    );
+
     // Reset connection state before attempting reconnection
     resetConnectionState();
-    
+
     // Update UI state
     setIsReconnecting(true);
     setServerStatus('reconnecting');
@@ -701,7 +733,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
     return new Promise((resolve, reject) => {
       // Record the connection attempt time
       lastConnectionAttemptRef.current = Date.now();
-      
+
       mcpHandler.forceReconnect((result: any, error?: string) => {
         setIsReconnecting(false);
 
@@ -709,25 +741,34 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
           // Enhanced error messaging for better user feedback
           let userFriendlyError = error;
           if (error.includes('404') || error.includes('not found')) {
-            userFriendlyError = 'Server URL not found (404). Please verify your MCP server URL is correct and the server is running at the specified address.';
+            userFriendlyError =
+              'Server URL not found (404). Please verify your MCP server URL is correct and the server is running at the specified address.';
           } else if (error.includes('403')) {
             userFriendlyError = 'Access forbidden (403). Please check server permissions and authentication settings.';
           } else if (error.includes('500') || error.includes('502') || error.includes('503')) {
-            userFriendlyError = 'Server error detected. The MCP server may be experiencing issues. Please try again later.';
+            userFriendlyError =
+              'Server error detected. The MCP server may be experiencing issues. Please try again later.';
           } else if (error.includes('Connection refused') || error.includes('ECONNREFUSED')) {
-            userFriendlyError = 'Connection refused. Please verify the MCP server is running and accessible at the configured URL.';
+            userFriendlyError =
+              'Connection refused. Please verify the MCP server is running and accessible at the configured URL.';
           } else if (error.includes('timeout') || error.includes('ETIMEDOUT')) {
-            userFriendlyError = 'Connection timeout. The server may be slow to respond or unreachable. Please check your network connection and server status.';
+            userFriendlyError =
+              'Connection timeout. The server may be slow to respond or unreachable. Please check your network connection and server status.';
           } else if (error.includes('ENOTFOUND')) {
             userFriendlyError = 'Server not found. Please check the server URL and your network connection.';
           } else if (error.includes('Unable to connect to MCP server')) {
-            userFriendlyError = 'Unable to establish connection. Please verify the server URL and ensure the MCP server is running and accessible.';
+            userFriendlyError =
+              'Unable to establish connection. Please verify the server URL and ensure the MCP server is running and accessible.';
           }
-          
+
           // Store the enhanced error message
           setLastConnectionError(userFriendlyError);
-          
-          throttledLogMessage(`[Background Communication] User-initiated reconnection failed: ${userFriendlyError}`, 'force-reconnect-failed', 1000);
+
+          throttledLogMessage(
+            `[Background Communication] User-initiated reconnection failed: ${userFriendlyError}`,
+            'force-reconnect-failed',
+            1000,
+          );
           setServerStatus('error');
           reject(new Error(userFriendlyError));
         } else {
@@ -736,19 +777,27 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
             // Clear error message on successful connection
             setLastConnectionError('');
           }
-          throttledLogMessage(`[Background Communication] User-initiated reconnection completed, connected: ${isConnected}`, 'force-reconnect-complete', 1000);
+          throttledLogMessage(
+            `[Background Communication] User-initiated reconnection completed, connected: ${isConnected}`,
+            'force-reconnect-complete',
+            1000,
+          );
           setServerStatus(isConnected ? 'connected' : 'disconnected');
 
           // If connected, refresh the tools list with force refresh to ensure we get fresh data
           if (isConnected) {
-            throttledLogMessage('[Background Communication] Connection successful, forcing tools refresh', 'force-reconnect-refresh', 1000);
+            throttledLogMessage(
+              '[Background Communication] Connection successful, forcing tools refresh',
+              'force-reconnect-refresh',
+              1000,
+            );
             getAvailableTools()
               .then(tools => {
                 setAvailableTools(tools);
                 throttledLogMessage(
                   `[Background Communication] Successfully refreshed ${tools.length} tools after reconnection`,
                   'force-reconnect-refresh-success',
-                  1000
+                  1000,
                 );
 
                 // Force a second refresh to ensure we have the latest tools from the new server
@@ -759,7 +808,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
                 throttledLogMessage(
                   `[Background Communication] Second refresh completed, found ${tools.length} tools`,
                   'force-reconnect-second-refresh',
-                  1000
+                  1000,
                 );
                 resolve(true);
               })
@@ -767,7 +816,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
                 throttledLogMessage(
                   `[Background Communication] Error refreshing tools: ${refreshError instanceof Error ? refreshError.message : String(refreshError)}`,
                   'force-reconnect-refresh-error',
-                  1000
+                  1000,
                 );
                 setServerStatus('error');
                 setAvailableTools([]);
@@ -827,7 +876,7 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
 
       try {
         logMessage('[Background Communication] Initializing hook...');
-        
+
         // Test if mcpHandler is available and functional
         if (typeof mcpHandler === 'undefined') {
           throw new Error('mcpHandler is not available');
@@ -838,15 +887,16 @@ export const useBackgroundCommunication = (): BackgroundCommunication => {
           const connectionStatus = mcpHandler.getConnectionStatus();
           logMessage(`[Background Communication] Initial connection status: ${connectionStatus}`);
         } catch (statusError) {
-          logMessage(`[Background Communication] Could not get connection status: ${statusError instanceof Error ? statusError.message : String(statusError)}`);
+          logMessage(
+            `[Background Communication] Could not get connection status: ${statusError instanceof Error ? statusError.message : String(statusError)}`,
+          );
           // Continue anyway
         }
-        
+
         // Always mark as initialized - failures are handled gracefully
         setIsInitialized(true);
         setInitializationError(null);
         logMessage('[Background Communication] Hook initialized successfully');
-        
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logMessage(`[Background Communication] Initialization failed but continuing: ${errorMessage}`);

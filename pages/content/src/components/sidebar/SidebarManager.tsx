@@ -117,7 +117,7 @@ export class SidebarManager extends BaseSidebarManager {
       try {
         this.initialPreferences = await getSidebarPreferences();
         logMessage(`[SidebarManager] Loaded preferences for show(): ${JSON.stringify(this.initialPreferences)}`);
-        
+
         // Set the data-initial-minimized attribute based on loaded preferences
         await this.initialize(); // Ensure initialized
         if (this.shadowHost) {
@@ -126,11 +126,13 @@ export class SidebarManager extends BaseSidebarManager {
           logMessage(`[SidebarManager] Set data-initial-minimized to '${wasMinimized ? 'true' : 'false'}'`);
         }
       } catch (error) {
-        logMessage(`[SidebarManager] Error loading preferences in show(): ${error instanceof Error ? error.message : String(error)}`);
+        logMessage(
+          `[SidebarManager] Error loading preferences in show(): ${error instanceof Error ? error.message : String(error)}`,
+        );
         // Continue with null preferences and let Sidebar component handle it
       }
     }
-    
+
     // Now call the parent show method which will render with proper preferences
     return super.show();
   }
@@ -147,7 +149,7 @@ export class SidebarManager extends BaseSidebarManager {
       // For safety, we'll pass null and let Sidebar component handle the fallback
       // The Sidebar component will load preferences asynchronously if needed
     }
-    
+
     return <Sidebar initialPreferences={this.initialPreferences} />;
   }
 
@@ -157,7 +159,7 @@ export class SidebarManager extends BaseSidebarManager {
   public showWithToolOutputs(): void {
     // Add delay to ensure host website has fully loaded and won't interfere
     logMessage('[SidebarManager] Scheduling sidebar initialization with 500ms delay');
-    
+
     setTimeout(async () => {
       logMessage('[SidebarManager] Starting delayed sidebar initialization');
 
@@ -183,7 +185,7 @@ export class SidebarManager extends BaseSidebarManager {
             this.shadowHost.style.opacity = '1';
             this.shadowHost.classList.add('initialized');
             this._isVisible = true;
-            
+
             // Single render call
             this.render();
             logMessage('[SidebarManager] Fallback initialization with single render completed');
@@ -220,12 +222,14 @@ export class SidebarManager extends BaseSidebarManager {
 
     // Use already-loaded preferences or load them if not available
     try {
-      const preferences = this.initialPreferences || await getSidebarPreferences();
+      const preferences = this.initialPreferences || (await getSidebarPreferences());
       const wasMinimized = preferences.isMinimized ?? false;
       const isPushMode = preferences.isPushMode ?? false;
       const sidebarWidth = preferences.sidebarWidth || 320;
 
-      logMessage(`[SidebarManager] Using preferences for initialization: minimized=${wasMinimized}, pushMode=${isPushMode}, width=${sidebarWidth}`);
+      logMessage(
+        `[SidebarManager] Using preferences for initialization: minimized=${wasMinimized}, pushMode=${isPushMode}, width=${sidebarWidth}`,
+      );
 
       // CRITICAL: Set ALL attributes and styles BEFORE making sidebar visible and rendering React
       if (this.shadowHost) {
@@ -238,7 +242,7 @@ export class SidebarManager extends BaseSidebarManager {
           // Ensure the attribute is explicitly set to false for expanded state
           this.shadowHost.setAttribute('data-initial-minimized', 'false');
         }
-        
+
         // Make sidebar visible
         this.shadowHost.style.display = 'block';
         this.shadowHost.style.opacity = '1';
@@ -260,11 +264,10 @@ export class SidebarManager extends BaseSidebarManager {
       setTimeout(() => {
         logMessage('[SidebarManager] Rendering React component with all initial state ready');
         this.render();
-        
+
         // Mark as fully initialized
         logMessage(`[SidebarManager] Sidebar fully initialized: minimized=${wasMinimized}, pushMode=${isPushMode}`);
       }, 20); // Slightly longer delay to ensure DOM is fully ready
-
     } catch (error) {
       logMessage(
         `[SidebarManager] Error loading preferences: ${error instanceof Error ? error.message : String(error)}`,
@@ -276,24 +279,24 @@ export class SidebarManager extends BaseSidebarManager {
           logMessage('[SidebarManager] Loading preferences for fallback initialization');
           this.initialPreferences = await getSidebarPreferences();
         }
-        
+
         // Initialize without rendering first, then render once with proper attributes
         await this.initialize();
         if (this.shadowHost) {
           // CRITICAL: Set the data-initial-minimized attribute based on loaded preferences
           const wasMinimized = this.initialPreferences?.isMinimized ?? false;
           this.shadowHost.setAttribute('data-initial-minimized', wasMinimized ? 'true' : 'false');
-          
+
           // Set initial width based on minimized state
           if (wasMinimized) {
             this.shadowHost.style.width = '56px';
           }
-          
+
           this.shadowHost.style.display = 'block';
           this.shadowHost.style.opacity = '1';
           this.shadowHost.classList.add('initialized');
           this._isVisible = true;
-          
+
           // Single render call with preferences now available
           this.render();
           logMessage('[SidebarManager] Fallback initialization with single render completed');
@@ -316,22 +319,22 @@ export class SidebarManager extends BaseSidebarManager {
     const hasClass = document.documentElement.classList.contains('push-mode-enabled');
     const hasMargin = document.documentElement.style.marginRight !== '';
     const hasWidth = document.documentElement.style.width !== '';
-    
+
     const isPushModeApplied = hasClass && hasMargin && hasWidth;
-    
+
     if (!isPushModeApplied) {
       logMessage('[SidebarManager] Push mode verification failed, retrying...');
-      
+
       // Retry applying push mode after a short delay
       setTimeout(() => {
         this.setPushContentMode(true, width, isCollapsed);
-        
+
         // Verify again after retry
         setTimeout(() => {
           const retryHasClass = document.documentElement.classList.contains('push-mode-enabled');
           const retryHasMargin = document.documentElement.style.marginRight !== '';
           const retryHasWidth = document.documentElement.style.width !== '';
-          
+
           if (retryHasClass && retryHasMargin && retryHasWidth) {
             logMessage('[SidebarManager] Push mode successfully applied after retry');
           } else {
@@ -351,22 +354,22 @@ export class SidebarManager extends BaseSidebarManager {
    */
   public refreshContent(): void {
     logMessage('[SidebarManager] Content refresh requested - relying on React state updates instead of full re-render');
-    
+
     // REMOVED: Direct render() call that destroys and recreates the entire component tree
     // this.render();
-    
+
     // The sidebar content will automatically update through:
     // 1. Background communication hooks that manage state
     // 2. Component re-renders triggered by state changes
     // 3. useEffect hooks that respond to data changes
-    
+
     // If a full re-render is absolutely necessary (rare), it should be done
     // through specific state updates in the React component, not here
-    
+
     // Optional: Trigger a custom event that components can listen to
     if (this.shadowHost) {
       const refreshEvent = new CustomEvent('mcpSidebarRefresh', {
-        detail: { timestamp: Date.now() }
+        detail: { timestamp: Date.now() },
       });
       this.shadowHost.dispatchEvent(refreshEvent);
     }
@@ -377,28 +380,30 @@ export class SidebarManager extends BaseSidebarManager {
    */
   protected render(): void {
     const now = Date.now();
-    
+
     // CRITICAL FIX: Prevent multiple renders in quick succession
     if (this.isRendering) {
       logMessage('[SidebarManager] BLOCKED: Render already in progress, skipping duplicate render');
       return;
     }
-    
+
     // CRITICAL FIX: Throttle renders to at most once every 100ms
     if (now - this.lastRenderTime < 100) {
       logMessage('[SidebarManager] BLOCKED: Render throttled, too soon since last render');
       return;
     }
-    
+
     this.isRendering = true;
     this.lastRenderTime = now;
-    
+
     try {
       logMessage('[SidebarManager] Starting protected render');
       super.render();
       logMessage('[SidebarManager] Protected render completed successfully');
     } catch (error) {
-      logMessage(`[SidebarManager] Error in protected render: ${error instanceof Error ? error.message : String(error)}`);
+      logMessage(
+        `[SidebarManager] Error in protected render: ${error instanceof Error ? error.message : String(error)}`,
+      );
     } finally {
       // Allow future renders after a brief delay
       setTimeout(() => {

@@ -87,9 +87,9 @@ class McpInterface {
     if (this.isInitialized) {
       return Promise.resolve();
     }
-    
+
     // Poll until initialized
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       const checkInterval = setInterval(() => {
         if (this.isInitialized) {
           clearInterval(checkInterval);
@@ -119,16 +119,18 @@ class McpInterface {
     // Only do an initial check, no periodic checks
     // This ensures we only check once during page load and never automatically reconnect
     console.log('[MCP Interface] Performing initial connection check (one-time only)');
-    this.checkServerConnection().then(isConnected => {
-      console.log(`[MCP Interface] Initial connection check result: ${isConnected ? 'Connected' : 'Disconnected'}`);
-      this.isConnected = isConnected;
-      this.broadcastConnectionStatus();
-    }).catch(error => {
-      console.error('[MCP Interface] Error during initial connection check:', error);
-      this.isConnected = false;
-      this.broadcastConnectionStatus();
-    });
-    
+    this.checkServerConnection()
+      .then(isConnected => {
+        console.log(`[MCP Interface] Initial connection check result: ${isConnected ? 'Connected' : 'Disconnected'}`);
+        this.isConnected = isConnected;
+        this.broadcastConnectionStatus();
+      })
+      .catch(error => {
+        console.error('[MCP Interface] Error during initial connection check:', error);
+        this.isConnected = false;
+        this.broadcastConnectionStatus();
+      });
+
     // No interval is set - reconnection will only happen when explicitly requested by the user
   }
 
@@ -199,38 +201,38 @@ class McpInterface {
    * Enhanced tool verification that checks if a tool exists without causing disconnection
    * This is more efficient than the current verifyToolExists method
    */
-  private async enhancedToolVerification(toolName: string): Promise<{ exists: boolean; reason?: string; cached: boolean }> {
+  private async enhancedToolVerification(
+    toolName: string,
+  ): Promise<{ exists: boolean; reason?: string; cached: boolean }> {
     try {
       const now = Date.now();
       const VERIFICATION_CACHE_TTL = 60000; // 1 minute cache for verification results
-      
+
       // Check if we have recent primitives cache
-      const hasFreshCache = this.toolDetailsCache.primitives.length > 0 && 
-                           (now - this.toolDetailsCache.lastFetch < VERIFICATION_CACHE_TTL);
-      
+      const hasFreshCache =
+        this.toolDetailsCache.primitives.length > 0 && now - this.toolDetailsCache.lastFetch < VERIFICATION_CACHE_TTL;
+
       if (hasFreshCache) {
         // Use cached primitives for verification
         const toolExists = this.toolDetailsCache.primitives.some(
-          primitive => primitive.type === 'tool' && primitive.value.name === toolName
+          primitive => primitive.type === 'tool' && primitive.value.name === toolName,
         );
-        
-        return { 
-          exists: toolExists, 
+
+        return {
+          exists: toolExists,
           reason: toolExists ? 'Found in cache' : `Tool '${toolName}' not found in cached primitives`,
-          cached: true
+          cached: true,
         };
       }
-      
+
       // If no fresh cache, do a lightweight verification call
       console.log(`[MCP Interface] Performing lightweight verification for tool '${toolName}'`);
-      
+
       // Get fresh primitives but don't update the main cache to avoid race conditions
       const primitives = await getPrimitivesWithSSE(this.serverUrl, false);
-      
-      const toolExists = primitives.some(
-        primitive => primitive.type === 'tool' && primitive.value.name === toolName
-      );
-      
+
+      const toolExists = primitives.some(primitive => primitive.type === 'tool' && primitive.value.name === toolName);
+
       if (toolExists) {
         return { exists: true, reason: 'Verified with server', cached: false };
       } else {
@@ -239,24 +241,25 @@ class McpInterface {
           .filter(p => p.type === 'tool')
           .map(p => p.value.name)
           .slice(0, 5); // Limit to first 5 tools
-        
-        const toolList = availableTools.length > 0 
-          ? ` Available tools include: ${availableTools.join(', ')}${primitives.filter(p => p.type === 'tool').length > 5 ? '...' : ''}`
-          : ' No tools are currently available from the server.';
-        
-        return { 
-          exists: false, 
+
+        const toolList =
+          availableTools.length > 0
+            ? ` Available tools include: ${availableTools.join(', ')}${primitives.filter(p => p.type === 'tool').length > 5 ? '...' : ''}`
+            : ' No tools are currently available from the server.';
+
+        return {
+          exists: false,
           reason: `Tool '${toolName}' not found on server.${toolList}`,
-          cached: false
+          cached: false,
         };
       }
     } catch (error) {
       console.warn(`[MCP Interface] Enhanced verification failed for '${toolName}':`, error);
       // For verification failures, be optimistic but log the issue
-      return { 
-        exists: true, 
-        reason: 'Verification failed, proceeding optimistically', 
-        cached: false
+      return {
+        exists: true,
+        reason: 'Verification failed, proceeding optimistically',
+        cached: false,
       };
     }
   }
@@ -351,19 +354,28 @@ class McpInterface {
     try {
       // First, verify the tool exists using enhanced verification
       const verification = await this.enhancedToolVerification(toolName);
-      
+
       if (!verification.exists) {
         console.warn(`[MCP Interface] Tool '${toolName}' not found on server:`, verification.reason);
         // This is a tool-specific error, not a connection error
-        this.sendError(connectionId, 'TOOL_NOT_FOUND', verification.reason || `Tool '${toolName}' is not available on the MCP server`, requestId);
+        this.sendError(
+          connectionId,
+          'TOOL_NOT_FOUND',
+          verification.reason || `Tool '${toolName}' is not available on the MCP server`,
+          requestId,
+        );
         return;
       }
 
       // Tool exists, proceed with the call
-      console.log(`[MCP Interface] Tool '${toolName}' verified (${verification.cached ? 'cached' : 'fresh'}), proceeding with call`);
+      console.log(
+        `[MCP Interface] Tool '${toolName}' verified (${verification.cached ? 'cached' : 'fresh'}), proceeding with call`,
+      );
 
       // Validate and sanitize arguments
-      console.log(`[MCP Interface] Args type: ${typeof args}, isArray: ${Array.isArray(args)}, keys: ${args ? Object.keys(args) : 'null'}`);
+      console.log(
+        `[MCP Interface] Args type: ${typeof args}, isArray: ${Array.isArray(args)}, keys: ${args ? Object.keys(args) : 'null'}`,
+      );
       console.log(`[MCP Interface] Calling tool ${toolName} with args:`, args);
 
       // Sanitize arguments to ensure they're serializable
@@ -398,7 +410,7 @@ class McpInterface {
 
       // Call the tool with enhanced error handling
       const result = await callToolWithSSE(this.serverUrl, toolName, sanitizedArgs);
-      
+
       console.log(`[MCP Interface] Tool call ${requestId} completed successfully`);
 
       // Send success response
@@ -409,26 +421,31 @@ class McpInterface {
       });
     } catch (error) {
       console.error(`[MCP Interface] Tool call ${requestId} failed:`, error);
-      
+
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       // Enhanced error categorization to prevent unnecessary disconnections
       const errorCategory = this.categorizeError(error as Error);
-      
+
       // CRITICAL: Only update connection status for actual connection errors
       if (errorCategory.isConnectionError && !errorCategory.isToolError) {
         console.warn(`[MCP Interface] Connection error detected, updating status: ${errorMessage}`);
         this.isConnected = false;
         this.broadcastConnectionStatus();
       } else {
-        console.log(`[MCP Interface] ${errorCategory.category} error (not updating connection status): ${errorMessage}`);
+        console.log(
+          `[MCP Interface] ${errorCategory.category} error (not updating connection status): ${errorMessage}`,
+        );
         // Don't update connection status for tool-specific errors or unknown errors
       }
-      
+
       // Send error response with appropriate error type
-      const errorType = errorCategory.isToolError ? 'TOOL_CALL_ERROR' : 
-                       errorCategory.isConnectionError ? 'CONNECTION_ERROR' : 'UNKNOWN_ERROR';
-      
+      const errorType = errorCategory.isToolError
+        ? 'TOOL_CALL_ERROR'
+        : errorCategory.isConnectionError
+          ? 'CONNECTION_ERROR'
+          : 'UNKNOWN_ERROR';
+
       this.sendError(connectionId, errorType, errorMessage, requestId);
     }
   }
@@ -440,12 +457,10 @@ class McpInterface {
     try {
       // Get the current primitives (this will use cache if available)
       const primitives = await this.getAvailableToolsFromServer(false);
-      
+
       // Check if the tool exists in the primitives list
-      const toolExists = primitives.some(
-        primitive => primitive.type === 'tool' && primitive.value.name === toolName
-      );
-      
+      const toolExists = primitives.some(primitive => primitive.type === 'tool' && primitive.value.name === toolName);
+
       if (toolExists) {
         console.log(`[MCP Interface] Tool verification for '${toolName}': exists`);
         return { exists: true };
@@ -454,16 +469,21 @@ class McpInterface {
           .filter(p => p.type === 'tool')
           .map(p => p.value.name)
           .slice(0, 10); // Show first 10 tools
-          
-        console.log(`[MCP Interface] Tool '${toolName}' not found. Available tools (first 10): ${availableTools.join(', ')}`);
-        
-        return { 
-          exists: false, 
-          reason: `Tool '${toolName}' is not available. ${availableTools.length > 0 ? `Available tools include: ${availableTools.join(', ')}${primitives.filter(p => p.type === 'tool').length > 10 ? '...' : ''}` : 'No tools are currently available.'}`
+
+        console.log(
+          `[MCP Interface] Tool '${toolName}' not found. Available tools (first 10): ${availableTools.join(', ')}`,
+        );
+
+        return {
+          exists: false,
+          reason: `Tool '${toolName}' is not available. ${availableTools.length > 0 ? `Available tools include: ${availableTools.join(', ')}${primitives.filter(p => p.type === 'tool').length > 10 ? '...' : ''}` : 'No tools are currently available.'}`,
         };
       }
     } catch (error) {
-      console.warn(`[MCP Interface] Could not verify tool existence for '${toolName}', allowing call to proceed:`, error);
+      console.warn(
+        `[MCP Interface] Could not verify tool existence for '${toolName}', allowing call to proceed:`,
+        error,
+      );
       // If we can't verify, allow the call to proceed (fail-open approach)
       return { exists: true, reason: 'Verification failed, proceeding optimistically' };
     }
@@ -474,7 +494,7 @@ class McpInterface {
    */
   private categorizeError(error: Error): { isConnectionError: boolean; isToolError: boolean; category: string } {
     const errorMessage = error.message.toLowerCase();
-    
+
     // Tool-specific errors that definitely don't indicate connection issues
     const toolErrorPatterns = [
       /tool .* not found/i,
@@ -482,14 +502,14 @@ class McpInterface {
       /method not found/i,
       /invalid arguments/i,
       /invalid parameters/i,
-      /mcp error -32602/i,  // Invalid params
-      /mcp error -32601/i,  // Method not found
-      /mcp error -32600/i,  // Invalid request
+      /mcp error -32602/i, // Invalid params
+      /mcp error -32601/i, // Method not found
+      /mcp error -32600/i, // Invalid request
       /filesystem\.read_file not found/i, // Specific filesystem tool error
       /tool '[^']+' is not available/i, // Generic tool availability error
       /mcp error.*tool.*not found/i, // MCP specific tool not found
     ];
-    
+
     // Connection-related errors that indicate server is unavailable
     const connectionErrorPatterns = [
       /connection refused/i,
@@ -510,7 +530,7 @@ class McpInterface {
       /http 502/i,
       /http 503/i,
     ];
-    
+
     // Special case: 404 and 403 errors from server availability checks should be connection errors
     // But 404/403 in tool responses might be tool-specific
     const serverAvailabilityErrorPatterns = [
@@ -518,42 +538,42 @@ class McpInterface {
       /http 403.*considering available/i,
       /method not allowed.*considering available/i,
     ];
-    
+
     // Check if it's a tool-specific error first (highest priority)
     const isToolError = toolErrorPatterns.some(pattern => pattern.test(errorMessage));
     if (isToolError) {
-      return { 
-        isConnectionError: false, 
-        isToolError: true, 
-        category: 'tool_error' 
+      return {
+        isConnectionError: false,
+        isToolError: true,
+        category: 'tool_error',
       };
     }
-    
+
     // Check if it's a server availability error
     const isServerAvailabilityError = serverAvailabilityErrorPatterns.some(pattern => pattern.test(errorMessage));
     if (isServerAvailabilityError) {
-      return { 
-        isConnectionError: true, 
-        isToolError: false, 
-        category: 'server_availability_error' 
+      return {
+        isConnectionError: true,
+        isToolError: false,
+        category: 'server_availability_error',
       };
     }
-    
+
     // Check if it's a connection error
     const isConnectionError = connectionErrorPatterns.some(pattern => pattern.test(errorMessage));
     if (isConnectionError) {
-      return { 
-        isConnectionError: true, 
-        isToolError: false, 
-        category: 'connection_error' 
+      return {
+        isConnectionError: true,
+        isToolError: false,
+        category: 'connection_error',
       };
     }
-    
+
     // For ambiguous errors, be conservative and don't treat as connection errors
-    return { 
-      isConnectionError: false, 
-      isToolError: false, 
-      category: 'unknown_error' 
+    return {
+      isConnectionError: false,
+      isToolError: false,
+      category: 'unknown_error',
     };
   }
 
@@ -567,9 +587,9 @@ class McpInterface {
     primitives: [],
     lastFetch: 0,
     fetchPromise: null,
-    inProgress: false
+    inProgress: false,
   };
-  
+
   /**
    * Handle get tool details requests from content scripts with caching
    */
@@ -589,7 +609,7 @@ class McpInterface {
     }
 
     console.log(`[MCP Interface] Getting available tools for request ${requestId} (forceRefresh: ${!!forceRefresh})`);
-    
+
     try {
       // Check if server is connected first
       const isConnected = await this.checkServerConnection();
@@ -607,62 +627,70 @@ class McpInterface {
       // Check if we can use the cache (cache is valid for 20 seconds)
       const now = Date.now();
       const CACHE_TTL = 20000; // 20 seconds
-      
+
       // Use cache if available and not force refreshing and cache is fresh
-      if (!forceRefresh && 
-          this.toolDetailsCache.primitives.length > 0 && 
-          (now - this.toolDetailsCache.lastFetch < CACHE_TTL)) {
-        console.log(`[MCP Interface] Using cached primitives for request ${requestId} (age: ${now - this.toolDetailsCache.lastFetch}ms)`);
-        
+      if (
+        !forceRefresh &&
+        this.toolDetailsCache.primitives.length > 0 &&
+        now - this.toolDetailsCache.lastFetch < CACHE_TTL
+      ) {
+        console.log(
+          `[MCP Interface] Using cached primitives for request ${requestId} (age: ${now - this.toolDetailsCache.lastFetch}ms)`,
+        );
+
         // Filter to only include tools
         const tools = this.toolDetailsCache.primitives.filter(p => p.type === 'tool');
-        
+
         // Send the cached result back to the content script
         port.postMessage({
           type: 'TOOL_DETAILS_RESULT',
           result: tools,
           requestId,
         });
-        
-        console.log(`[MCP Interface] Tool details request ${requestId} completed successfully with ${tools.length} tools (from cache)`);
+
+        console.log(
+          `[MCP Interface] Tool details request ${requestId} completed successfully with ${tools.length} tools (from cache)`,
+        );
         return;
       }
-      
+
       // If there's already a request in progress, wait for it to complete
       if (this.toolDetailsCache.inProgress && this.toolDetailsCache.fetchPromise) {
         console.log(`[MCP Interface] Waiting for in-progress fetch to complete for request ${requestId}`);
         try {
           const primitives = await this.toolDetailsCache.fetchPromise;
-          
+
           // Filter to only include tools
           const tools = primitives.filter(p => p.type === 'tool');
-          
+
           // Send the result back to the content script
           port.postMessage({
             type: 'TOOL_DETAILS_RESULT',
             result: tools,
             requestId,
           });
-          
-          console.log(`[MCP Interface] Tool details request ${requestId} completed successfully with ${tools.length} tools (from shared request)`);
+
+          console.log(
+            `[MCP Interface] Tool details request ${requestId} completed successfully with ${tools.length} tools (from shared request)`,
+          );
           return;
         } catch (error) {
           console.error(`[MCP Interface] Shared request failed, will attempt new request:`, error);
           // Continue to create a new request below
         }
       }
-      
+
       // Start a new fetch request
       this.toolDetailsCache.inProgress = true;
       this.toolDetailsCache.fetchPromise = this.getAvailableToolsFromServer(!!forceRefresh);
-      
+
       // Get the primitives from the server
       const primitives = await this.toolDetailsCache.fetchPromise;
-      
+
       // Update the cache
       this.toolDetailsCache.primitives = primitives;
       this.toolDetailsCache.lastFetch = Date.now();
-      
+
       // Filter to only include tools
       const tools = primitives.filter(p => p.type === 'tool');
 
@@ -730,10 +758,9 @@ class McpInterface {
         await forceReconnectToMcpServer(this.serverUrl);
       } catch (reconnectError) {
         // Check if this is a permanent failure (connection limits exceeded)
-        if (reconnectError instanceof Error && 
-            reconnectError.message.includes('Connection permanently failed')) {
+        if (reconnectError instanceof Error && reconnectError.message.includes('Connection permanently failed')) {
           console.error(`[MCP Interface] Permanent connection failure:`, reconnectError.message);
-          
+
           // Send specific error about permanent failure
           this.sendError(
             connectionId,
@@ -743,36 +770,40 @@ class McpInterface {
           );
           return;
         }
-        
+
         // Check for specific server errors and provide better feedback
         if (reconnectError instanceof Error) {
           let userFriendlyMessage = reconnectError.message;
-          
+
           if (reconnectError.message.includes('404') || reconnectError.message.includes('not found')) {
-            userFriendlyMessage = 'Server URL not found (404). Please verify your MCP server URL is correct and the server is running.';
+            userFriendlyMessage =
+              'Server URL not found (404). Please verify your MCP server URL is correct and the server is running.';
           } else if (reconnectError.message.includes('403')) {
             userFriendlyMessage = 'Access forbidden (403). Please check server permissions and authentication.';
-          } else if (reconnectError.message.includes('500') || reconnectError.message.includes('502') || reconnectError.message.includes('503')) {
+          } else if (
+            reconnectError.message.includes('500') ||
+            reconnectError.message.includes('502') ||
+            reconnectError.message.includes('503')
+          ) {
             userFriendlyMessage = 'Server error detected. The MCP server may be experiencing issues.';
-          } else if (reconnectError.message.includes('Connection refused') || reconnectError.message.includes('ECONNREFUSED')) {
+          } else if (
+            reconnectError.message.includes('Connection refused') ||
+            reconnectError.message.includes('ECONNREFUSED')
+          ) {
             userFriendlyMessage = 'Connection refused. Please verify the MCP server is running at the configured URL.';
           } else if (reconnectError.message.includes('timeout')) {
             userFriendlyMessage = 'Connection timeout. The server may be slow to respond or unreachable.';
           } else if (reconnectError.message.includes('ENOTFOUND')) {
             userFriendlyMessage = 'Server not found. Please check the server URL and your network connection.';
           } else if (reconnectError.message.includes('Could not connect to server')) {
-            userFriendlyMessage = 'Unable to connect to the MCP server. Please verify the server URL and ensure the server is running.';
+            userFriendlyMessage =
+              'Unable to connect to the MCP server. Please verify the server URL and ensure the server is running.';
           }
-          
-          this.sendError(
-            connectionId,
-            'SERVER_CONNECTION_ERROR',
-            userFriendlyMessage,
-            requestId,
-          );
+
+          this.sendError(connectionId, 'SERVER_CONNECTION_ERROR', userFriendlyMessage, requestId);
           return;
         }
-        
+
         // For other errors, re-throw to be handled by the general catch block
         throw reconnectError;
       }
@@ -850,7 +881,7 @@ class McpInterface {
         // Mark as disconnected and don't retry immediately
         this.isConnected = false;
         this.broadcastConnectionStatus();
-        
+
         // Re-throw with a more user-friendly message
         throw new Error('Unable to connect to MCP server. Please check your server configuration and try again.');
       }
@@ -981,7 +1012,7 @@ class McpInterface {
       // CRITICAL FIX: Always fetch the latest value from storage instead of using cached serverUrl
       // This ensures we return the actual stored config, not potentially stale in-memory value
       let currentServerUrl = this.serverUrl; // Default fallback
-      
+
       try {
         const result = await chrome.storage.local.get('mcpServerUrl');
         if (result.mcpServerUrl) {

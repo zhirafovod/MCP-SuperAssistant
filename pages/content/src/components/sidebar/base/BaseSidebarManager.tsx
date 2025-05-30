@@ -13,7 +13,16 @@ import '@src/components/sidebar/styles/sidebar.css';
 /**
  * Type definition for the site type
  */
-export type SiteType = 'perplexity' | 'chatgpt' | 'grok' | 'gemini' | 'aistudio' | 'openrouter' | 'deepseek' | 'kagi' | 't3chat';
+export type SiteType =
+  | 'perplexity'
+  | 'chatgpt'
+  | 'grok'
+  | 'gemini'
+  | 'aistudio'
+  | 'openrouter'
+  | 'deepseek'
+  | 'kagi'
+  | 't3chat';
 
 /**
  * BaseSidebarManager is a base class for creating sidebar managers
@@ -349,7 +358,9 @@ export abstract class BaseSidebarManager {
           await injectTailwindToShadowDom(this.shadowRoot);
           logMessage('[BaseSidebarManager] CSS injection successful');
         } catch (cssError) {
-          logMessage(`[BaseSidebarManager] CSS injection failed but continuing: ${cssError instanceof Error ? cssError.message : String(cssError)}`);
+          logMessage(
+            `[BaseSidebarManager] CSS injection failed but continuing: ${cssError instanceof Error ? cssError.message : String(cssError)}`,
+          );
           // Continue anyway - the sidebar will still function with degraded styling
         }
 
@@ -361,7 +372,9 @@ export abstract class BaseSidebarManager {
         try {
           this.applyThemeClass('system');
         } catch (themeError) {
-          logMessage(`[BaseSidebarManager] Theme application failed: ${themeError instanceof Error ? themeError.message : String(themeError)}`);
+          logMessage(
+            `[BaseSidebarManager] Theme application failed: ${themeError instanceof Error ? themeError.message : String(themeError)}`,
+          );
           // Continue without theme
         }
 
@@ -416,20 +429,21 @@ export abstract class BaseSidebarManager {
       this.shadowHost.style.display = 'block';
       this.shadowHost.style.opacity = '0';
       this.shadowHost.style.transform = 'translateX(30px) scale(0.95)';
-      
+
       // Add showing class for CSS animations
       this.shadowHost.classList.add('showing');
-      
+
       // Force browser reflow
       void this.shadowHost.offsetHeight;
 
       // Trigger the smooth appearance animation
       requestAnimationFrame(() => {
         if (this.shadowHost) {
-          this.shadowHost.style.transition = 'opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)';
+          this.shadowHost.style.transition =
+            'opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)';
           this.shadowHost.style.opacity = '1';
           this.shadowHost.style.transform = 'translateX(0) scale(1)';
-          
+
           // Add initialized class after animation starts
           setTimeout(() => {
             if (this.shadowHost) {
@@ -453,17 +467,18 @@ export abstract class BaseSidebarManager {
    */
   public hide(): void {
     logMessage('[BaseSidebarManager] Hide method invoked.');
-    
+
     if (this.shadowHost) {
       // Add hiding class for smooth exit animation
       this.shadowHost.classList.add('hiding');
       this.shadowHost.classList.remove('initialized', 'showing');
-      
+
       // Start the hiding animation
-      this.shadowHost.style.transition = 'opacity 0.3s cubic-bezier(0.55, 0.085, 0.68, 0.53), transform 0.3s cubic-bezier(0.55, 0.085, 0.68, 0.53)';
+      this.shadowHost.style.transition =
+        'opacity 0.3s cubic-bezier(0.55, 0.085, 0.68, 0.53), transform 0.3s cubic-bezier(0.55, 0.085, 0.68, 0.53)';
       this.shadowHost.style.opacity = '0';
       this.shadowHost.style.transform = 'translateX(20px) scale(0.98)';
-      
+
       // After animation completes, hide completely
       setTimeout(() => {
         if (this.shadowHost) {
@@ -582,7 +597,7 @@ export abstract class BaseSidebarManager {
       // OPTIMIZATION: Instead of calling refreshContent() which may trigger re-renders,
       // let the React components handle updates through their own state management
       logMessage('[BaseSidebarManager] Tools updated - letting React components handle updates');
-      
+
       // The backgroundCommunication hook and related components will automatically
       // detect and handle tool updates through their state management
     }

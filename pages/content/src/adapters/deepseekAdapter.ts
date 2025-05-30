@@ -14,7 +14,6 @@ import {
 import { SidebarManager } from '../components/sidebar';
 import { initDeepSeekComponents } from './adaptercomponents';
 
-
 export class DeepSeekAdapter extends BaseAdapter {
   name = 'DeepSeek';
   hostname = ['chat.deepseek.com']; // Support deepseek.com
@@ -43,19 +42,19 @@ export class DeepSeekAdapter extends BaseAdapter {
     this.checkCurrentUrl();
 
     initDeepSeekComponents();
-    
+
     // Start URL checking to handle navigation within DeepSeek
     if (!this.urlCheckInterval) {
       this.lastUrl = window.location.href;
       this.urlCheckInterval = window.setInterval(() => {
         const currentUrl = window.location.href;
-        
+
         if (currentUrl !== this.lastUrl) {
           logMessage(`URL changed from ${this.lastUrl} to ${currentUrl}`);
           this.lastUrl = currentUrl;
 
           initDeepSeekComponents();
-          
+
           // Check if we should show or hide the sidebar based on URL
           this.checkCurrentUrl();
         }
@@ -135,10 +134,10 @@ export class DeepSeekAdapter extends BaseAdapter {
   private checkCurrentUrl(): void {
     const currentUrl = window.location.href;
     logMessage(`Checking current DeepSeek URL: ${currentUrl}`);
-    
+
     // For DeepSeek, we want to show the sidebar only on URLs that match our patterns
     const isValidUrl = this.urlPatterns.some(pattern => pattern.test(currentUrl));
-    
+
     if (isValidUrl) {
       // Show sidebar for valid URLs
       if (this.sidebarManager && !this.sidebarManager.getIsVisible()) {

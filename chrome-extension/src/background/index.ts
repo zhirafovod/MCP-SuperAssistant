@@ -22,7 +22,7 @@ const MAX_CONNECTION_ATTEMPTS = 3;
  */
 function categorizeToolError(error: Error): { isConnectionError: boolean; isToolError: boolean; category: string } {
   const errorMessage = error.message.toLowerCase();
-  
+
   // Tool-specific errors that definitely don't indicate connection issues
   const toolErrorPatterns = [
     /tool .* not found/i,
@@ -30,13 +30,13 @@ function categorizeToolError(error: Error): { isConnectionError: boolean; isTool
     /method not found/i,
     /invalid arguments/i,
     /invalid parameters/i,
-    /mcp error -32602/i,  // Invalid params
-    /mcp error -32601/i,  // Method not found
-    /mcp error -32600/i,  // Invalid request
+    /mcp error -32602/i, // Invalid params
+    /mcp error -32601/i, // Method not found
+    /mcp error -32600/i, // Invalid request
     /tool '[^']+' is not available/i,
     /tool '[^']+' not found on server/i,
   ];
-  
+
   // Connection-related errors that indicate server is unavailable
   const connectionErrorPatterns = [
     /connection refused/i,
@@ -51,17 +51,17 @@ function categorizeToolError(error: Error): { isConnectionError: boolean; isTool
     /transport error/i,
     /fetch failed/i,
   ];
-  
+
   // Check tool errors first (highest priority)
   if (toolErrorPatterns.some(pattern => pattern.test(errorMessage))) {
     return { isConnectionError: false, isToolError: true, category: 'tool_error' };
   }
-  
+
   // Check connection errors
   if (connectionErrorPatterns.some(pattern => pattern.test(errorMessage))) {
     return { isConnectionError: true, isToolError: false, category: 'connection_error' };
   }
-  
+
   // Default to tool error for ambiguous cases to prevent unnecessary disconnections
   return { isConnectionError: false, isToolError: true, category: 'unknown_tool_error' };
 }
@@ -73,7 +73,7 @@ function categorizeToolError(error: Error): { isConnectionError: boolean; isTool
 async function initializeExtension() {
   sendAnalyticsEvent('extension_loaded', {});
   console.log('Extension initializing...');
-  
+
   // Initialize theme
   try {
     const theme = await exampleThemeStorage.get();
@@ -84,11 +84,11 @@ async function initializeExtension() {
 
   // Wait for the MCP interface to load its server URL from storage
   await mcpInterface.waitForInitialization();
-  
+
   // Get the loaded server URL from the interface
   const serverUrl = mcpInterface.getServerUrl();
   console.log('MCP Interface initialized with server URL:', serverUrl);
-  
+
   // Set initial connection status
   mcpInterface.updateConnectionStatus(false);
 
@@ -128,10 +128,10 @@ async function tryConnectToServer(uri: string): Promise<void> {
     connectionAttemptCount = 0; // Reset counter on success
   } catch (error: any) {
     const errorCategory = categorizeToolError(error instanceof Error ? error : new Error(String(error)));
-    
+
     console.warn(`MCP server connection failed (${errorCategory.category}): ${error.message || String(error)}`);
     console.log('Extension will continue to function with limited capabilities');
-    
+
     // Only update connection status for actual connection errors
     if (errorCategory.isConnectionError) {
       mcpInterface.updateConnectionStatus(false);

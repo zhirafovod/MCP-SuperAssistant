@@ -99,8 +99,8 @@ export const WEBSITE_CONFIGS: Array<{
       streamingContainerSelectors: ['pre'],
       function_result_selector: [
         'div.flex.max-w-full.flex-col.relative.overflow-auto.gap-1.items-end',
-        'div.flex', 
-        'div.flex.items-end'
+        'div.flex',
+        'div.flex.items-end',
       ],
     },
   },

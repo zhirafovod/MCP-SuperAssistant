@@ -6,7 +6,11 @@
 
 import { BaseAdapter } from './common';
 import { logMessage } from '../utils/helpers';
-import { insertToolResultToChatInput, attachFileToChatInput, submitChatInput } from '../components/websites/t3chat/index';
+import {
+  insertToolResultToChatInput,
+  attachFileToChatInput,
+  submitChatInput,
+} from '../components/websites/t3chat/index';
 import { SidebarManager } from '../components/sidebar';
 import { initT3ChatComponents } from './adaptercomponents';
 

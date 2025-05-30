@@ -33,7 +33,7 @@ const REGEX_CACHE = {
   paramStartRegex: /<parameter\s+name="([^"]+)"[^>]*>/gs,
   invokeMatch: /<invoke name="([^"]+)"(?:\s+call_id="([^"]+)")?>/i,
   cdataMatch: /<!\[CDATA\[(.*?)(?:\]\]>)?$/s,
-  endParameterTag: '</parameter>'
+  endParameterTag: '</parameter>',
 } as const;
 
 // Type definitions
@@ -94,7 +94,7 @@ const STREAMING_STYLES = {
     border: 'none',
     overflow: 'auto',
     maxHeight: '300px',
-    scrollBehavior: 'smooth'
+    scrollBehavior: 'smooth',
   },
   paramValue: {
     transition: 'all 0.15s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -102,19 +102,19 @@ const STREAMING_STYLES = {
     willChange: 'auto',
     contain: 'layout style paint',
     minHeight: '1.2em',
-    position: 'relative'
+    position: 'relative',
   },
   contentWrapper: {
     position: 'relative',
     overflow: 'hidden',
-    minHeight: 'inherit'
+    minHeight: 'inherit',
   },
   paramsContainer: {
     display: 'flex',
     flexDirection: 'column',
     gap: '4px',
-    width: '100%'
-  }
+    width: '100%',
+  },
 } as const;
 
 // Common DOM utilities
@@ -127,7 +127,7 @@ const DOMUtils = {
     tag: string,
     className?: string,
     attributes?: Record<string, string>,
-    styles?: Record<string, any>
+    styles?: Record<string, any>,
   ): T => {
     const element = document.createElement(tag) as T;
     if (className) element.className = className;
@@ -154,7 +154,7 @@ const DOMUtils = {
       return true;
     }
     return false;
-  }
+  },
 };
 
 // Cache management utilities
@@ -163,79 +163,83 @@ const CacheUtils = {
     let hash = 0;
     for (let i = 0; i < content.length; i++) {
       const char = content.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32-bit integer
     }
     return hash.toString(36);
   },
 
-  getCachedElements: (blockDiv: HTMLElement): {
+  getCachedElements: (
+    blockDiv: HTMLElement,
+  ): {
     functionNameElement?: HTMLDivElement;
     paramsContainer?: HTMLDivElement;
     buttonContainer?: HTMLDivElement;
   } => {
     const now = Date.now();
     let cache = elementQueryCache.get(blockDiv);
-    
-    if (!cache || (now - cache.lastCacheTime) > CACHE_TTL) {
+
+    if (!cache || now - cache.lastCacheTime > CACHE_TTL) {
       cache = {
         functionNameElement: blockDiv.querySelector<HTMLDivElement>('.function-name') || undefined,
         paramsContainer: blockDiv.querySelector<HTMLDivElement>('.function-params') || undefined,
         buttonContainer: blockDiv.querySelector<HTMLDivElement>('.function-buttons') || undefined,
-        lastCacheTime: now
+        lastCacheTime: now,
       };
       elementQueryCache.set(blockDiv, cache);
     }
-    
+
     return cache;
   },
 
   parseContentEfficiently: (block: HTMLElement, rawContent: string): ParsedContent => {
     const contentHash = CacheUtils.generateContentHash(rawContent);
     let cached = contentParsingCache.get(block);
-    
+
     if (cached && cached.lastHash === contentHash) {
       return {
         functionName: cached.functionName,
         callId: cached.callId,
-        parameters: cached.parameters
+        parameters: cached.parameters,
       };
     }
-    
+
     const invokeMatch = REGEX_CACHE.invokeMatch.exec(rawContent);
     const functionName = invokeMatch ? invokeMatch[1] : 'function';
-    const callId = invokeMatch && invokeMatch[2] ? invokeMatch[2] : `block-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-    
+    const callId =
+      invokeMatch && invokeMatch[2]
+        ? invokeMatch[2]
+        : `block-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
     const parameters: Record<string, string> = {};
     REGEX_CACHE.paramStartRegex.lastIndex = 0;
-    
+
     let match;
     while ((match = REGEX_CACHE.paramStartRegex.exec(rawContent)) !== null) {
       const paramName = match[1];
       const startIndex = match.index + match[0].length;
       const endTagIndex = rawContent.indexOf(REGEX_CACHE.endParameterTag, startIndex);
-      
-      let extractedValue = endTagIndex !== -1 
-        ? rawContent.substring(startIndex, endTagIndex)
-        : rawContent.substring(startIndex);
-      
+
+      let extractedValue =
+        endTagIndex !== -1 ? rawContent.substring(startIndex, endTagIndex) : rawContent.substring(startIndex);
+
       const cdataMatch = REGEX_CACHE.cdataMatch.exec(extractedValue);
       extractedValue = cdataMatch ? cdataMatch[1] : extractedValue.trim();
-      
+
       parameters[paramName] = extractedValue;
     }
-    
+
     cached = {
       content: rawContent,
       functionName,
       callId,
       parameters,
-      lastHash: contentHash
+      lastHash: contentHash,
     };
     contentParsingCache.set(block, cached);
-    
+
     return { functionName, callId, parameters };
-  }
+  },
 };
 
 // Performance utilities
@@ -245,11 +249,11 @@ const PerformanceUtils = {
       pendingDOMUpdates.set(blockId, []);
     }
     pendingDOMUpdates.get(blockId)!.push(operation);
-    
+
     if (!rafScheduled) {
       rafScheduled = true;
       requestAnimationFrame(() => {
-        pendingDOMUpdates.forEach((operations) => {
+        pendingDOMUpdates.forEach(operations => {
           operations.forEach(op => op());
         });
         pendingDOMUpdates.clear();
@@ -263,13 +267,16 @@ const PerformanceUtils = {
     if (existing) {
       clearTimeout(existing);
     }
-    
-    streamingDebouncers.set(paramId, window.setTimeout(() => {
-      requestAnimationFrame(() => {
-        operation();
-        streamingDebouncers.delete(paramId);
-      });
-    }, STREAMING_DEBOUNCE_MS));
+
+    streamingDebouncers.set(
+      paramId,
+      window.setTimeout(() => {
+        requestAnimationFrame(() => {
+          operation();
+          streamingDebouncers.delete(paramId);
+        });
+      }, STREAMING_DEBOUNCE_MS),
+    );
   },
 
   cleanupTimeout: (key: string): void => {
@@ -287,48 +294,48 @@ const PerformanceUtils = {
       activeTimeouts.delete(key);
     }, delay);
     activeTimeouts.set(key, timeoutId);
-  }
+  },
 };
 
 // Scroll management utilities
 const ScrollUtils = {
   createScrollHandler: (element: HTMLElement): ScrollHandler => {
     let scrollTimeout: number | undefined;
-    
+
     const onScroll = () => {
       (element as any)._userHasScrolled = true;
-      
+
       if (scrollTimeout) clearTimeout(scrollTimeout);
       scrollTimeout = window.setTimeout(() => {
-        const isNearBottom = element.scrollTop >= (element.scrollHeight - element.clientHeight - 50);
+        const isNearBottom = element.scrollTop >= element.scrollHeight - element.clientHeight - 50;
         if (isNearBottom) {
           (element as any)._userHasScrolled = false;
         }
       }, 3000);
     };
-    
+
     const cleanup = () => {
       element.removeEventListener('scroll', onScroll);
       if (scrollTimeout) clearTimeout(scrollTimeout);
       (element as any)._scrollInitialized = false;
     };
-    
+
     element.addEventListener('scroll', onScroll, { passive: true });
     (element as any)._scrollInitialized = true;
     (element as any)._scrollCleanup = cleanup;
-    
+
     return { element, timeout: scrollTimeout, cleanup };
   },
 
   setupScrollTracking: (paramValueElement: HTMLElement): void => {
     if (!(paramValueElement as any)._scrollHandlersInitialized) {
       ScrollUtils.createScrollHandler(paramValueElement);
-      
+
       const preElement = paramValueElement.querySelector('pre');
       if (preElement) {
         ScrollUtils.createScrollHandler(preElement);
       }
-      
+
       (paramValueElement as any)._scrollHandlersInitialized = true;
     }
   },
@@ -338,16 +345,16 @@ const ScrollUtils = {
       // Auto-scroll the parameter value container
       if (paramValueElement.scrollHeight > paramValueElement.clientHeight) {
         const shouldAutoScroll = !(paramValueElement as any)._userHasScrolled;
-        
+
         if (shouldAutoScroll) {
           const targetScroll = paramValueElement.scrollHeight - paramValueElement.clientHeight;
           const currentScroll = paramValueElement.scrollTop;
           const diff = targetScroll - currentScroll;
-          
+
           if (diff > 100) {
             paramValueElement.scrollTo({
               top: targetScroll,
-              behavior: 'smooth'
+              behavior: 'smooth',
             });
           } else {
             paramValueElement.scrollTop = targetScroll;
@@ -359,16 +366,16 @@ const ScrollUtils = {
       const preElement = paramValueElement.querySelector('pre');
       if (preElement && preElement.scrollHeight > preElement.clientHeight) {
         const shouldAutoScrollPre = !(preElement as any)._userHasScrolled;
-        
+
         if (shouldAutoScrollPre) {
           const targetScroll = preElement.scrollHeight - preElement.clientHeight;
           const currentScroll = preElement.scrollTop;
           const diff = targetScroll - currentScroll;
-          
+
           if (diff > 50) {
             preElement.scrollTo({
               top: targetScroll,
-              behavior: 'smooth'
+              behavior: 'smooth',
             });
           } else {
             preElement.scrollTop = targetScroll;
@@ -376,7 +383,7 @@ const ScrollUtils = {
         }
       }
     });
-  }
+  },
 };
 
 // Monaco editor CSP-compatible configuration
@@ -396,7 +403,8 @@ const configureMonacoEditorForCSP = (): void => {
       });
 
       (window as any).MonacoEnvironment = {
-        getWorkerUrl: () => 'data:text/javascript;charset=utf-8,console.debug("Monaco worker disabled for CSP compatibility");'
+        getWorkerUrl: () =>
+          'data:text/javascript;charset=utf-8,console.debug("Monaco worker disabled for CSP compatibility");',
       };
 
       console.debug('Monaco editor configured for CSP compatibility');
@@ -412,7 +420,7 @@ const injectStreamingStyles = (() => {
   return () => {
     if (injected) return;
     injected = true;
-    
+
     const style = DOMUtils.createElement<HTMLStyleElement>('style');
     style.textContent = `
       .streaming-param-name {
@@ -574,7 +582,12 @@ export const executionTracker: ExecutionTracker = {
 
 // Function block element creation utilities
 const BlockElementUtils = {
-  createFunctionNameSection: (functionName: string, callId: string, isComplete: boolean, isPreExistingIncomplete: boolean): HTMLDivElement => {
+  createFunctionNameSection: (
+    functionName: string,
+    callId: string,
+    isComplete: boolean,
+    isPreExistingIncomplete: boolean,
+  ): HTMLDivElement => {
     const functionNameElement = DOMUtils.createElement<HTMLDivElement>('div', 'function-name');
 
     const leftSection = DOMUtils.createElement<HTMLDivElement>('div', 'function-name-left');
@@ -619,42 +632,46 @@ const BlockElementUtils = {
       overflow: 'hidden',
       transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
       maxHeight: '0px',
-      opacity: '0'
+      opacity: '0',
     });
     return expandableContent;
   },
 
-  setupExpandCollapse: (blockDiv: HTMLDivElement, expandButton: HTMLButtonElement, expandableContent: HTMLDivElement): void => {
-    expandButton.onclick = (e) => {
+  setupExpandCollapse: (
+    blockDiv: HTMLDivElement,
+    expandButton: HTMLButtonElement,
+    expandableContent: HTMLDivElement,
+  ): void => {
+    expandButton.onclick = e => {
       e.preventDefault();
       e.stopPropagation();
-      
+
       const isCurrentlyExpanded = blockDiv.classList.contains('expanded');
       const expandIcon = expandButton.querySelector('svg path');
-      
+
       if (isCurrentlyExpanded) {
         // Collapse
         blockDiv.classList.remove('expanded');
-        
+
         // Get current computed height including padding
         const currentHeight = expandableContent.scrollHeight;
         expandableContent.style.maxHeight = currentHeight + 'px';
         expandableContent.offsetHeight; // Force reflow
-        
+
         requestAnimationFrame(() => {
           DOMUtils.applyStyles(expandableContent, {
             maxHeight: '0px',
             opacity: '0',
             paddingTop: '0',
-            paddingBottom: '0'
+            paddingBottom: '0',
           });
-          
+
           if (expandIcon) {
             expandIcon.setAttribute('d', 'M8 10l4 4 4-4');
           }
           expandButton.title = 'Expand function details';
         });
-        
+
         // Hide after animation completes
         setTimeout(() => {
           if (!blockDiv.classList.contains('expanded')) {
@@ -664,27 +681,27 @@ const BlockElementUtils = {
       } else {
         // Expand
         blockDiv.classList.add('expanded');
-        
+
         // Prepare for expansion
         DOMUtils.applyStyles(expandableContent, {
           display: 'block',
           maxHeight: '0px',
           opacity: '0',
           paddingTop: '0',
-          paddingBottom: '0'
+          paddingBottom: '0',
         });
-        
+
         // Calculate target height with padding
         const targetHeight = expandableContent.scrollHeight + 24; // 12px top + 12px bottom padding
-        
+
         requestAnimationFrame(() => {
           DOMUtils.applyStyles(expandableContent, {
             maxHeight: targetHeight + 'px',
             opacity: '1',
             paddingTop: '12px',
-            paddingBottom: '12px'
+            paddingBottom: '12px',
           });
-          
+
           if (expandIcon) {
             expandIcon.setAttribute('d', 'M16 14l-4-4-4 4');
           }
@@ -692,7 +709,7 @@ const BlockElementUtils = {
         });
       }
     };
-  }
+  },
 };
 
 // Parameter element utilities
@@ -706,19 +723,21 @@ const ParamElementUtils = {
   createParamValue: (paramId: string, name: string): HTMLDivElement => {
     const paramValueElement = DOMUtils.createElement<HTMLDivElement>('div', 'param-value', {
       'data-param-id': paramId,
-      'data-param-name': name
+      'data-param-name': name,
     });
-    
+
     DOMUtils.applyStyles(paramValueElement, STREAMING_STYLES.paramValue);
     return paramValueElement;
   },
 
-  createStreamingContent: (paramValueElement: HTMLDivElement): { preElement: HTMLPreElement; contentWrapper: HTMLDivElement } => {
+  createStreamingContent: (
+    paramValueElement: HTMLDivElement,
+  ): { preElement: HTMLPreElement; contentWrapper: HTMLDivElement } => {
     paramValueElement.innerHTML = '';
-    
+
     const contentWrapper = DOMUtils.createElement<HTMLDivElement>('div', 'content-wrapper');
     DOMUtils.applyStyles(contentWrapper, STREAMING_STYLES.contentWrapper);
-    
+
     const preElement = DOMUtils.createElement<HTMLPreElement>('pre');
     DOMUtils.applyStyles(preElement, STREAMING_STYLES.pre);
 
@@ -743,7 +762,12 @@ const ParamElementUtils = {
     }
   },
 
-  handleStreamingState: (paramNameElement: HTMLDivElement, paramValueElement: HTMLDivElement, paramId: string, isStreaming: boolean): void => {
+  handleStreamingState: (
+    paramNameElement: HTMLDivElement,
+    paramValueElement: HTMLDivElement,
+    paramId: string,
+    isStreaming: boolean,
+  ): void => {
     const timeoutKey = `streaming-timeout-${paramId}`;
     PerformanceUtils.cleanupTimeout(timeoutKey);
 
@@ -756,9 +780,9 @@ const ParamElementUtils = {
       if (!paramValueElement.hasAttribute('data-streaming-styled')) {
         DOMUtils.applyStyles(paramValueElement, {
           willChange: 'scroll-position, contents',
-          containIntrinsicSize: 'auto 1.2em'
+          containIntrinsicSize: 'auto 1.2em',
         });
-        
+
         ParamElementUtils.checkAndApplyOverflow(paramValueElement);
         paramValueElement.setAttribute('data-streaming-styled', 'true');
         ScrollUtils.setupScrollTracking(paramValueElement);
@@ -767,19 +791,23 @@ const ParamElementUtils = {
       setupAutoScroll(paramValueElement as ParamValueElement);
       ScrollUtils.performOptimizedScroll(paramValueElement);
 
-      PerformanceUtils.setManagedTimeout(timeoutKey, () => {
-        if (paramNameElement && document.body.contains(paramNameElement)) {
-          paramNameElement.classList.remove('streaming-param-name');
-          if (paramValueElement) {
-            paramValueElement.removeAttribute('data-streaming');
-            paramValueElement.removeAttribute('data-streaming-styled');
-            DOMUtils.applyStyles(paramValueElement, {
-              willChange: 'auto',
-              containIntrinsicSize: 'auto'
-            });
+      PerformanceUtils.setManagedTimeout(
+        timeoutKey,
+        () => {
+          if (paramNameElement && document.body.contains(paramNameElement)) {
+            paramNameElement.classList.remove('streaming-param-name');
+            if (paramValueElement) {
+              paramValueElement.removeAttribute('data-streaming');
+              paramValueElement.removeAttribute('data-streaming-styled');
+              DOMUtils.applyStyles(paramValueElement, {
+                willChange: 'auto',
+                containIntrinsicSize: 'auto',
+              });
+            }
           }
-        }
-      }, STREAMING_TIMEOUT);
+        },
+        STREAMING_TIMEOUT,
+      );
     } else {
       if (paramNameElement.classList.contains('streaming-param-name')) {
         setTimeout(() => {
@@ -788,11 +816,11 @@ const ParamElementUtils = {
           paramValueElement.removeAttribute('data-streaming-styled');
           DOMUtils.applyStyles(paramValueElement, {
             willChange: 'auto',
-            containIntrinsicSize: 'auto'
+            containIntrinsicSize: 'auto',
           });
         }, 100);
       }
-      
+
       setTimeout(() => ParamElementUtils.checkAndApplyOverflow(paramValueElement), 200);
     }
   },
@@ -800,21 +828,21 @@ const ParamElementUtils = {
   checkAndApplyOverflow: (paramValueElement: HTMLDivElement): void => {
     const needsScroll = paramValueElement.scrollHeight > 300;
     const hasScroll = paramValueElement.style.overflow === 'auto';
-    
+
     if (needsScroll && !hasScroll) {
       DOMUtils.applyStyles(paramValueElement, {
         overflow: 'auto',
         maxHeight: '300px',
         scrollBehavior: 'smooth',
-        scrollbarWidth: 'thin'
+        scrollbarWidth: 'thin',
       });
     } else if (!needsScroll && hasScroll) {
       DOMUtils.applyStyles(paramValueElement, {
         overflow: 'visible',
-        maxHeight: 'none'
+        maxHeight: 'none',
       });
     }
-  }
+  },
 };
 
 // Auto-execution utilities
@@ -831,51 +859,57 @@ const AutoExecutionUtils = {
 
       console.debug(`Auto-execute attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS} for block ${blockId}`);
 
-      PerformanceUtils.setManagedTimeout(`auto-exec-${blockId}-${attempts}`, () => {
-        let currentBlock = document.querySelector<HTMLDivElement>(`.function-block[data-block-id="${blockId}"]`);
+      PerformanceUtils.setManagedTimeout(
+        `auto-exec-${blockId}-${attempts}`,
+        () => {
+          let currentBlock = document.querySelector<HTMLDivElement>(`.function-block[data-block-id="${blockId}"]`);
 
-        if (!currentBlock) {
-          console.debug(`Auto-execute: Original block ${blockId} not found. Searching for replacement...`);
-          currentBlock = AutoExecutionUtils.findReplacementBlock(functionDetails);
-        }
-
-        if (!currentBlock) {
-          console.debug(`Auto-execute: Block ${blockId} not found (attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS})`);
-          if (attempts < MAX_AUTO_EXECUTE_ATTEMPTS) {
-            setupAutoExecution();
-          } else {
-            console.debug(`Auto-execute: Giving up on block ${blockId} - not found in DOM`);
-            executionTracker.cleanupBlock(blockId);
+          if (!currentBlock) {
+            console.debug(`Auto-execute: Original block ${blockId} not found. Searching for replacement...`);
+            currentBlock = AutoExecutionUtils.findReplacementBlock(functionDetails);
           }
-          return;
-        }
 
-        const finalCheckExecuted = getPreviousExecution(
-          functionDetails.functionName,
-          functionDetails.callId,
-          functionDetails.contentSignature,
-        );
-        if (finalCheckExecuted) {
-          console.debug(`Auto-execute: Function already executed, skipping.`);
-          executionTracker.cleanupBlock(blockId);
-          return;
-        }
-
-        const executeButton = currentBlock.querySelector<HTMLButtonElement>('.execute-button');
-        if (executeButton) {
-          console.debug(`Auto-execute: Executing function ${functionDetails.functionName}`);
-          executeButton.click();
-          executionTracker.cleanupBlock(blockId);
-        } else {
-          console.debug(`Auto-execute: Execute button not found (attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS})`);
-          if (attempts < MAX_AUTO_EXECUTE_ATTEMPTS) {
-            setupAutoExecution();
-          } else {
-            console.debug(`Auto-execute: Giving up on block ${blockId} - button not found`);
-            executionTracker.cleanupBlock(blockId);
+          if (!currentBlock) {
+            console.debug(
+              `Auto-execute: Block ${blockId} not found (attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS})`,
+            );
+            if (attempts < MAX_AUTO_EXECUTE_ATTEMPTS) {
+              setupAutoExecution();
+            } else {
+              console.debug(`Auto-execute: Giving up on block ${blockId} - not found in DOM`);
+              executionTracker.cleanupBlock(blockId);
+            }
+            return;
           }
-        }
-      }, 500);
+
+          const finalCheckExecuted = getPreviousExecution(
+            functionDetails.functionName,
+            functionDetails.callId,
+            functionDetails.contentSignature,
+          );
+          if (finalCheckExecuted) {
+            console.debug(`Auto-execute: Function already executed, skipping.`);
+            executionTracker.cleanupBlock(blockId);
+            return;
+          }
+
+          const executeButton = currentBlock.querySelector<HTMLButtonElement>('.execute-button');
+          if (executeButton) {
+            console.debug(`Auto-execute: Executing function ${functionDetails.functionName}`);
+            executeButton.click();
+            executionTracker.cleanupBlock(blockId);
+          } else {
+            console.debug(`Auto-execute: Execute button not found (attempt ${attempts}/${MAX_AUTO_EXECUTE_ATTEMPTS})`);
+            if (attempts < MAX_AUTO_EXECUTE_ATTEMPTS) {
+              setupAutoExecution();
+            } else {
+              console.debug(`Auto-execute: Giving up on block ${blockId} - button not found`);
+              executionTracker.cleanupBlock(blockId);
+            }
+          }
+        },
+        500,
+      );
     };
 
     setupAutoExecution();
@@ -904,7 +938,7 @@ const AutoExecutionUtils = {
       }
     }
     return null;
-  }
+  },
 };
 
 // Configure Monaco once before rendering any blocks
@@ -917,7 +951,7 @@ if (typeof window !== 'undefined') {
  */
 export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { current: boolean }): boolean => {
   injectStreamingStyles();
-  
+
   const functionInfo = containsFunctionCalls(block);
 
   // Early exit checks
@@ -930,7 +964,8 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     return false;
   }
 
-  const blockId = block.getAttribute('data-block-id') || `block-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const blockId =
+    block.getAttribute('data-block-id') || `block-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
   // Skip if resyncing or already complete and stable
   if ((window as any).resyncingBlocks?.has(blockId)) {
@@ -1018,9 +1053,14 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
   // Handle function name creation or update
   let functionNameElement = cachedElements.functionNameElement;
   if (!functionNameElement) {
-    functionNameElement = BlockElementUtils.createFunctionNameSection(functionName, callId, functionInfo.isComplete, isPreExistingIncomplete);
+    functionNameElement = BlockElementUtils.createFunctionNameSection(
+      functionName,
+      callId,
+      functionInfo.isComplete,
+      isPreExistingIncomplete,
+    );
     blockDiv.appendChild(functionNameElement);
-    
+
     cachedElements.functionNameElement = functionNameElement;
     elementQueryCache.set(blockDiv, { ...cachedElements, lastCacheTime: Date.now() });
   } else {
@@ -1068,16 +1108,17 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     paramsContainer = DOMUtils.createElement<HTMLDivElement>('div', 'function-params');
     DOMUtils.applyStyles(paramsContainer, STREAMING_STYLES.paramsContainer);
     expandableContent!.appendChild(paramsContainer);
-    
+
     cachedElements.paramsContainer = paramsContainer;
     elementQueryCache.set(blockDiv, { ...cachedElements, lastCacheTime: Date.now() });
   }
 
   // Process parameters
   Object.entries(partialParameters).forEach(([paramName, extractedValue]) => {
-    const isParamStreaming = !rawContent.includes(`</parameter>`) || 
+    const isParamStreaming =
+      !rawContent.includes(`</parameter>`) ||
       rawContent.indexOf('</parameter>', rawContent.indexOf(`<parameter name="${paramName}"`)) === -1;
-    
+
     const paramId = `${blockId}-${paramName}`;
     PerformanceUtils.batchStreamingUpdate(paramId, () => {
       createOrUpdateParamElement(paramsContainer!, paramName, extractedValue, blockId, isNewRender, isParamStreaming);
@@ -1112,7 +1153,7 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
     buttonContainer = DOMUtils.createElement<HTMLDivElement>('div', 'function-buttons');
     buttonContainer.style.marginTop = '12px';
     blockDiv.appendChild(buttonContainer);
-    
+
     cachedElements.buttonContainer = buttonContainer;
     elementQueryCache.set(blockDiv, { ...cachedElements, lastCacheTime: Date.now() });
   }
@@ -1153,7 +1194,7 @@ export const renderFunctionCall = (block: HTMLPreElement, isProcessingRef: { cur
           contentSignature,
           params: completeParameters || {},
         };
-        
+
         AutoExecutionUtils.setupOptimizedAutoExecution(blockId, functionDetails);
       }
     }
@@ -1176,21 +1217,23 @@ export const createOrUpdateParamElement = (
   const paramId = `${blockId}-${name}`;
   const paramElementCache = elementQueryCache.get(container) || { lastCacheTime: Date.now() };
   const paramCache = paramElementCache as any;
-  
+
   let paramNameElement = paramCache[`name-${paramId}`] as HTMLDivElement | undefined;
   let paramValueElement = paramCache[`value-${paramId}`] as HTMLDivElement | undefined;
 
   // Query DOM if not in cache
   if (!paramNameElement || !paramValueElement) {
-    paramNameElement = paramNameElement || 
-                     container.querySelector<HTMLDivElement>(`.param-name[data-param-id="${paramId}"]`) || 
-                     document.querySelector<HTMLDivElement>(`.param-name[data-param-id="${paramId}"]`) || 
-                     undefined;
-    paramValueElement = paramValueElement ||
-                       container.querySelector<HTMLDivElement>(`.param-value[data-param-id="${paramId}"]`) || 
-                       document.querySelector<HTMLDivElement>(`.param-value[data-param-id="${paramId}"]`) ||
-                       undefined;
-    
+    paramNameElement =
+      paramNameElement ||
+      container.querySelector<HTMLDivElement>(`.param-name[data-param-id="${paramId}"]`) ||
+      document.querySelector<HTMLDivElement>(`.param-name[data-param-id="${paramId}"]`) ||
+      undefined;
+    paramValueElement =
+      paramValueElement ||
+      container.querySelector<HTMLDivElement>(`.param-value[data-param-id="${paramId}"]`) ||
+      document.querySelector<HTMLDivElement>(`.param-value[data-param-id="${paramId}"]`) ||
+      undefined;
+
     if (paramNameElement) paramCache[`name-${paramId}`] = paramNameElement;
     if (paramValueElement) paramCache[`value-${paramId}`] = paramValueElement;
     elementQueryCache.set(container, paramCache);
@@ -1214,7 +1257,7 @@ export const createOrUpdateParamElement = (
   // Update content if changed
   const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
   const currentValue = paramValueElement.getAttribute('data-current-value');
-  
+
   if (currentValue === displayValue && !isStreaming) {
     return;
   }
@@ -1225,7 +1268,7 @@ export const createOrUpdateParamElement = (
   if (isStreaming || paramValueElement.hasAttribute('data-streaming')) {
     let preElement = paramValueElement.querySelector('pre') as HTMLPreElement;
     let contentWrapper = paramValueElement.querySelector('.content-wrapper') as HTMLDivElement;
-    
+
     if (!preElement || !contentWrapper) {
       const elements = ParamElementUtils.createStreamingContent(paramValueElement);
       preElement = elements.preElement;
@@ -1271,10 +1314,8 @@ export const performanceCleanup = {
   clearBlockCache: (blockId: string): void => {
     renderedFunctionBlocks.delete(blockId);
     pendingDOMUpdates.delete(blockId);
-    
-    const timeoutKeysToClean = Array.from(activeTimeouts.keys()).filter(key => 
-      key.includes(blockId)
-    );
+
+    const timeoutKeysToClean = Array.from(activeTimeouts.keys()).filter(key => key.includes(blockId));
     timeoutKeysToClean.forEach(key => {
       const timeoutId = activeTimeouts.get(key);
       if (timeoutId) {
@@ -1289,8 +1330,8 @@ export const performanceCleanup = {
     elementQueryCacheSize: 'WeakMap (size not available - auto-managed)',
     renderedFunctionBlocksSize: renderedFunctionBlocks.size,
     pendingDOMUpdatesSize: pendingDOMUpdates.size,
-    activeTimeoutsSize: activeTimeouts.size
-  })
+    activeTimeoutsSize: activeTimeouts.size,
+  }),
 };
 
 // Performance: Export utilities for external monitoring
@@ -1301,7 +1342,7 @@ export const performanceUtils = {
   getCachedElements: CacheUtils.getCachedElements,
   cleanupTimeout: PerformanceUtils.cleanupTimeout,
   setManagedTimeout: PerformanceUtils.setManagedTimeout,
-  REGEX_CACHE
+  REGEX_CACHE,
 };
 
 // Cleanup on page unload to prevent memory leaks

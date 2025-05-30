@@ -22,7 +22,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
   const [hasBackgroundError, setHasBackgroundError] = useState<boolean>(false);
   const [isEditingUri, setIsEditingUri] = useState<boolean>(false); // Track if user is actively editing the URI
   const [lastErrorMessage, setLastErrorMessage] = useState<string>(''); // Store the last detailed error message
-  
+
   // Animation states
   const [isStatusChanging, setIsStatusChanging] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
@@ -66,18 +66,21 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
     [communicationMethods],
   );
 
-  const getServerConfig = useCallback(async (forceRefresh: boolean = false) => {
-    try {
-      if (!communicationMethods.getServerConfig) {
-        throw new Error('Communication method unavailable');
+  const getServerConfig = useCallback(
+    async (forceRefresh: boolean = false) => {
+      try {
+        if (!communicationMethods.getServerConfig) {
+          throw new Error('Communication method unavailable');
+        }
+        return await communicationMethods.getServerConfig(forceRefresh);
+      } catch (error) {
+        logMessage(`[ServerStatus] Get server config error: ${error instanceof Error ? error.message : String(error)}`);
+        setHasBackgroundError(true);
+        throw error; // Don't fallback to default, let caller handle the error
       }
-      return await communicationMethods.getServerConfig(forceRefresh);
-    } catch (error) {
-      logMessage(`[ServerStatus] Get server config error: ${error instanceof Error ? error.message : String(error)}`);
-      setHasBackgroundError(true);
-      throw error; // Don't fallback to default, let caller handle the error
-    }
-  }, [communicationMethods]);
+    },
+    [communicationMethods],
+  );
 
   const updateServerConfig = useCallback(
     async (config: { uri: string }) => {
@@ -101,21 +104,23 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
   // This ensures the UI always reflects the actual server status without any conditions
   useEffect(() => {
     // Always log the status for debugging
-    logMessage(`[ServerStatus] Props received initialStatus: "${initialStatus}", current UI status: "${status}", isReconnecting: ${isReconnecting}`);
-    
+    logMessage(
+      `[ServerStatus] Props received initialStatus: "${initialStatus}", current UI status: "${status}", isReconnecting: ${isReconnecting}`,
+    );
+
     // Don't update status if we're in the middle of saving configuration to prevent flickers
     if (isReconnecting) {
       logMessage(`[ServerStatus] Skipping status update during reconnection process`);
       return;
     }
-    
+
     // ALWAYS update the status from props, but only when not reconnecting
     if (initialStatus && initialStatus !== status) {
       logMessage(`[ServerStatus] FORCE UPDATING status from "${status}" to "${initialStatus}"`);
-      
+
       // Simple status update without excessive animation
       setStatus(initialStatus);
-      
+
       // Update status message based on the new status only if not reconnecting
       if (initialStatus === 'disconnected') {
         setStatusMessage('Server disconnected. Click the refresh button to reconnect.');
@@ -183,9 +188,9 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
     // Only fetch if we have communication methods, no server URI is set yet, and user is not editing
     // This prevents refetching while the user is actively editing the URI
     if (
-      communicationMethods && 
-      typeof communicationMethods.getServerConfig === 'function' && 
-      !serverUri && 
+      communicationMethods &&
+      typeof communicationMethods.getServerConfig === 'function' &&
+      !serverUri &&
       !isEditingUri
     ) {
       fetchInitialServerConfig().catch(() => {
@@ -224,7 +229,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
   const handleReconnect = async () => {
     const startTime = Date.now();
     const minDisplayDuration = 1200; // Minimum display time for smooth UX
-    
+
     try {
       logMessage('[ServerStatus] Reconnect button clicked');
       setIsReconnecting(true);
@@ -256,7 +261,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
       // Ensure minimum display duration before updating final state
       const elapsed = Date.now() - startTime;
       const remainingTime = Math.max(0, minDisplayDuration - elapsed);
-      
+
       if (remainingTime > 0) {
         logMessage(`[ServerStatus] Waiting ${remainingTime}ms for smooth transition`);
         await new Promise(resolve => setTimeout(resolve, remainingTime));
@@ -284,20 +289,22 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
       // Ensure minimum display time even for errors
       const elapsed = Date.now() - startTime;
       const remainingTime = Math.max(0, minDisplayDuration - elapsed);
-      
+
       if (remainingTime > 0) {
         await new Promise(resolve => setTimeout(resolve, remainingTime));
       }
 
       logMessage(`[ServerStatus] Reconnection error: ${error instanceof Error ? error.message : String(error)}`);
-      
+
       // Use the enhanced error message from the error object and store it
       const errorMessage = error instanceof Error ? error.message : String(error);
       setLastErrorMessage(errorMessage); // Store the detailed error message
-      
+
       // Display the enhanced error message in the status
       if (errorMessage.includes('404') || errorMessage.includes('not found')) {
-        setStatusMessage('Server URL not found (404). Please verify your MCP server URL and ensure the server is running.');
+        setStatusMessage(
+          'Server URL not found (404). Please verify your MCP server URL and ensure the server is running.',
+        );
       } else if (errorMessage.includes('403')) {
         setStatusMessage('Access forbidden (403). Please check server permissions and authentication settings.');
       } else if (errorMessage.includes('500') || errorMessage.includes('502') || errorMessage.includes('503')) {
@@ -311,7 +318,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
       } else {
         setStatusMessage(`Connection failed: ${errorMessage}`);
       }
-      
+
       setStatus('error');
     } finally {
       setIsReconnecting(false);
@@ -358,11 +365,11 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
     // Set stable loading state and prevent rapid UI changes
     setIsReconnecting(true);
     setLastReconnectTime(new Date().toLocaleTimeString());
-    
+
     // Use a single stable message throughout the process to prevent flickers
     const stableMessage = 'Saving configuration and connecting...';
     setStatusMessage(stableMessage);
-    
+
     // Clear any existing error
     setLastErrorMessage('');
 
@@ -372,10 +379,10 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
 
     try {
       logMessage(`[ServerStatus] Saving server URI: ${serverUri}`);
-      
+
       await updateServerConfig({ uri: serverUri });
       logMessage('[ServerStatus] Server config updated successfully');
-      
+
       // Clear the editing flag since we successfully saved
       setIsEditingUri(false);
 
@@ -387,7 +394,9 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
           logMessage(`[ServerStatus] Updated serverUri to stored value: ${freshConfig.uri}`);
         }
       } catch (fetchError) {
-        logMessage(`[ServerStatus] Error fetching fresh config after save: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
+        logMessage(
+          `[ServerStatus] Error fetching fresh config after save: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`,
+        );
       }
 
       // Trigger reconnect
@@ -397,7 +406,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
       // Calculate remaining time to ensure minimum display duration
       const elapsed = Date.now() - startTime;
       const remainingTime = Math.max(0, minDisplayDuration - elapsed);
-      
+
       if (remainingTime > 0) {
         logMessage(`[ServerStatus] Waiting ${remainingTime}ms to prevent visual jitter`);
         await new Promise(resolve => setTimeout(resolve, remainingTime));
@@ -407,13 +416,15 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
       if (success) {
         setStatusMessage('Successfully connected to MCP server');
         setStatus('connected');
-        
+
         // Refresh tools silently without UI updates
         try {
           const tools = await refreshTools(true);
           logMessage(`[ServerStatus] Successfully refreshed ${tools.length} tools after server change`);
         } catch (refreshError) {
-          logMessage(`[ServerStatus] Error refreshing tools: ${refreshError instanceof Error ? refreshError.message : String(refreshError)}`);
+          logMessage(
+            `[ServerStatus] Error refreshing tools: ${refreshError instanceof Error ? refreshError.message : String(refreshError)}`,
+          );
         }
       } else {
         setStatusMessage('Failed to connect to new MCP server');
@@ -422,12 +433,11 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
 
       // Close settings on success
       setShowSettings(false);
-      
     } catch (error) {
       // Still ensure minimum display time even for errors
       const elapsed = Date.now() - startTime;
       const remainingTime = Math.max(0, minDisplayDuration - elapsed);
-      
+
       if (remainingTime > 0) {
         await new Promise(resolve => setTimeout(resolve, remainingTime));
       }
@@ -501,128 +511,117 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
 
   // Determine if we should show enhanced visual cues for disconnected/error states
   const isDisconnectedOrError = status === 'disconnected' || status === 'error';
-  
+
   return (
-    <div className={cn(
-      "relative px-4 py-3 border-b border-slate-200 dark:border-slate-800 transition-all duration-300 ease-out server-status-stable",
-      // Add conditional styling for disconnected/error states with smooth transitions
-      isDisconnectedOrError && "bg-gradient-to-r from-rose-50 to-red-50 dark:from-rose-900/10 dark:to-red-900/10 border border-rose-200 dark:border-rose-800/50 rounded-sm shadow-sm"
-    )}>
+    <div
+      className={cn(
+        'relative px-4 py-3 border-b border-slate-200 dark:border-slate-800 transition-all duration-300 ease-out server-status-stable',
+        // Add conditional styling for disconnected/error states with smooth transitions
+        isDisconnectedOrError &&
+          'bg-gradient-to-r from-rose-50 to-red-50 dark:from-rose-900/10 dark:to-red-900/10 border border-rose-200 dark:border-rose-800/50 rounded-sm shadow-sm',
+      )}>
       {/* Success animation overlay - subtle */}
       {showSuccessAnimation && (
         <div className="absolute inset-0 bg-gradient-to-r from-emerald-100 to-green-100 dark:from-emerald-900/20 dark:to-green-900/20 opacity-30 animate-pulse rounded-sm" />
       )}
-      
 
-      
       <div className="relative z-10 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className={cn(
-            'relative flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 ease-out server-status-icon', 
-            statusInfo.bgColor,
-            // Simplified animations to prevent flickers
-            isReconnecting ? 'animate-spin' : isDisconnectedOrError && 'animate-pulse'
-          )}>
-            
-            <div className="transition-transform duration-200">
-              {statusInfo.icon}
-            </div>
+          <div
+            className={cn(
+              'relative flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 ease-out server-status-icon',
+              statusInfo.bgColor,
+              // Simplified animations to prevent flickers
+              isReconnecting ? 'animate-spin' : isDisconnectedOrError && 'animate-pulse',
+            )}>
+            <div className="transition-transform duration-200">{statusInfo.icon}</div>
           </div>
-          
+
           <div className="flex flex-col">
-            <Typography 
-              variant="body" 
+            <Typography
+              variant="body"
               className={cn(
-                "font-semibold transition-colors duration-200 leading-tight",
+                'font-semibold transition-colors duration-200 leading-tight',
                 // Enhanced text styling with smooth color transitions
-                isDisconnectedOrError 
-                  ? "text-rose-700 dark:text-rose-400" 
+                isDisconnectedOrError
+                  ? 'text-rose-700 dark:text-rose-400'
                   : status === 'connected'
-                  ? "text-emerald-700 dark:text-emerald-400"
-                  : "text-slate-700 dark:text-slate-200"
+                    ? 'text-emerald-700 dark:text-emerald-400'
+                    : 'text-slate-700 dark:text-slate-200',
               )}>
               Server {statusInfo.label}
             </Typography>
-            
+
             {/* Status message with stable height to prevent layout shifts */}
-            <div className={cn(
-              "text-xs mt-0.5 transition-all duration-200 ease-out max-h-20 overflow-hidden status-message-stable",
-              isDisconnectedOrError 
-                ? "text-rose-600 dark:text-rose-400 font-medium" 
-                : "text-slate-500 dark:text-slate-400"
-            )}>
+            <div
+              className={cn(
+                'text-xs mt-0.5 transition-all duration-200 ease-out max-h-20 overflow-hidden status-message-stable',
+                isDisconnectedOrError
+                  ? 'text-rose-600 dark:text-rose-400 font-medium'
+                  : 'text-slate-500 dark:text-slate-400',
+              )}>
               {statusMessage}
             </div>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-1">
           {/* Simplified reconnect button */}
           <button
             onClick={handleReconnect}
             disabled={isReconnecting}
             className={cn(
-              "group relative p-2 rounded-lg transition-all duration-200 ease-out hover:scale-105 active:scale-95",
-              isReconnecting ? "opacity-60 cursor-not-allowed" : "hover:shadow-md",
+              'group relative p-2 rounded-lg transition-all duration-200 ease-out hover:scale-105 active:scale-95',
+              isReconnecting ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-md',
               // Dynamic button styling based on state
-              isDisconnectedOrError 
-                ? "text-rose-600 hover:text-rose-700 hover:bg-rose-100 dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-rose-900/30" 
-                : "text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/30"
+              isDisconnectedOrError
+                ? 'text-rose-600 hover:text-rose-700 hover:bg-rose-100 dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-rose-900/30'
+                : 'text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/30',
             )}
             aria-label="Reconnect to server"
             title="Reconnect to server">
-            
-            <Icon 
-              name="refresh" 
-              size="sm" 
+            <Icon
+              name="refresh"
+              size="sm"
               className={cn(
-                "transition-transform duration-300",
-                isReconnecting ? 'animate-spin' : 'group-hover:rotate-180'
-              )} 
+                'transition-transform duration-300',
+                isReconnecting ? 'animate-spin' : 'group-hover:rotate-180',
+              )}
             />
           </button>
-          
+
           {/* Simplified settings button */}
           <button
             onClick={handleSettings}
             disabled={settingsAnimating}
             className={cn(
-              "group relative p-2 rounded-lg transition-all duration-200 ease-out hover:scale-105 active:scale-95",
-              "text-slate-500 hover:text-slate-700 hover:bg-slate-100 hover:shadow-md dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-slate-800"
+              'group relative p-2 rounded-lg transition-all duration-200 ease-out hover:scale-105 active:scale-95',
+              'text-slate-500 hover:text-slate-700 hover:bg-slate-100 hover:shadow-md dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-slate-800',
             )}
             aria-label="Server settings"
             title="Server settings">
-            
-            <Icon 
-              name="settings" 
-              size="sm" 
-              className={cn(
-                "transition-transform duration-200",
-                showSettings ? "rotate-90" : "group-hover:rotate-45"
-              )}
+            <Icon
+              name="settings"
+              size="sm"
+              className={cn('transition-transform duration-200', showSettings ? 'rotate-90' : 'group-hover:rotate-45')}
             />
           </button>
-          
+
           {/* Simplified details button */}
           <button
             onClick={handleDetails}
             disabled={detailsAnimating}
             className={cn(
-              "group relative p-2 rounded-lg transition-all duration-200 ease-out hover:scale-105 active:scale-95",
-              "text-slate-500 hover:text-slate-700 hover:bg-slate-100 hover:shadow-md dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-slate-800"
+              'group relative p-2 rounded-lg transition-all duration-200 ease-out hover:scale-105 active:scale-95',
+              'text-slate-500 hover:text-slate-700 hover:bg-slate-100 hover:shadow-md dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-slate-800',
             )}
             aria-label="Show details"
             title="Show details">
-            
-            <Icon 
-              name="info" 
-              size="sm" 
-              className="transition-transform duration-200 group-hover:scale-110"
-            />
+            <Icon name="info" size="sm" className="transition-transform duration-200 group-hover:scale-110" />
           </button>
         </div>
       </div>
-      
+
       {/* Add prominent alert for disconnected/error states with detailed error message */}
       {isDisconnectedOrError && (
         <div className="mt-2 p-2 bg-rose-100 dark:bg-rose-900/20 rounded-md border border-rose-200 dark:border-rose-800/50">
@@ -630,9 +629,9 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
             <Icon name="alert-triangle" size="sm" className="text-rose-600 dark:text-rose-400" />
             <div className="flex-1">
               <Typography variant="small" className="text-rose-600 dark:text-rose-400 font-medium">
-                {status === 'disconnected' 
-                  ? "Server connection lost. Click the refresh button to reconnect." 
-                  : "Server connection error. Check your configuration and try again."}
+                {status === 'disconnected'
+                  ? 'Server connection lost. Click the refresh button to reconnect.'
+                  : 'Server connection error. Check your configuration and try again.'}
               </Typography>
               {/* Show detailed error message if available - prefer background error over local error */}
               {(backgroundConnectionError || lastErrorMessage) && (
@@ -643,7 +642,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
             </div>
           </div>
         </div>
-      )}      
+      )}
       {/* Add connecting status indicator for background communication issues */}
       {(hasBackgroundError || !communicationMethods.sendMessage) && (
         <div className="bg-amber-50 dark:bg-amber-900/10 border-b border-amber-200/50 dark:border-amber-800/30 p-2 flex-shrink-0">
@@ -680,13 +679,13 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
                 />
               </div>
               <div className="flex justify-end gap-2">
-                <Button 
+                <Button
                   onClick={() => {
                     setShowSettings(false);
                     setIsEditingUri(false);
-                  }} 
-                  variant="outline" 
-                  size="sm" 
+                  }}
+                  variant="outline"
+                  size="sm"
                   className="h-8 px-3 text-xs font-medium transition-all duration-200 hover:scale-105 active:scale-95">
                   Cancel
                 </Button>
@@ -728,40 +727,39 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
               <Typography variant="h4" className="mb-3 text-slate-800 dark:text-slate-100 font-semibold">
                 Connection Details
               </Typography>
-              
+
               <div className="space-y-2">
                 <div className="flex justify-between items-center py-1">
                   <span className="font-medium text-slate-700 dark:text-slate-200">Status:</span>
-                  <span className={cn(
-                    "px-2 py-1 rounded-full text-xs font-medium",
-                    status === 'connected' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400" :
-                    status === 'disconnected' ? "bg-rose-100 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400" :
-                    "bg-slate-100 text-slate-700 dark:bg-slate-900/20 dark:text-slate-400"
-                  )}>
+                  <span
+                    className={cn(
+                      'px-2 py-1 rounded-full text-xs font-medium',
+                      status === 'connected'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
+                        : status === 'disconnected'
+                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400'
+                          : 'bg-slate-100 text-slate-700 dark:bg-slate-900/20 dark:text-slate-400',
+                    )}>
                     {statusInfo.label}
                   </span>
                 </div>
-                
+
                 <div className="flex justify-between items-start py-1">
                   <span className="font-medium text-slate-700 dark:text-slate-200">Server URI:</span>
                   <span className="text-right text-slate-600 dark:text-slate-300 max-w-[200px] break-all">
                     {serverUri || 'Not configured'}
                   </span>
                 </div>
-                
+
                 <div className="flex justify-between items-center py-1">
                   <span className="font-medium text-slate-700 dark:text-slate-200">Last updated:</span>
-                  <span className="text-slate-600 dark:text-slate-300">
-                    {new Date().toLocaleTimeString()}
-                  </span>
+                  <span className="text-slate-600 dark:text-slate-300">{new Date().toLocaleTimeString()}</span>
                 </div>
-                
+
                 {lastReconnectTime && (
                   <div className="flex justify-between items-center py-1">
                     <span className="font-medium text-slate-700 dark:text-slate-200">Last reconnect:</span>
-                    <span className="text-slate-600 dark:text-slate-300">
-                      {lastReconnectTime}
-                    </span>
+                    <span className="text-slate-600 dark:text-slate-300">{lastReconnectTime}</span>
                   </div>
                 )}
               </div>
@@ -789,7 +787,7 @@ const ServerStatus: React.FC<ServerStatusProps> = ({ status: initialStatus }) =>
                   </div>
                 </div>
               )}
-              
+
               {hasBackgroundError && (
                 <div className="mt-4 p-3 bg-rose-50 dark:bg-rose-900/20 rounded-lg border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200">
                   <div className="flex items-start gap-2">

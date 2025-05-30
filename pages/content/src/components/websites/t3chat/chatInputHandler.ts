@@ -15,9 +15,7 @@ let lastFoundInputElement: HTMLElement | null = null;
  */
 export const findChatInputElement = (): HTMLElement | null => {
   // Try to find T3 Chat's textarea based on the provided HTML
-  const t3ChatInput = document.querySelector(
-    'textarea#chat-input, textarea[placeholder="Type your message here..."]',
-  );
+  const t3ChatInput = document.querySelector('textarea#chat-input, textarea[placeholder="Type your message here..."]');
 
   if (t3ChatInput) {
     logMessage('Found T3 Chat input element');

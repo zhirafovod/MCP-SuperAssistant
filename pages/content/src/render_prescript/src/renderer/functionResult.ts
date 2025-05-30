@@ -1,6 +1,5 @@
 import { CONFIG } from '../core/config';
-import { applyThemeClass } from '../utils/themeDetector';
-import { isDarkTheme } from '../utils/themeDetector';
+import { applyThemeClass, isDarkTheme } from '../utils/themeDetector';
 
 // State management for rendered elements
 export const processedResultElements = new WeakSet<HTMLElement>();
@@ -28,7 +27,7 @@ const createThemedContentArea = (className: string): HTMLDivElement => {
   contentArea.style.boxSizing = 'border-box';
   contentArea.style.whiteSpace = 'pre-wrap';
   contentArea.style.wordBreak = 'break-word';
-  
+
   // Apply theme-specific styles
   if (isDarkTheme()) {
     contentArea.style.backgroundColor = '#2d2d2d';
@@ -39,7 +38,7 @@ const createThemedContentArea = (className: string): HTMLDivElement => {
     contentArea.style.border = '1px solid rgba(0, 0, 0, 0.1)';
     contentArea.style.color = '#202124';
   }
-  
+
   return contentArea;
 };
 
@@ -62,23 +61,25 @@ const createExpandableContent = (): HTMLDivElement => {
 /**
  * Creates a header with expand/collapse functionality
  */
-const createExpandableHeader = (config: ExpandableConfig): { header: HTMLDivElement; expandButton: HTMLButtonElement } => {
+const createExpandableHeader = (
+  config: ExpandableConfig,
+): { header: HTMLDivElement; expandButton: HTMLButtonElement } => {
   const header = document.createElement('div');
   header.className = config.className.includes('system') ? 'function-name system-header' : 'function-name';
-  
+
   // Create left section
   const leftSection = document.createElement('div');
   leftSection.className = 'function-name-left';
-  
+
   const nameText = document.createElement('div');
   nameText.className = 'function-name-text';
   nameText.textContent = config.headerText;
   leftSection.appendChild(nameText);
-  
+
   // Create right section
   const rightSection = document.createElement('div');
   rightSection.className = 'function-name-right';
-  
+
   // Add call ID if available (for function results)
   if (config.callId) {
     const callIdElement = document.createElement('div');
@@ -86,7 +87,7 @@ const createExpandableHeader = (config: ExpandableConfig): { header: HTMLDivElem
     callIdElement.textContent = config.callId;
     rightSection.appendChild(callIdElement);
   }
-  
+
   // Create expand button
   const expandButton = document.createElement('button');
   expandButton.className = 'expand-button';
@@ -97,10 +98,10 @@ const createExpandableHeader = (config: ExpandableConfig): { header: HTMLDivElem
   `;
   expandButton.title = config.expandTitle;
   rightSection.appendChild(expandButton);
-  
+
   header.appendChild(leftSection);
   header.appendChild(rightSection);
-  
+
   return { header, expandButton };
 };
 
@@ -111,30 +112,30 @@ const setupExpandCollapse = (
   container: HTMLDivElement,
   expandableContent: HTMLDivElement,
   expandButton: HTMLButtonElement,
-  config: ExpandableConfig
+  config: ExpandableConfig,
 ): void => {
-  expandButton.onclick = (e) => {
+  expandButton.onclick = e => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const isCurrentlyExpanded = container.classList.contains('expanded');
     const expandIcon = expandButton.querySelector('svg path');
-    
+
     if (isCurrentlyExpanded) {
       // Collapse
       container.classList.remove('expanded');
-      
+
       // Get current computed height including padding
       const currentHeight = expandableContent.scrollHeight;
       expandableContent.style.maxHeight = currentHeight + 'px';
       expandableContent.offsetHeight; // Force reflow
-      
+
       requestAnimationFrame(() => {
         expandableContent.style.maxHeight = '0px';
         expandableContent.style.opacity = '0';
         expandableContent.style.paddingTop = '0';
         expandableContent.style.paddingBottom = '0';
-        
+
         if (expandIcon) {
           expandIcon.setAttribute('d', 'M8 10l4 4 4-4');
         }
@@ -148,16 +149,16 @@ const setupExpandCollapse = (
       expandableContent.style.opacity = '0';
       expandableContent.style.paddingTop = '0';
       expandableContent.style.paddingBottom = '0';
-      
+
       // Calculate target height with padding
       const targetHeight = expandableContent.scrollHeight + 24; // 12px top + 12px bottom padding
-      
+
       requestAnimationFrame(() => {
         expandableContent.style.maxHeight = targetHeight + 'px';
         expandableContent.style.opacity = '1';
         expandableContent.style.paddingTop = '12px';
         expandableContent.style.paddingBottom = '12px';
-        
+
         if (expandIcon) {
           expandIcon.setAttribute('d', 'M16 14l-4-4-4 4');
         }
@@ -176,7 +177,7 @@ const createThemedContainer = (className: string, blockId: string): HTMLDivEleme
   container.setAttribute('data-block-id', blockId);
   container.style.width = '100%';
   container.style.boxSizing = 'border-box';
-  
+
   // Apply theme class
   if (CONFIG.useHostTheme) {
     applyThemeClass(container);
@@ -186,7 +187,7 @@ const createThemedContainer = (className: string, blockId: string): HTMLDivEleme
       container.classList.add('theme-light');
     }
   }
-  
+
   return container;
 };
 
@@ -202,7 +203,7 @@ const replaceBlockContent = (block: HTMLElement, newContent: HTMLElement): void 
 
 /**
  * Renders a system message box
- * 
+ *
  * @param block HTML element to render the system message in
  * @param content The system message content
  */
@@ -221,26 +222,27 @@ const renderSystemMessageBox = (block: HTMLElement, content: string): void => {
       className: 'system-message-container',
       headerText: 'MCP SuperAssistant',
       expandTitle: 'Expand system message',
-      collapseTitle: 'Collapse system message'
+      collapseTitle: 'Collapse system message',
     };
-    
+
     const { header, expandButton } = createExpandableHeader(config);
     const expandableContent = createExpandableContent();
     const contentArea = createThemedContentArea('param-value system-message-content');
-    
+
     // Fix border style for system messages
     if (isDarkTheme()) {
       contentArea.style.border = 'solid rgba(255, 255, 255, 0.1)';
     } else {
       contentArea.style.border = 'solid rgba(0, 0, 0, 0.1)';
     }
-    
+
     // Add the system message content with proper newline handling
     // Force proper text formatting to override any website CSS
     contentArea.style.whiteSpace = 'pre-wrap';
     contentArea.style.wordBreak = 'break-word';
     contentArea.style.overflowWrap = 'break-word';
-    contentArea.style.fontFamily = 'var(--font-system), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    contentArea.style.fontFamily =
+      'var(--font-system), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     contentArea.textContent = content;
     expandableContent.appendChild(contentArea);
 
@@ -264,7 +266,7 @@ const renderSystemMessageBox = (block: HTMLElement, content: string): void => {
 const renderFunctionResultContent = (resultContent: string, contentArea: HTMLDivElement): void => {
   try {
     const jsonResult = JSON.parse(resultContent);
-    
+
     // If it's JSON and has content array, render it properly
     if (jsonResult && jsonResult.content && Array.isArray(jsonResult.content)) {
       // Render each content item
@@ -281,13 +283,13 @@ const renderFunctionResultContent = (resultContent: string, contentArea: HTMLDiv
           const imgContainer = document.createElement('div');
           imgContainer.className = 'function-result-image';
           imgContainer.style.margin = '10px 0';
-          
+
           const img = document.createElement('img');
           img.src = item.url;
           img.alt = item.alt || 'Image';
           img.style.maxWidth = '100%';
           img.style.borderRadius = '4px';
-          
+
           imgContainer.appendChild(img);
           contentArea.appendChild(imgContainer);
         } else if (item.type === 'code' && item.code) {
@@ -297,14 +299,14 @@ const renderFunctionResultContent = (resultContent: string, contentArea: HTMLDiv
           codeContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
           codeContainer.style.borderRadius = '4px';
           codeContainer.style.padding = '10px';
-          
+
           const pre = document.createElement('pre');
           pre.style.margin = '0';
           pre.style.whiteSpace = 'pre-wrap';
           pre.style.wordBreak = 'break-word';
           pre.style.fontFamily = 'monospace';
           pre.textContent = item.code;
-          
+
           codeContainer.appendChild(pre);
           contentArea.appendChild(codeContainer);
         } else {
@@ -343,16 +345,15 @@ const createExpandableBlock = (config: ExpandableConfig, contentArea: HTMLDivEle
   const container = createThemedContainer('function-block ' + config.className, config.blockId);
   const { header, expandButton } = createExpandableHeader(config);
   const expandableContent = createExpandableContent();
-  
+
   expandableContent.appendChild(contentArea);
   setupExpandCollapse(container, expandableContent, expandButton, config);
-  
+
   container.appendChild(header);
   container.appendChild(expandableContent);
-  
+
   return container;
 };
-
 
 /**
  * Main function to render a function result block
@@ -414,7 +415,7 @@ export const renderFunctionResult = (block: HTMLElement, isProcessingRef: { curr
         headerText: 'Function Result',
         expandTitle: 'Expand function result',
         collapseTitle: 'Collapse function result',
-        callId
+        callId,
       };
 
       // Create content area and render content

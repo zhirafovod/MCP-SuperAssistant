@@ -28,7 +28,7 @@ class McpHandler {
   private pendingRequestTimeoutMs: number = 30000;
   private staleRequestCleanupInterval: number | null = null;
   private extensionContextValid: boolean = true;
-  
+
   // Add debouncing for getServerConfig requests
   private lastServerConfigRequest: number = 0;
   private serverConfigDebounceMs: number = 1000; // 1 second debounce
@@ -476,7 +476,9 @@ class McpHandler {
         // Handle reconnect status updates
         if (message.hasOwnProperty('isConnected')) {
           this.isConnected = message.isConnected;
-          logMessage(`[MCP Handler] Reconnect status updated connection to: ${message.isConnected ? 'Connected' : 'Disconnected'}`);
+          logMessage(
+            `[MCP Handler] Reconnect status updated connection to: ${message.isConnected ? 'Connected' : 'Disconnected'}`,
+          );
           this.notifyConnectionStatus();
         }
         break;
@@ -606,19 +608,19 @@ class McpHandler {
     logMessage(`[MCP Handler] Error: ${errorType} - ${errorMessage}`);
 
     // Enhanced detection of server-related errors with specific categorization
-    const isServerRelatedError = 
-      errorType === 'RECONNECT_ERROR' || 
-      errorType === 'CONNECTION_ERROR' || 
-      errorType === 'SERVER_ERROR' || 
+    const isServerRelatedError =
+      errorType === 'RECONNECT_ERROR' ||
+      errorType === 'CONNECTION_ERROR' ||
+      errorType === 'SERVER_ERROR' ||
       errorType === 'SERVER_CONNECTION_ERROR' ||
-      errorType === 'TIMEOUT_ERROR' || 
+      errorType === 'TIMEOUT_ERROR' ||
       errorType === 'PERMANENT_CONNECTION_FAILURE' ||
       errorType === 'SERVER_UNAVAILABLE' ||
-      errorMessage.includes('Server') || 
-      errorMessage.includes('server') || 
-      errorMessage.includes('not available') || 
-      errorMessage.includes('connection') || 
-      errorMessage.includes('timeout') || 
+      errorMessage.includes('Server') ||
+      errorMessage.includes('server') ||
+      errorMessage.includes('not available') ||
+      errorMessage.includes('connection') ||
+      errorMessage.includes('timeout') ||
       errorMessage.includes('unavailable') ||
       errorMessage.includes('404') ||
       errorMessage.includes('403') ||
@@ -627,19 +629,21 @@ class McpHandler {
       errorMessage.includes('not found');
 
     // Tool-specific errors that should NOT trigger connection status changes
-    const isToolSpecificError = 
+    const isToolSpecificError =
       errorType === 'TOOL_NOT_FOUND' ||
       errorType === 'TOOL_CALL_ERROR' ||
       errorType === 'INVALID_ARGS' ||
-      errorMessage.includes('Tool') && errorMessage.includes('not found') ||
+      (errorMessage.includes('Tool') && errorMessage.includes('not found')) ||
       errorMessage.includes('not found in cached primitives') ||
       errorMessage.includes('MCP error -32602') ||
       errorMessage.includes('MCP error -32601') ||
       errorMessage.includes('MCP error -32600');
-    
+
     // Only update connection status for actual server/connection errors, not tool errors
     if (isServerRelatedError && !isToolSpecificError) {
-      logMessage(`[MCP Handler] Server-related error detected (${errorType}), updating connection status to disconnected`);
+      logMessage(
+        `[MCP Handler] Server-related error detected (${errorType}), updating connection status to disconnected`,
+      );
       this.isConnected = false;
       this.notifyConnectionStatus();
     } else if (isToolSpecificError) {
@@ -651,18 +655,20 @@ class McpHandler {
       const request = this.pendingRequests.get(requestId);
       if (request) {
         logMessage(`[MCP Handler] Calling error callback for request: ${requestId}`);
-        
+
         // Transform tool-specific error messages to be more user-friendly
         let userFriendlyError = errorMessage;
-        if (errorMessage.includes('not found in cached primitives') || 
-            errorMessage.includes('Tool not found') ||
-            errorType === 'TOOL_NOT_FOUND') {
+        if (
+          errorMessage.includes('not found in cached primitives') ||
+          errorMessage.includes('Tool not found') ||
+          errorType === 'TOOL_NOT_FOUND'
+        ) {
           // Extract tool name from the error message if possible
           const toolNameMatch = errorMessage.match(/Tool '([^']+)'/);
           const toolName = toolNameMatch ? toolNameMatch[1] : 'requested tool';
           userFriendlyError = `Tool '${toolName}' is not found in the current MCP Server. Check the list of available tools in the sidebar.`;
         }
-        
+
         request.callback(null, userFriendlyError);
         this.pendingRequests.delete(requestId);
       } else {
@@ -675,12 +681,14 @@ class McpHandler {
    * Notify all registered callbacks about connection status changes
    */
   private notifyConnectionStatus(): void {
-    logMessage(`[MCP Handler] Connection status changed: ${this.isConnected}, notifying ${this.connectionStatusCallbacks.size} callbacks`);
-    
+    logMessage(
+      `[MCP Handler] Connection status changed: ${this.isConnected}, notifying ${this.connectionStatusCallbacks.size} callbacks`,
+    );
+
     if (this.connectionStatusCallbacks.size === 0) {
       logMessage('[MCP Handler] WARNING: No connection status callbacks registered!');
     }
-    
+
     this.connectionStatusCallbacks.forEach(callback => {
       try {
         logMessage(`[MCP Handler] Calling connection status callback with isConnected=${this.isConnected}`);
@@ -958,16 +966,18 @@ class McpHandler {
       callback: (result: any, error?: string) => {
         // Call the original callback
         callback(result, error);
-        
+
         // Call all queued callbacks
         this.pendingServerConfigCallbacks.forEach(queuedCallback => {
           try {
             queuedCallback(result, error);
           } catch (callbackError) {
-            logMessage(`[MCP Handler] Error in queued server config callback: ${callbackError instanceof Error ? callbackError.message : String(callbackError)}`);
+            logMessage(
+              `[MCP Handler] Error in queued server config callback: ${callbackError instanceof Error ? callbackError.message : String(callbackError)}`,
+            );
           }
         });
-        
+
         // Clear the queue and request ID
         this.pendingServerConfigCallbacks = [];
         this.serverConfigRequestId = null;

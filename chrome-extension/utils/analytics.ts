@@ -24,7 +24,7 @@ const DEFAULT_ENGAGEMENT_TIME_IN_MSEC = 100; // Standard value for measurement p
 const SESSION_EXPIRATION_IN_MIN = 30;
 
 // Store the last URL to detect changes
-let lastUrl: string = '';
+const lastUrl: string = '';
 
 // Check if we're in a browser context (content script) or service worker (background)
 const isWindowContext = typeof window !== 'undefined';
@@ -187,16 +187,16 @@ export function collectDemographicData(): { [key: string]: any } {
         user_agent: navigator?.userAgent || 'Unknown',
       };
     }
-    
+
     const userAgent = navigator.userAgent;
     const language = navigator.language;
-    
+
     // Parse browser and OS information from user agent
     let browser = 'Unknown';
     let browserVersion = 'Unknown';
     let os = 'Unknown';
     let osVersion = 'Unknown';
-    
+
     // Detect browser
     if (userAgent.indexOf('Firefox') > -1) {
       browser = 'Firefox';
@@ -219,7 +219,7 @@ export function collectDemographicData(): { [key: string]: any } {
       const match = userAgent.match(/(?:MSIE |rv:)(\d+\.\d+)/);
       browserVersion = match && match[1] ? match[1] : 'Unknown';
     }
-    
+
     // Detect OS
     if (userAgent.indexOf('Windows') > -1) {
       os = 'Windows';
@@ -253,23 +253,23 @@ export function collectDemographicData(): { [key: string]: any } {
       const match = userAgent.match(/OS ([\d_]+)/);
       osVersion = match && match[1] ? match[1].replace(/_/g, '.') : 'Unknown';
     }
-    
+
     // Determine device type
     let deviceType = 'desktop';
     if (/Mobi|Android|iPhone|iPad|iPod/i.test(userAgent)) {
       deviceType = /iPad|tablet/i.test(userAgent) ? 'tablet' : 'mobile';
     }
-    
+
     // Get screen information
     const screenWidth = window.screen.width;
     const screenHeight = window.screen.height;
     const screenResolution = `${screenWidth}x${screenHeight}`;
     const pixelRatio = window.devicePixelRatio || 1;
-    
+
     // Get country/region (this will be limited and may need server-side enrichment)
     // For privacy reasons, we're just using the language as a proxy
     const region = language.split('-')[1] || language;
-    
+
     return {
       browser,
       browser_version: browserVersion,
@@ -290,18 +290,16 @@ export function collectDemographicData(): { [key: string]: any } {
   }
 }
 
-
-
 /**
  * Tracks a URL change event with demographic data.
  * @param url The new URL
  */
 export async function trackUrlChange(url: string): Promise<void> {
   const demographicData = collectDemographicData();
-  
+
   // Only include document.title if in browser context
   const pageTitle = isWindowContext ? document.title : 'Unknown';
-  
+
   await sendAnalyticsEvent('url_change', {
     page_location: url,
     page_title: pageTitle,
@@ -320,9 +318,9 @@ export async function trackPageView(): Promise<void> {
     console.debug('[GA4] Page view tracking skipped - not in browser context');
     return;
   }
-  
+
   const demographicData = collectDemographicData();
-  
+
   await sendAnalyticsEvent('page_view', {
     page_title: document.title,
     page_location: document.location.href,

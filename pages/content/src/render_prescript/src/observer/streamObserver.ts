@@ -32,11 +32,14 @@ export const resyncingBlocks = new Set<string>();
 export const completedStreams = new Map<string, boolean>();
 
 // Track completion stability to prevent rapid state changes that cause jitter
-const completionStabilityTracker = new Map<string, {
-  lastCheckTime: number;
-  isStable: boolean;
-  consecutiveCompletionChecks: number;
-}>();
+const completionStabilityTracker = new Map<
+  string,
+  {
+    lastCheckTime: number;
+    isStable: boolean;
+    consecutiveCompletionChecks: number;
+  }
+>();
 
 // Minimum time between completion checks to ensure stability
 const COMPLETION_STABILITY_THRESHOLD = 200; // 200ms
@@ -48,31 +51,31 @@ const REQUIRED_STABLE_CHECKS = 2; // Require 2 consecutive stable checks
 const isCompletionStable = (blockId: string): boolean => {
   const now = Date.now();
   const tracker = completionStabilityTracker.get(blockId);
-  
+
   if (!tracker) {
     completionStabilityTracker.set(blockId, {
       lastCheckTime: now,
       isStable: false,
-      consecutiveCompletionChecks: 1
+      consecutiveCompletionChecks: 1,
     });
     return false;
   }
-  
+
   // Check if enough time has passed since last check
   if (now - tracker.lastCheckTime < COMPLETION_STABILITY_THRESHOLD) {
     return false; // Too soon, not stable
   }
-  
+
   // Increment consecutive checks
   tracker.consecutiveCompletionChecks++;
   tracker.lastCheckTime = now;
-  
+
   // Consider stable after required number of checks
   if (tracker.consecutiveCompletionChecks >= REQUIRED_STABLE_CHECKS) {
     tracker.isStable = true;
     return true;
   }
-  
+
   return false;
 };
 
@@ -84,15 +87,18 @@ const PATTERN_CACHE = {
   invokeEnd: /<\/invoke>/g,
   parameterStart: /<parameter[^>]*>/g,
   parameterEnd: /<\/parameter>/g,
-  allFunctionPatterns: /(<function_calls>|<\/function_calls>|<invoke[^>]*>|<\/invoke>|<parameter[^>]*>|<\/parameter>)/g
+  allFunctionPatterns: /(<function_calls>|<\/function_calls>|<invoke[^>]*>|<\/invoke>|<parameter[^>]*>|<\/parameter>)/g,
 };
 
 // Fast content analysis cache to avoid repeated parsing
-const contentAnalysisCache = new Map<string, {
-  hasFunction: boolean;
-  isComplete: boolean;
-  timestamp: number;
-}>();
+const contentAnalysisCache = new Map<
+  string,
+  {
+    hasFunction: boolean;
+    isComplete: boolean;
+    timestamp: number;
+  }
+>();
 
 // Debounced rendering to prevent rapid-fire updates
 const renderingDebouncer = new Map<string, number>();
@@ -111,7 +117,7 @@ const CHUNK_PATTERNS = {
   anyClosingTag: /<\/(?:function_calls|invoke|parameter)>/,
   // Pre-compiled for faster detection
   functionChunkStart: /(<function_calls>|<invoke\s+name="[^"]*"|<parameter\s+name="[^"]*">)/,
-  significantChunk: /(<function_calls>|<invoke|<parameter|<\/)/
+  significantChunk: /(<function_calls>|<invoke|<parameter|<\/)/,
 };
 
 // Track parameter content during streaming to prevent loss
@@ -124,7 +130,7 @@ const cacheParameterContent = (blockId: string, content: string): void => {
   const params = extractParameters(content);
   if (params.length > 0) {
     const blockCache = parameterContentCache.get(blockId) || new Map();
-    
+
     params.forEach(param => {
       // Only update if new content is longer (more complete)
       const existing = blockCache.get(param.name) || '';
@@ -132,9 +138,9 @@ const cacheParameterContent = (blockId: string, content: string): void => {
         blockCache.set(param.name, param.value);
       }
     });
-    
+
     parameterContentCache.set(blockId, blockCache);
-    
+
     if (CONFIG.debug) {
       console.debug(`Cached parameter content for ${blockId}:`, Array.from(blockCache.entries()));
     }
@@ -151,14 +157,17 @@ const getCachedParameterContent = (blockId: string): Map<string, string> => {
 /**
  * Ultra-fast chunk detection for immediate streaming response
  */
-const detectFunctionChunk = (content: string, previousContent: string = ''): {
+const detectFunctionChunk = (
+  content: string,
+  previousContent: string = '',
+): {
   hasNewChunk: boolean;
   chunkType: 'function_start' | 'invoke' | 'parameter' | 'closing' | 'content' | null;
   isSignificant: boolean;
 } => {
   // Get only the new content since last check
   const newContent = content.slice(previousContent.length);
-  
+
   if (newContent.length === 0) {
     return { hasNewChunk: false, chunkType: null, isSignificant: false };
   }
@@ -167,19 +176,19 @@ const detectFunctionChunk = (content: string, previousContent: string = ''): {
   if (CHUNK_PATTERNS.functionStart.test(newContent)) {
     return { hasNewChunk: true, chunkType: 'function_start', isSignificant: true };
   }
-  
+
   if (CHUNK_PATTERNS.invokeStart.test(newContent)) {
     return { hasNewChunk: true, chunkType: 'invoke', isSignificant: true };
   }
-  
+
   if (CHUNK_PATTERNS.parameterStart.test(newContent)) {
     return { hasNewChunk: true, chunkType: 'parameter', isSignificant: true };
   }
-  
+
   if (CHUNK_PATTERNS.anyClosingTag.test(newContent)) {
     return { hasNewChunk: true, chunkType: 'closing', isSignificant: true };
   }
-  
+
   // Check if it's any significant content
   if (CHUNK_PATTERNS.significantChunk.test(newContent) || newContent.length > 20) {
     return { hasNewChunk: true, chunkType: 'content', isSignificant: newContent.length > 20 };
@@ -194,7 +203,11 @@ const previousContentCache = new Map<string, string>();
 /**
  * Immediate chunk processor for instant response
  */
-const processChunkImmediate = (blockId: string, newContent: string, chunkInfo: ReturnType<typeof detectFunctionChunk>): void => {
+const processChunkImmediate = (
+  blockId: string,
+  newContent: string,
+  chunkInfo: ReturnType<typeof detectFunctionChunk>,
+): void => {
   if (!chunkInfo.hasNewChunk || !chunkInfo.isSignificant) return;
 
   // Find target element immediately
@@ -205,12 +218,14 @@ const processChunkImmediate = (blockId: string, newContent: string, chunkInfo: R
   if (completedStreams.has(blockId) || resyncingBlocks.has(blockId)) return;
 
   if (CONFIG.debug) {
-    console.debug(`Immediate chunk detected for ${blockId}: ${chunkInfo.chunkType}, content length: ${newContent.length}`);
+    console.debug(
+      `Immediate chunk detected for ${blockId}: ${chunkInfo.chunkType}, content length: ${newContent.length}`,
+    );
   }
 
   // For parameter content, use longer delays to allow content to accumulate
   let delay = 25; // Default delay
-  
+
   if (chunkInfo.chunkType === 'function_start') {
     delay = 10; // Very fast for function starts
   } else if (chunkInfo.chunkType === 'parameter') {
@@ -240,18 +255,22 @@ const processChunkImmediate = (blockId: string, newContent: string, chunkInfo: R
 /**
  * Fast content analysis using pre-compiled patterns and caching
  */
-const analyzeFunctionContent = (content: string, useCache: boolean = true): {
+const analyzeFunctionContent = (
+  content: string,
+  useCache: boolean = true,
+): {
   hasFunction: boolean;
   isComplete: boolean;
   functionCallPattern: boolean;
 } => {
   if (useCache) {
     const cached = contentAnalysisCache.get(content);
-    if (cached && (Date.now() - cached.timestamp) < 1000) { // Cache for 1 second
-      return { 
-        hasFunction: cached.hasFunction, 
-        isComplete: cached.isComplete, 
-        functionCallPattern: cached.hasFunction 
+    if (cached && Date.now() - cached.timestamp < 1000) {
+      // Cache for 1 second
+      return {
+        hasFunction: cached.hasFunction,
+        isComplete: cached.isComplete,
+        functionCallPattern: cached.hasFunction,
       };
     }
   }
@@ -268,9 +287,9 @@ const analyzeFunctionContent = (content: string, useCache: boolean = true): {
   const hasFunctionCalls = PATTERN_CACHE.functionCallsStart.test(content);
   const hasInvoke = PATTERN_CACHE.invokeStart.test(content);
   const hasParameter = PATTERN_CACHE.parameterStart.test(content);
-  
+
   const hasFunction = hasFunctionCalls || hasInvoke || hasParameter;
-  
+
   if (!hasFunction) {
     const result = { hasFunction: false, isComplete: false, functionCallPattern: false };
     if (useCache) {
@@ -294,17 +313,15 @@ const analyzeFunctionContent = (content: string, useCache: boolean = true): {
   const parameterOpen = (content.match(PATTERN_CACHE.parameterStart) || []).length;
   const parameterClosed = (content.match(PATTERN_CACHE.parameterEnd) || []).length;
 
-  const isComplete = 
-    functionCallsOpen <= functionCallsClosed &&
-    invokeOpen <= invokeClosed &&
-    parameterOpen <= parameterClosed;
+  const isComplete =
+    functionCallsOpen <= functionCallsClosed && invokeOpen <= invokeClosed && parameterOpen <= parameterClosed;
 
   const result = { hasFunction, isComplete, functionCallPattern: hasFunction };
-  
+
   if (useCache) {
     contentAnalysisCache.set(content, { ...result, timestamp: Date.now() });
   }
-  
+
   return result;
 };
 
@@ -321,7 +338,7 @@ const scheduleOptimizedRender = (blockId: string, target: HTMLElement): void => 
   // Schedule new render with debouncing
   const timer = setTimeout(() => {
     renderingDebouncer.delete(blockId);
-    
+
     // Only render if not completed or resyncing
     if (!completedStreams.has(blockId) && !resyncingBlocks.has(blockId)) {
       // Update the queue for rendering
@@ -435,11 +452,11 @@ export const monitorNode = (node: HTMLElement, blockId: string): void => {
     for (const mutation of mutations) {
       if (mutation.type === 'characterData' || mutation.type === 'childList') {
         contentChanged = true;
-        
+
         // Get the content once for analysis
         const targetNode = mutation.target;
         const textContent = targetNode.textContent || '';
-        
+
         // Use fast pattern matching instead of string includes
         if (!functionCallPattern) {
           PATTERN_CACHE.allFunctionPatterns.lastIndex = 0;
@@ -453,10 +470,10 @@ export const monitorNode = (node: HTMLElement, blockId: string): void => {
 
           // Get previous content for chunk detection
           const previousContent = previousContentCache.get(blockId) || '';
-          
+
           // Use immediate chunk detection for instant response
           const chunkInfo = detectFunctionChunk(newValue, previousContent);
-          
+
           if (chunkInfo.hasNewChunk && chunkInfo.isSignificant) {
             significantChange = true;
             // Cache parameter content during streaming
@@ -466,7 +483,7 @@ export const monitorNode = (node: HTMLElement, blockId: string): void => {
           } else if (Math.abs(newValue.length - oldValue.length) > 10) {
             significantChange = true;
           }
-          
+
           // Update previous content cache
           previousContentCache.set(blockId, newValue);
         }
@@ -521,7 +538,7 @@ export const monitorNode = (node: HTMLElement, blockId: string): void => {
     // Optimize by focusing only on critical attributes that indicate streaming state
     attributes: false, // Disable general attribute watching for performance
     // Only watch specific attributes if needed
-    // attributeFilter: ['class', 'data-status'], 
+    // attributeFilter: ['class', 'data-status'],
   });
 
   // Store the observer for later cleanup
@@ -597,16 +614,16 @@ const performSeamlessCompletion = (blockId: string, finalContent: string): void 
       // Remove loading state and add complete state
       functionBlock.classList.remove('function-loading');
       functionBlock.classList.add('function-complete');
-      
+
       // Remove spinner if present
       const spinner = functionBlock.querySelector('.spinner');
       if (spinner) {
         spinner.remove();
       }
-      
+
       // Remove data-completing attribute
       functionBlock.removeAttribute('data-completing');
-      
+
       // Mark as completed
       completedStreams.set(blockId, true);
     });
@@ -700,7 +717,7 @@ export const resyncWithOriginalContent = (blockId: string): void => {
 
     // Update parameter content with minimal disruption
     let hasContentChanges = false;
-    mergedParams.forEach((param) => {
+    mergedParams.forEach(param => {
       const paramId = `${blockId}-${param.name}`;
       const paramValueElement = functionBlock.querySelector(`.param-value[data-param-id="${paramId}"]`);
 
@@ -708,7 +725,7 @@ export const resyncWithOriginalContent = (blockId: string): void => {
         const currentContent = paramValueElement.textContent || '';
         if (currentContent !== param.value) {
           // Find or create pre element for seamless update
-          let preElement = paramValueElement.querySelector('pre');
+          const preElement = paramValueElement.querySelector('pre');
           if (preElement) {
             if (preElement.textContent !== param.value) {
               preElement.textContent = param.value;

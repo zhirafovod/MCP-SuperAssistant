@@ -221,4 +221,3 @@ export const openrouterAdapter = () => initializeAdapter(OpenRouterAdapter);
 export const deepseekAdapter = () => initializeAdapter(DeepSeekAdapter);
 export const kagiAdapter = () => initializeAdapter(KagiAdapter);
 export const t3chatAdapter = () => initializeAdapter(T3ChatAdapter);
-

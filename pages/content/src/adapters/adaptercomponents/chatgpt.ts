@@ -82,7 +82,7 @@ function insertChatGPTButtons(config: AdapterConfig, stateManager: ToggleStateMa
     // ChatGPT Specific: Create a wrapper div that matches other action buttons' structure
     const buttonWrapper = document.createElement('div');
     buttonWrapper.style.viewTransitionName = 'var(--vt-composer-mcp-action)';
-    
+
     // Create the React container
     const reactContainer = document.createElement('div');
     reactContainer.id = 'mcp-popover-container';

@@ -57,7 +57,9 @@ function setupSidebarRecovery(): void {
 
             // OPTIMIZATION: Don't force a re-render unless absolutely necessary
             // The sidebar content should automatically update through React state management
-            logMessage('[SidebarRecovery] Sidebar visibility restored - skipping re-render to avoid performance issues');
+            logMessage(
+              '[SidebarRecovery] Sidebar visibility restored - skipping re-render to avoid performance issues',
+            );
             // sidebarManager.refreshContent();
           }
         } else {
@@ -119,7 +121,7 @@ setInterval(() => {
   const currentUrl = window.location.href;
   if (currentUrl !== lastUrl) {
     logMessage(`[Analytics] URL changed from ${lastUrl} to ${currentUrl}`);
-    
+
     // Send URL change event with demographic data
     try {
       chrome.runtime.sendMessage({
@@ -172,13 +174,13 @@ function collectDemographicData(): { [key: string]: any } {
   try {
     const userAgent = navigator.userAgent;
     const language = navigator.language;
-    
+
     // Parse browser and OS information from user agent
     let browser = 'Unknown';
     let browserVersion = 'Unknown';
     let os = 'Unknown';
     let osVersion = 'Unknown';
-    
+
     // Detect browser
     if (userAgent.indexOf('Firefox') > -1) {
       browser = 'Firefox';
@@ -201,7 +203,7 @@ function collectDemographicData(): { [key: string]: any } {
       const match = userAgent.match(/(?:MSIE |rv:)(\d+\.\d+)/);
       browserVersion = match && match[1] ? match[1] : 'Unknown';
     }
-    
+
     // Detect OS
     if (userAgent.indexOf('Windows') > -1) {
       os = 'Windows';
@@ -235,23 +237,23 @@ function collectDemographicData(): { [key: string]: any } {
       const match = userAgent.match(/OS ([\d_]+)/);
       osVersion = match && match[1] ? match[1].replace(/_/g, '.') : 'Unknown';
     }
-    
+
     // Determine device type
     let deviceType = 'desktop';
     if (/Mobi|Android|iPhone|iPad|iPod/i.test(userAgent)) {
       deviceType = /iPad|tablet/i.test(userAgent) ? 'tablet' : 'mobile';
     }
-    
+
     // Get screen information
     const screenWidth = window.screen.width;
     const screenHeight = window.screen.height;
     const screenResolution = `${screenWidth}x${screenHeight}`;
     const pixelRatio = window.devicePixelRatio || 1;
-    
+
     // Get country/region (this will be limited and may need server-side enrichment)
     // For privacy reasons, we're just using the language as a proxy
     const region = language.split('-')[1] || language;
-    
+
     return {
       browser,
       browser_version: browserVersion,

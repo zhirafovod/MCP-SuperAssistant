@@ -51,7 +51,7 @@ function logThemeDetection(message: string, data?: any): void {
 function detectThemeWithScoring(): { theme: ThemeMode; confidence: number; scores: { dark: number; light: number } } {
   let darkScore = 0;
   let lightScore = 0;
-  
+
   // Weight factors for different detection methods
   const weights = {
     classNames: 8,
@@ -61,13 +61,13 @@ function detectThemeWithScoring(): { theme: ThemeMode; confidence: number; score
     cssVariables: 4,
     textColors: 3,
     systemColors: 2,
-    urlPatterns: 1
+    urlPatterns: 1,
   };
 
   try {
     const bodyEl = document.body;
     const htmlEl = document.documentElement;
-    
+
     if (!bodyEl || !htmlEl) {
       return { theme: 'system', confidence: 0, scores: { dark: 0, light: 0 } };
     }
@@ -76,28 +76,68 @@ function detectThemeWithScoring(): { theme: ThemeMode; confidence: number; score
     const bodyClasses = bodyEl.className.toLowerCase() || '';
     const htmlClasses = htmlEl.className.toLowerCase() || '';
     const allClasses = bodyClasses + ' ' + htmlClasses;
-    
+
     const darkClassPatterns = [
-      'dark-theme', 'theme-dark', 'dark-mode', 'dark', 'night-mode', 'nightmode',
-      'black-theme', 'theme-black', 'noir', 'midnight', 'shadow', 'carbon',
-      'slate', 'charcoal', 'obsidian', 'dim', 'dusky', 'darker', 'darkened',
-      'invert', 'inverted', 'contrast-dark', 'scheme-dark', 'color-scheme-dark',
-      'theme-dark-mode', 'darktheme', 'dark_theme', 'dark_mode'
-    ];
-    
-    const lightClassPatterns = [
-      'light-theme', 'theme-light', 'light-mode', 'light', 'day-mode', 'daymode',
-      'white-theme', 'theme-white', 'bright', 'default-theme', 'normal',
-      'classic', 'standard', 'vanilla', 'clean', 'minimal', 'bright-mode',
-      'contrast-light', 'scheme-light', 'color-scheme-light',
-      'theme-light-mode', 'lighttheme', 'light_theme', 'light_mode'
+      'dark-theme',
+      'theme-dark',
+      'dark-mode',
+      'dark',
+      'night-mode',
+      'nightmode',
+      'black-theme',
+      'theme-black',
+      'noir',
+      'midnight',
+      'shadow',
+      'carbon',
+      'slate',
+      'charcoal',
+      'obsidian',
+      'dim',
+      'dusky',
+      'darker',
+      'darkened',
+      'invert',
+      'inverted',
+      'contrast-dark',
+      'scheme-dark',
+      'color-scheme-dark',
+      'theme-dark-mode',
+      'darktheme',
+      'dark_theme',
+      'dark_mode',
     ];
 
-    const darkClassMatches = darkClassPatterns.filter(pattern => 
-      new RegExp(`\\b${pattern}\\b`, 'i').test(allClasses)
-    );
-    const lightClassMatches = lightClassPatterns.filter(pattern => 
-      new RegExp(`\\b${pattern}\\b`, 'i').test(allClasses)
+    const lightClassPatterns = [
+      'light-theme',
+      'theme-light',
+      'light-mode',
+      'light',
+      'day-mode',
+      'daymode',
+      'white-theme',
+      'theme-white',
+      'bright',
+      'default-theme',
+      'normal',
+      'classic',
+      'standard',
+      'vanilla',
+      'clean',
+      'minimal',
+      'bright-mode',
+      'contrast-light',
+      'scheme-light',
+      'color-scheme-light',
+      'theme-light-mode',
+      'lighttheme',
+      'light_theme',
+      'light_mode',
+    ];
+
+    const darkClassMatches = darkClassPatterns.filter(pattern => new RegExp(`\\b${pattern}\\b`, 'i').test(allClasses));
+    const lightClassMatches = lightClassPatterns.filter(pattern =>
+      new RegExp(`\\b${pattern}\\b`, 'i').test(allClasses),
     );
 
     if (darkClassMatches.length > 0) {
@@ -118,7 +158,7 @@ function detectThemeWithScoring(): { theme: ThemeMode; confidence: number; score
       bodyEl.getAttribute('data-color-mode'),
       htmlEl.getAttribute('data-color-mode'),
       bodyEl.getAttribute('data-bs-theme'), // Bootstrap theme
-      htmlEl.getAttribute('data-bs-theme')
+      htmlEl.getAttribute('data-bs-theme'),
     ].filter(Boolean);
 
     themeDataAttrs.forEach(attr => {
@@ -137,21 +177,25 @@ function detectThemeWithScoring(): { theme: ThemeMode; confidence: number; score
 
     // 4. Enhanced background color analysis
     const elementsToAnalyze = [
-      bodyEl, htmlEl,
-      ...Array.from(document.querySelectorAll('main, [role="main"], .main-content, #main, #content, .content')).slice(0, 3),
+      bodyEl,
+      htmlEl,
+      ...Array.from(document.querySelectorAll('main, [role="main"], .main-content, #main, #content, .content')).slice(
+        0,
+        3,
+      ),
       ...Array.from(document.querySelectorAll('.app, #app, .wrapper, .container, .page, .layout')).slice(0, 3),
-      ...Array.from(document.querySelectorAll('header, nav, .header, .navbar')).slice(0, 2)
+      ...Array.from(document.querySelectorAll('header, nav, .header, .navbar')).slice(0, 2),
     ];
 
-    let backgroundAnalysis = { darkCount: 0, lightCount: 0, totalAnalyzed: 0 };
-    
+    const backgroundAnalysis = { darkCount: 0, lightCount: 0, totalAnalyzed: 0 };
+
     for (const element of elementsToAnalyze) {
       if (!element) continue;
-      
+
       try {
         const style = window.getComputedStyle(element);
         const bgColor = style.backgroundColor;
-        
+
         if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
           const brightness = getColorBrightness(bgColor);
           if (brightness !== null) {
@@ -171,21 +215,33 @@ function detectThemeWithScoring(): { theme: ThemeMode; confidence: number; score
     if (backgroundAnalysis.totalAnalyzed > 0) {
       const darkRatio = backgroundAnalysis.darkCount / backgroundAnalysis.totalAnalyzed;
       const lightRatio = backgroundAnalysis.lightCount / backgroundAnalysis.totalAnalyzed;
-      
+
       darkScore += weights.backgroundColors * darkRatio * 3;
       lightScore += weights.backgroundColors * lightRatio * 3;
     }
 
     // 5. Enhanced CSS variables analysis
     const cssVarsToCheck = [
-      '--background-color', '--bg-color', '--background', '--bg',
-      '--color-bg', '--color-background', '--theme-bg', '--primary-bg',
-      '--surface', '--surface-color', '--base-color', '--canvas',
-      '--page-bg', '--body-bg', '--main-bg', '--content-bg'
+      '--background-color',
+      '--bg-color',
+      '--background',
+      '--bg',
+      '--color-bg',
+      '--color-background',
+      '--theme-bg',
+      '--primary-bg',
+      '--surface',
+      '--surface-color',
+      '--base-color',
+      '--canvas',
+      '--page-bg',
+      '--body-bg',
+      '--main-bg',
+      '--content-bg',
     ];
 
-    let cssVarAnalysis = { darkCount: 0, lightCount: 0 };
-    
+    const cssVarAnalysis = { darkCount: 0, lightCount: 0 };
+
     cssVarsToCheck.forEach(varName => {
       const value = getComputedStyle(document.documentElement).getPropertyValue(varName);
       if (value) {
@@ -205,11 +261,11 @@ function detectThemeWithScoring(): { theme: ThemeMode; confidence: number; score
       document.querySelector('h1, h2, h3'),
       document.querySelector('p'),
       document.querySelector('a'),
-      document.querySelector('.content, article, section')
+      document.querySelector('.content, article, section'),
     ].filter(Boolean);
 
-    let textAnalysis = { lightTextCount: 0, darkTextCount: 0 };
-    
+    const textAnalysis = { lightTextCount: 0, darkTextCount: 0 };
+
     textElements.forEach(element => {
       try {
         const color = window.getComputedStyle(element as HTMLElement).color;
@@ -235,12 +291,12 @@ function detectThemeWithScoring(): { theme: ThemeMode; confidence: number; score
       const testDiv = document.createElement('div');
       testDiv.style.cssText = 'position:absolute;top:-9999px;background-color:canvas;color:canvastext;';
       document.body.appendChild(testDiv);
-      
+
       const canvasBg = window.getComputedStyle(testDiv).backgroundColor;
       const brightness = getColorBrightness(canvasBg);
-      
+
       document.body.removeChild(testDiv);
-      
+
       if (brightness !== null) {
         if (brightness < 128) darkScore += weights.systemColors;
         else lightScore += weights.systemColors;
@@ -253,7 +309,7 @@ function detectThemeWithScoring(): { theme: ThemeMode; confidence: number; score
     const currentHost = window.location.hostname.toLowerCase();
     const websitePatterns = {
       dark: ['github.com', 'stackoverflow.com', 'reddit.com', 'discord.com', 'twitter.com'],
-      light: ['google.com', 'wikipedia.org', 'stackoverflow.com', 'reddit.com']
+      light: ['google.com', 'wikipedia.org', 'stackoverflow.com', 'reddit.com'],
     };
 
     // Check if current site commonly uses dark themes
@@ -264,7 +320,6 @@ function detectThemeWithScoring(): { theme: ThemeMode; confidence: number; score
         darkScore += weights.urlPatterns;
       }
     }
-
   } catch (error) {
     logThemeDetection('Error in theme scoring', error);
   }
@@ -272,7 +327,7 @@ function detectThemeWithScoring(): { theme: ThemeMode; confidence: number; score
   // Calculate final theme and confidence
   const totalScore = darkScore + lightScore;
   const confidence = Math.min(totalScore / 20, 1); // Normalize to 0-1
-  
+
   let theme: ThemeMode;
   if (totalScore === 0 || Math.abs(darkScore - lightScore) < 2) {
     theme = 'system';
@@ -285,7 +340,7 @@ function detectThemeWithScoring(): { theme: ThemeMode; confidence: number; score
     lightScore,
     totalScore,
     confidence,
-    finalTheme: theme
+    finalTheme: theme,
   });
 
   return { theme, confidence, scores: { dark: darkScore, light: lightScore } };
@@ -298,22 +353,22 @@ function detectThemeWithScoring(): { theme: ThemeMode; confidence: number; score
  */
 function getColorBrightness(colorValue: string): number | null {
   if (!colorValue) return null;
-  
+
   const value = colorValue.trim();
-  
+
   // RGB/RGBA format
   const rgbMatch = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
   if (rgbMatch) {
     const [_, r, g, b] = rgbMatch.map(Number);
     return (r * 299 + g * 587 + b * 114) / 1000;
   }
-  
+
   // Hex format
   const hexMatch = value.match(/#([0-9a-f]{3,6})/i);
   if (hexMatch) {
     const hex = hexMatch[1];
     let r, g, b;
-    
+
     if (hex.length === 3) {
       r = parseInt(hex[0] + hex[0], 16);
       g = parseInt(hex[1] + hex[1], 16);
@@ -323,19 +378,19 @@ function getColorBrightness(colorValue: string): number | null {
       g = parseInt(hex.substring(2, 4), 16);
       b = parseInt(hex.substring(4, 6), 16);
     }
-    
+
     if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
       return (r * 299 + g * 587 + b * 114) / 1000;
     }
   }
-  
+
   // HSL format
   const hslMatch = value.match(/hsla?\(\d+,\s*\d+%?,\s*(\d+)%?/i);
   if (hslMatch) {
     const lightness = parseInt(hslMatch[1], 10);
     return (lightness / 100) * 255; // Convert percentage to 0-255 scale
   }
-  
+
   return null;
 }
 
@@ -346,68 +401,67 @@ function detectWebsiteSpecificTheme(): ThemeMode | null {
   const hostname = window.location.hostname.toLowerCase();
   const pathname = window.location.pathname.toLowerCase();
   const search = window.location.search.toLowerCase();
-  
+
   // GitHub
   if (hostname.includes('github.com')) {
     // Check for dark theme indicators
-    if (document.querySelector('[data-color-mode="dark"]') || 
-        document.body.getAttribute('data-color-mode') === 'dark' ||
-        document.documentElement.getAttribute('data-color-mode') === 'dark' ||
-        document.querySelector('[data-color-scheme="dark"]') ||
-        document.body.getAttribute('data-color-scheme') === 'dark' ||
-        document.documentElement.getAttribute('data-color-scheme') === 'dark') {
+    if (
+      document.querySelector('[data-color-mode="dark"]') ||
+      document.body.getAttribute('data-color-mode') === 'dark' ||
+      document.documentElement.getAttribute('data-color-mode') === 'dark' ||
+      document.querySelector('[data-color-scheme="dark"]') ||
+      document.body.getAttribute('data-color-scheme') === 'dark' ||
+      document.documentElement.getAttribute('data-color-scheme') === 'dark'
+    ) {
       return 'dark';
     }
-    if (document.querySelector('[data-color-mode="light"]') || 
-        document.body.getAttribute('data-color-mode') === 'light' ||
-        document.documentElement.getAttribute('data-color-mode') === 'light' ||
-        document.querySelector('[data-color-scheme="light"]') ||
-        document.body.getAttribute('data-color-scheme') === 'light' ||
-        document.documentElement.getAttribute('data-color-scheme') === 'light') {
+    if (
+      document.querySelector('[data-color-mode="light"]') ||
+      document.body.getAttribute('data-color-mode') === 'light' ||
+      document.documentElement.getAttribute('data-color-mode') === 'light' ||
+      document.querySelector('[data-color-scheme="light"]') ||
+      document.body.getAttribute('data-color-scheme') === 'light' ||
+      document.documentElement.getAttribute('data-color-scheme') === 'light'
+    ) {
       return 'light';
     }
   }
-  
+
   // Reddit
   if (hostname.includes('reddit.com')) {
-    if (document.querySelector('[data-theme="dark"]') || 
-        document.documentElement.className.includes('theme-dark')) {
+    if (document.querySelector('[data-theme="dark"]') || document.documentElement.className.includes('theme-dark')) {
       return 'dark';
     }
   }
-  
+
   // Discord
   if (hostname.includes('discord.com')) {
-    if (document.querySelector('[class*="theme-dark"]') || 
-        document.body.className.includes('theme-dark')) {
+    if (document.querySelector('[class*="theme-dark"]') || document.body.className.includes('theme-dark')) {
       return 'dark';
     }
   }
-  
+
   // Twitter/X
   if (hostname.includes('twitter.com') || hostname.includes('x.com')) {
-    if (document.querySelector('[data-theme="dark"]') || 
-        document.documentElement.style.colorScheme === 'dark') {
+    if (document.querySelector('[data-theme="dark"]') || document.documentElement.style.colorScheme === 'dark') {
       return 'dark';
     }
   }
-  
+
   // YouTube
   if (hostname.includes('youtube.com')) {
-    if (document.querySelector('[dark]') || 
-        document.documentElement.getAttribute('dark') !== null) {
+    if (document.querySelector('[dark]') || document.documentElement.getAttribute('dark') !== null) {
       return 'dark';
     }
   }
-  
+
   // Stack Overflow
   if (hostname.includes('stackoverflow.com')) {
-    if (document.querySelector('.theme-dark') || 
-        document.body.className.includes('theme-dark')) {
+    if (document.querySelector('.theme-dark') || document.body.className.includes('theme-dark')) {
       return 'dark';
     }
   }
-  
+
   return null;
 }
 
@@ -443,14 +497,15 @@ export function detectTheme(): ThemeMode {
 
     // Strategy 2: Use scoring mechanism for comprehensive analysis
     const scoringResult = detectThemeWithScoring();
-    if (scoringResult.confidence > 0.3) { // Only use if we have reasonable confidence
+    if (scoringResult.confidence > 0.3) {
+      // Only use if we have reasonable confidence
       logThemeDetection('Theme detected from scoring mechanism', scoringResult);
       cachedTheme = scoringResult.theme;
       return cachedTheme;
     }
 
     // Strategy 3: Legacy detection methods as fallback
-    
+
     // Check for prefers-color-scheme in CSS media queries
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
       logThemeDetection('Dark theme detected from prefers-color-scheme');
@@ -469,7 +524,7 @@ export function detectTheme(): ThemeMode {
       bodyEl.getAttribute('data-bs-theme'), // Bootstrap theme
       htmlEl.getAttribute('data-bs-theme'),
       bodyEl.getAttribute('theme'),
-      htmlEl.getAttribute('theme')
+      htmlEl.getAttribute('theme'),
     ];
 
     logThemeDetection('Checking data attributes', themeDataAttrs);
@@ -491,7 +546,9 @@ export function detectTheme(): ThemeMode {
     }
 
     // Check for meta tags
-    const metaTags = document.querySelectorAll('meta[name*="theme"], meta[name*="color-scheme"], meta[name*="theme-color"]');
+    const metaTags = document.querySelectorAll(
+      'meta[name*="theme"], meta[name*="color-scheme"], meta[name*="theme-color"]',
+    );
     for (const meta of metaTags) {
       const content = meta.getAttribute('content')?.toLowerCase();
       if (content?.includes('dark')) {
@@ -510,42 +567,84 @@ export function detectTheme(): ThemeMode {
     const bodyClasses = bodyEl.className.toLowerCase() || '';
     const htmlClasses = htmlEl.className.toLowerCase() || '';
     const allClasses = `${bodyClasses} ${htmlClasses}`;
-    
+
     logThemeDetection('Checking class names', { bodyClasses, htmlClasses });
 
     // Extended dark theme patterns
     const darkClassPatterns = [
-      'dark-theme', 'theme-dark', 'dark-mode', 'dark', 'night-mode', 'nightmode',
-      'black-theme', 'theme-black', 'noir', 'midnight', 'shadow', 'carbon',
-      'slate', 'charcoal', 'obsidian', 'dim', 'dusky', 'darker', 'darkened',
-      'invert', 'inverted', 'contrast-dark', 'scheme-dark', 'color-scheme-dark',
-      'theme-dark-mode', 'darktheme', 'dark_theme', 'dark_mode',
-      'mode-dark', 'is-dark', 'has-dark-theme'
+      'dark-theme',
+      'theme-dark',
+      'dark-mode',
+      'dark',
+      'night-mode',
+      'nightmode',
+      'black-theme',
+      'theme-black',
+      'noir',
+      'midnight',
+      'shadow',
+      'carbon',
+      'slate',
+      'charcoal',
+      'obsidian',
+      'dim',
+      'dusky',
+      'darker',
+      'darkened',
+      'invert',
+      'inverted',
+      'contrast-dark',
+      'scheme-dark',
+      'color-scheme-dark',
+      'theme-dark-mode',
+      'darktheme',
+      'dark_theme',
+      'dark_mode',
+      'mode-dark',
+      'is-dark',
+      'has-dark-theme',
     ];
-    
+
     const lightClassPatterns = [
-      'light-theme', 'theme-light', 'light-mode', 'light', 'day-mode', 'daymode',
-      'white-theme', 'theme-white', 'bright', 'default-theme', 'normal',
-      'classic', 'standard', 'vanilla', 'clean', 'minimal', 'bright-mode',
-      'contrast-light', 'scheme-light', 'color-scheme-light',
-      'theme-light-mode', 'lighttheme', 'light_theme', 'light_mode',
-      'mode-light', 'is-light', 'has-light-theme'
+      'light-theme',
+      'theme-light',
+      'light-mode',
+      'light',
+      'day-mode',
+      'daymode',
+      'white-theme',
+      'theme-white',
+      'bright',
+      'default-theme',
+      'normal',
+      'classic',
+      'standard',
+      'vanilla',
+      'clean',
+      'minimal',
+      'bright-mode',
+      'contrast-light',
+      'scheme-light',
+      'color-scheme-light',
+      'theme-light-mode',
+      'lighttheme',
+      'light_theme',
+      'light_mode',
+      'mode-light',
+      'is-light',
+      'has-light-theme',
     ];
 
     // Use word boundaries for more precise matching
-    const hasDarkClass = darkClassPatterns.some(pattern => 
-      new RegExp(`\\b${pattern}\\b`, 'i').test(allClasses)
-    );
-    const hasLightClass = lightClassPatterns.some(pattern => 
-      new RegExp(`\\b${pattern}\\b`, 'i').test(allClasses)
-    );
+    const hasDarkClass = darkClassPatterns.some(pattern => new RegExp(`\\b${pattern}\\b`, 'i').test(allClasses));
+    const hasLightClass = lightClassPatterns.some(pattern => new RegExp(`\\b${pattern}\\b`, 'i').test(allClasses));
 
     if (hasDarkClass) {
       logThemeDetection('Dark theme detected from class names');
       cachedTheme = 'dark';
       return cachedTheme;
     }
-    
+
     if (hasLightClass) {
       logThemeDetection('Light theme detected from class names');
       cachedTheme = 'light';
@@ -567,18 +666,18 @@ export function detectTheme(): ThemeMode {
       // Check header/navigation
       ...Array.from(document.querySelectorAll('header, nav, .header, .navbar'))
         .slice(0, 2)
-        .map((el, i) => ({ element: el as HTMLElement, name: `nav-${i}` }))
+        .map((el, i) => ({ element: el as HTMLElement, name: `nav-${i}` })),
     ];
 
-    let backgroundAnalysisResults: Array<{ name: string; brightness: number; isDark: boolean }> = [];
+    const backgroundAnalysisResults: Array<{ name: string; brightness: number; isDark: boolean }> = [];
 
     for (const { element, name } of elementsToCheck) {
       try {
         if (!element) continue;
-        
+
         const computedStyle = window.getComputedStyle(element);
         const bgColor = computedStyle.backgroundColor;
-        
+
         if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
           const brightness = getColorBrightness(bgColor);
           if (brightness !== null) {
@@ -596,12 +695,12 @@ export function detectTheme(): ThemeMode {
     if (backgroundAnalysisResults.length > 0) {
       const darkCount = backgroundAnalysisResults.filter(result => result.isDark).length;
       const lightCount = backgroundAnalysisResults.length - darkCount;
-      
-      logThemeDetection('Background analysis summary', { 
-        total: backgroundAnalysisResults.length, 
-        dark: darkCount, 
+
+      logThemeDetection('Background analysis summary', {
+        total: backgroundAnalysisResults.length,
+        dark: darkCount,
         light: lightCount,
-        results: backgroundAnalysisResults
+        results: backgroundAnalysisResults,
       });
 
       if (darkCount > lightCount) {
@@ -617,11 +716,25 @@ export function detectTheme(): ThemeMode {
 
     // Enhanced CSS variables analysis
     const cssVarsToCheck = [
-      '--background-color', '--bg-color', '--background', '--bg',
-      '--color-bg', '--color-background', '--theme-bg', '--primary-bg',
-      '--surface', '--surface-color', '--base-color', '--canvas',
-      '--page-bg', '--body-bg', '--main-bg', '--content-bg',
-      '--theme-background', '--app-background', '--global-background'
+      '--background-color',
+      '--bg-color',
+      '--background',
+      '--bg',
+      '--color-bg',
+      '--color-background',
+      '--theme-bg',
+      '--primary-bg',
+      '--surface',
+      '--surface-color',
+      '--base-color',
+      '--canvas',
+      '--page-bg',
+      '--body-bg',
+      '--main-bg',
+      '--content-bg',
+      '--theme-background',
+      '--app-background',
+      '--global-background',
     ];
 
     logThemeDetection('Checking CSS variables', cssVarsToCheck);
@@ -631,7 +744,7 @@ export function detectTheme(): ThemeMode {
       if (value) {
         const colorValue = value.trim();
         const brightness = getColorBrightness(colorValue);
-        
+
         if (brightness !== null) {
           logThemeDetection(`CSS variable ${varName} brightness`, { colorValue, brightness });
 
@@ -655,7 +768,7 @@ export function detectTheme(): ThemeMode {
       document.querySelector('a'),
       document.querySelector('.content, article, section'),
       document.querySelector('span'),
-      document.querySelector('div')
+      document.querySelector('div'),
     ].filter(Boolean) as HTMLElement[];
 
     let lightTextCount = 0;
@@ -665,7 +778,7 @@ export function detectTheme(): ThemeMode {
       try {
         const computedStyle = window.getComputedStyle(element);
         const textColor = computedStyle.color;
-        
+
         if (textColor && textColor !== 'rgba(0, 0, 0, 0)') {
           const brightness = getColorBrightness(textColor);
           if (brightness !== null) {
@@ -674,11 +787,11 @@ export function detectTheme(): ThemeMode {
             } else if (brightness < 100) {
               darkTextCount++; // Dark text suggests light background
             }
-            
-            logThemeDetection(`Text color analysis for ${element.tagName}`, { 
-              textColor, 
-              brightness, 
-              classification: brightness > 180 ? 'light-text' : brightness < 100 ? 'dark-text' : 'neutral'
+
+            logThemeDetection(`Text color analysis for ${element.tagName}`, {
+              textColor,
+              brightness,
+              classification: brightness > 180 ? 'light-text' : brightness < 100 ? 'dark-text' : 'neutral',
             });
           }
         }
@@ -713,17 +826,17 @@ export function detectTheme(): ThemeMode {
         color: canvastext;
       `;
       document.body.appendChild(testDiv);
-      
+
       const testStyle = window.getComputedStyle(testDiv);
       const bgColor = testStyle.backgroundColor;
-      
+
       document.body.removeChild(testDiv);
-      
+
       if (bgColor) {
         const brightness = getColorBrightness(bgColor);
         if (brightness !== null) {
           logThemeDetection('System canvas color analysis', { bgColor, brightness });
-          
+
           if (brightness < 128) {
             logThemeDetection('Dark theme detected from system canvas colors');
             cachedTheme = 'dark';
@@ -738,7 +851,6 @@ export function detectTheme(): ThemeMode {
     } catch (error) {
       logThemeDetection('Error in system color analysis', error);
     }
-
   } catch (error) {
     logThemeDetection('Error in theme detection', error);
   }
@@ -755,14 +867,14 @@ export function detectTheme(): ThemeMode {
 function getCurrentThemeState() {
   const bodyEl = document.body;
   const htmlEl = document.documentElement;
-  
+
   return {
     bodyClasses: bodyEl?.className || '',
     htmlClasses: htmlEl?.className || '',
     bodyDataTheme: bodyEl?.getAttribute('data-theme') || '',
     htmlDataTheme: htmlEl?.getAttribute('data-theme') || '',
     bodyBgColor: bodyEl ? window.getComputedStyle(bodyEl).backgroundColor : '',
-    isDark: detectTheme() === 'dark'
+    isDark: detectTheme() === 'dark',
   };
 }
 
@@ -780,26 +892,27 @@ export function startThemeMonitoring(): void {
     clearTimeout(debounceTimeout);
     debounceTimeout = setTimeout(() => {
       const newThemeState = getCurrentThemeState();
-      
+
       // Check if theme has actually changed
-      if (newThemeState.isDark !== currentThemeState.isDark ||
-          newThemeState.bodyClasses !== currentThemeState.bodyClasses ||
-          newThemeState.htmlClasses !== currentThemeState.htmlClasses ||
-          newThemeState.bodyDataTheme !== currentThemeState.bodyDataTheme ||
-          newThemeState.htmlDataTheme !== currentThemeState.htmlDataTheme ||
-          newThemeState.bodyBgColor !== currentThemeState.bodyBgColor) {
-        
+      if (
+        newThemeState.isDark !== currentThemeState.isDark ||
+        newThemeState.bodyClasses !== currentThemeState.bodyClasses ||
+        newThemeState.htmlClasses !== currentThemeState.htmlClasses ||
+        newThemeState.bodyDataTheme !== currentThemeState.bodyDataTheme ||
+        newThemeState.htmlDataTheme !== currentThemeState.htmlDataTheme ||
+        newThemeState.bodyBgColor !== currentThemeState.bodyBgColor
+      ) {
         logThemeDetection('Theme change detected', {
           old: currentThemeState,
-          new: newThemeState
+          new: newThemeState,
         });
 
         // Clear cached theme to force re-detection
         cachedTheme = null;
-        
+
         // Update current state
         currentThemeState = newThemeState;
-        
+
         // Notify listeners
         themeChangeListeners.forEach(callback => {
           try {
@@ -816,18 +929,19 @@ export function startThemeMonitoring(): void {
   };
 
   // Set up mutation observer for DOM changes
-  themeObserver = new MutationObserver((mutations) => {
+  themeObserver = new MutationObserver(mutations => {
     let shouldCheck = false;
 
     for (const mutation of mutations) {
       // Check for class changes
-      if (mutation.type === 'attributes' && 
-          (mutation.attributeName === 'class' || 
-           mutation.attributeName?.startsWith('data-'))) {
+      if (
+        mutation.type === 'attributes' &&
+        (mutation.attributeName === 'class' || mutation.attributeName?.startsWith('data-'))
+      ) {
         shouldCheck = true;
         break;
       }
-      
+
       // Check for style changes
       if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
         shouldCheck = true;
@@ -844,20 +958,20 @@ export function startThemeMonitoring(): void {
   themeObserver.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ['class', 'data-theme', 'data-color-mode', 'data-color-scheme', 'data-bs-theme', 'style'],
-    subtree: false
+    subtree: false,
   });
 
   themeObserver.observe(document.body, {
     attributes: true,
     attributeFilter: ['class', 'data-theme', 'data-color-mode', 'data-color-scheme', 'data-bs-theme', 'style'],
-    subtree: false
+    subtree: false,
   });
 
   // Listen for CSS media query changes
   if (window.matchMedia) {
     const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const lightModeMediaQuery = window.matchMedia('(prefers-color-scheme: light)');
-    
+
     const handleMediaQueryChange = (e: MediaQueryListEvent) => {
       logThemeDetection('Media query change detected', { matches: e.matches, media: e.media });
       checkThemeChange();
@@ -865,17 +979,20 @@ export function startThemeMonitoring(): void {
 
     darkModeMediaQuery.addEventListener('change', handleMediaQueryChange);
     lightModeMediaQuery.addEventListener('change', handleMediaQueryChange);
-    
+
     // Store references for cleanup
     (window as any)._themeMediaQueryListeners = {
       dark: { query: darkModeMediaQuery, handler: handleMediaQueryChange },
-      light: { query: lightModeMediaQuery, handler: handleMediaQueryChange }
+      light: { query: lightModeMediaQuery, handler: handleMediaQueryChange },
     };
   }
 
   // Listen for storage events (for websites that sync theme via localStorage/sessionStorage)
   const handleStorageChange = (e: StorageEvent) => {
-    if (e.key && (e.key.includes('theme') || e.key.includes('dark') || e.key.includes('light') || e.key.includes('color'))) {
+    if (
+      e.key &&
+      (e.key.includes('theme') || e.key.includes('dark') || e.key.includes('light') || e.key.includes('color'))
+    ) {
       logThemeDetection('Storage change detected for theme-related key', { key: e.key, newValue: e.newValue });
       checkThemeChange();
     }
@@ -886,8 +1003,14 @@ export function startThemeMonitoring(): void {
 
   // Listen for custom theme change events that websites might dispatch
   const customThemeEvents = [
-    'themechange', 'theme-change', 'colorschemechange', 'color-scheme-change',
-    'darkmodechange', 'dark-mode-change', 'lightmodechange', 'light-mode-change'
+    'themechange',
+    'theme-change',
+    'colorschemechange',
+    'color-scheme-change',
+    'darkmodechange',
+    'dark-mode-change',
+    'lightmodechange',
+    'light-mode-change',
   ];
 
   const handleCustomThemeEvent = (e: Event) => {
@@ -902,7 +1025,7 @@ export function startThemeMonitoring(): void {
 
   (window as any)._themeCustomEventListeners = {
     handler: handleCustomThemeEvent,
-    events: customThemeEvents
+    events: customThemeEvents,
   };
 
   // Watch for CSS variable changes using ResizeObserver trick
@@ -920,7 +1043,7 @@ export function startThemeMonitoring(): void {
     `;
     document.body.appendChild(themeVariableWatcher);
 
-    let lastComputedStyle = window.getComputedStyle(themeVariableWatcher);
+    const lastComputedStyle = window.getComputedStyle(themeVariableWatcher);
     let lastBgColor = lastComputedStyle.backgroundColor;
     let lastTextColor = lastComputedStyle.color;
 
@@ -930,9 +1053,9 @@ export function startThemeMonitoring(): void {
       const currentTextColor = currentStyle.color;
 
       if (currentBgColor !== lastBgColor || currentTextColor !== lastTextColor) {
-        logThemeDetection('CSS variable change detected', { 
+        logThemeDetection('CSS variable change detected', {
           bgColor: { old: lastBgColor, new: currentBgColor },
-          textColor: { old: lastTextColor, new: currentTextColor }
+          textColor: { old: lastTextColor, new: currentTextColor },
         });
         lastBgColor = currentBgColor;
         lastTextColor = currentTextColor;
@@ -950,7 +1073,7 @@ export function startThemeMonitoring(): void {
 
     (window as any)._themeVariableWatcher = {
       element: themeVariableWatcher,
-      observer: variableObserver
+      observer: variableObserver,
     };
   }
 
@@ -1055,16 +1178,16 @@ export function isDarkTheme(): boolean {
  */
 export function applyThemeClass(element: HTMLElement): void {
   const theme = detectTheme();
-  
+
   // Remove existing theme classes
   element.classList.remove('theme-light', 'theme-dark', 'theme-system');
-  
+
   // Apply appropriate theme class
   element.classList.add(`theme-${theme}`);
-  
+
   // Set data attribute for CSS targeting
   element.setAttribute('data-theme', theme);
-  
+
   logThemeDetection(`Applied theme class: theme-${theme}`, { element: element.className });
 }
 
@@ -1087,10 +1210,10 @@ export function updateAllFunctionBlockThemes(): void {
 export function initializeThemeDetection(): void {
   // Start theme monitoring
   startThemeMonitoring();
-  
+
   // Force initial theme detection
   forceThemeRedetection();
-  
+
   logThemeDetection('Theme detection initialized');
 }
 

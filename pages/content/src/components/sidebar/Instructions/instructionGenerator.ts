@@ -11,9 +11,9 @@ import { geminiInstructions } from './website_specific_instruction/gemini';
  * @returns Markdown formatted instructions
  */
 export const generateInstructions = (
-  tools: Array<{ name: string; schema: string; description: string }>, 
+  tools: Array<{ name: string; schema: string; description: string }>,
   customInstructions?: string,
-  customInstructionsEnabled?: boolean
+  customInstructionsEnabled?: boolean,
 ): string => {
   if (!tools || tools.length === 0) {
     return '# No tools available\n\nConnect to the MCP server to see available tools.';
@@ -298,14 +298,13 @@ ClassName | Custom class | User
 
   // instructions += 'Print it exactly, there is a capturing tool which needs prinited text to run the tool manually\n\n';
 
-    //add custom instructions code here
-    // Add custom instructions if enabled and available
-    if (customInstructionsEnabled && customInstructions && customInstructions.trim()) {
-      instructions += '<custom_instructions>\n';
-      instructions += customInstructions.trim();
-      instructions += '\n</custom_instructions>\n\n';
-    }
-
+  //add custom instructions code here
+  // Add custom instructions if enabled and available
+  if (customInstructionsEnabled && customInstructions && customInstructions.trim()) {
+    instructions += '<custom_instructions>\n';
+    instructions += customInstructions.trim();
+    instructions += '\n</custom_instructions>\n\n';
+  }
 
   instructions += '<\\SYSTEM>';
 

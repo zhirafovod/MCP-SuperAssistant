@@ -2,7 +2,7 @@ import { CONFIG } from '../core/config';
 import { renderFunctionResult, processedResultElements } from '../renderer/functionResult';
 
 // State for processing and observers
-let isProcessing = false;
+const isProcessing = false;
 let functionResultObserver: MutationObserver | null = null;
 
 /**
@@ -13,7 +13,7 @@ export const processFunctionResults = (): number => {
   if (!CONFIG.function_result_selector || CONFIG.function_result_selector.length === 0) {
     return 0;
   }
-  
+
   return checkForUnprocessedFunctionResults();
 };
 
@@ -57,7 +57,7 @@ const getTargetElements = (): HTMLElement[] => {
   }
 
   const elements: HTMLElement[] = [];
-  
+
   // Get all elements matching the function result selectors
   for (const selector of CONFIG.function_result_selector) {
     try {
@@ -68,7 +68,7 @@ const getTargetElements = (): HTMLElement[] => {
           elements.push(match);
         }
       }
-      
+
       // If the selector contains multiple classes, also try to find elements by individual classes
       if (selector.includes('.') && selector.includes(' ')) {
         // This might be a complex selector with multiple classes
@@ -85,7 +85,7 @@ const getTargetElements = (): HTMLElement[] => {
       }
     }
   }
-  
+
   return elements;
 };
 
@@ -97,24 +97,24 @@ const getTargetElements = (): HTMLElement[] => {
 const handleComplexSelector = (selector: string, elements: HTMLElement[]): void => {
   // Split by spaces to get individual parts
   const parts = selector.split(' ');
-  
+
   // Start with all elements matching the first part
   let currentMatches: Element[] = Array.from(document.querySelectorAll(parts[0]));
-  
+
   // For each subsequent part, filter the matches
   for (let i = 1; i < parts.length; i++) {
     const nextPart = parts[i];
     const nextMatches: Element[] = [];
-    
+
     for (const match of currentMatches) {
       // Find children matching the next part
       const children = match.querySelectorAll(nextPart);
       children.forEach(child => nextMatches.push(child));
     }
-    
+
     currentMatches = nextMatches;
   }
-  
+
   // Add the final matches to the elements array
   for (const match of currentMatches) {
     if (match instanceof HTMLElement && !elements.includes(match)) {
@@ -131,10 +131,10 @@ const handleComplexSelector = (selector: string, elements: HTMLElement[]): void 
 const handleMultiClassSelector = (selector: string, elements: HTMLElement[]): void => {
   // Parse the selector to get element type and classes
   const [elementType, ...classNames] = selector.split('.');
-  
+
   // Find all elements of the specified type
   const allElements = document.querySelectorAll(elementType);
-  
+
   // Filter elements that have all the specified classes
   for (const element of allElements) {
     if (classNames.every(className => element.classList.contains(className))) {
@@ -154,22 +154,22 @@ const handleFallbackSelector = (selector: string, elements: HTMLElement[]): void
   if (CONFIG.debug) {
     console.debug(`Using fallback method for selector: ${selector}`);
   }
-  
+
   // Try to extract the element type and classes
   const match = selector.match(/^([a-z]+)\.(.*)/i);
   if (!match) return;
-  
+
   const [, elementType, classesStr] = match;
   const classes = classesStr.split('.');
-  
+
   // Find all elements of the specified type
   const allElements = document.querySelectorAll(elementType);
-  
+
   // Check each element for the required classes
   for (const element of allElements) {
     // For complex selectors, we'll be more lenient and match if ANY of the classes match
     const hasAnyClass = classes.some(cls => element.classList.contains(cls));
-    
+
     if (hasAnyClass && element instanceof HTMLElement && !elements.includes(element)) {
       elements.push(element);
     }
@@ -208,7 +208,7 @@ export const startFunctionResultMonitoring = (): void => {
   processFunctionResults();
 
   // Create a new mutation observer
-  functionResultObserver = new MutationObserver((mutations) => {
+  functionResultObserver = new MutationObserver(mutations => {
     let shouldProcess = false;
     let potentialFunctionResult = false;
 
@@ -240,8 +240,7 @@ export const startFunctionResultMonitoring = (): void => {
             // Also check if the content of any text nodes might contain function result patterns
             if (
               element.textContent &&
-              (element.textContent.includes('<function_result') ||
-               element.textContent.includes('</function_result>'))
+              (element.textContent.includes('<function_result') || element.textContent.includes('</function_result>'))
             ) {
               potentialFunctionResult = true;
             }
@@ -253,10 +252,7 @@ export const startFunctionResultMonitoring = (): void => {
           } else if (node.nodeType === Node.TEXT_NODE) {
             // Also check text nodes for function result patterns
             const textContent = node.textContent || '';
-            if (
-              textContent.includes('<function_result') ||
-              textContent.includes('</function_result>')
-            ) {
+            if (textContent.includes('<function_result') || textContent.includes('</function_result>')) {
               potentialFunctionResult = true;
               shouldProcess = true;
               break;
@@ -266,10 +262,7 @@ export const startFunctionResultMonitoring = (): void => {
       } else if (mutation.type === 'characterData') {
         // Check if the characterData mutation might be adding function result content
         const textContent = mutation.target.textContent || '';
-        if (
-          textContent.includes('<function_result') ||
-          textContent.includes('</function_result>')
-        ) {
+        if (textContent.includes('<function_result') || textContent.includes('</function_result>')) {
           potentialFunctionResult = true;
           shouldProcess = true;
         }
@@ -306,7 +299,7 @@ export const stopFunctionResultMonitoring = (): void => {
   if (functionResultObserver) {
     functionResultObserver.disconnect();
     functionResultObserver = null;
-    
+
     if (CONFIG.debug) {
       console.debug('Function result monitoring stopped');
     }
@@ -323,6 +316,6 @@ export const initializeFunctionResultObserver = (): void => {
     }
     return;
   }
-  
+
   startFunctionResultMonitoring();
 };

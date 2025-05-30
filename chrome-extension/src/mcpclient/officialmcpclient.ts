@@ -121,82 +121,107 @@ class PersistentMcpClient {
 
       // Try modern StreamableHTTP transport first, fall back to SSE
       spinner.success(`Attempting connection with backwards compatibility...`);
-      
+
       let client: Client | undefined = undefined;
       let transport: Transport;
-      
+
       try {
         // Try StreamableHTTP transport first (modern)
         console.log('1. Trying StreamableHTTP transport first...');
-        client = new Client({
-          name: 'streamable-http-client',
-          version: '1.0.0'
-        }, { capabilities: {} });
-        
+        client = new Client(
+          {
+            name: 'streamable-http-client',
+            version: '1.0.0',
+          },
+          { capabilities: {} },
+        );
+
         // Set up notification handler
         client.setNotificationHandler(LoggingMessageNotificationSchema, notification => {
           console.debug('[server log]:', notification.params.data);
         });
-        
+
         transport = new StreamableHTTPClientTransport(baseUrl);
         await client.connect(transport);
-        
+
         console.log('Successfully connected using StreamableHTTP transport');
         spinner.success(`Connected using modern StreamableHTTP transport`);
-        
+
         this.client = client;
         this.transport = transport;
       } catch (streamableError) {
         // If StreamableHTTP fails, try the older SSE transport
         console.log(`StreamableHTTP connection failed: ${streamableError}`);
         console.log('2. Falling back to deprecated SSE transport...');
-        
+
         try {
-          client = new Client({
-            name: 'sse-client',
-            version: '1.0.0'
-          }, { capabilities: {} });
-          
+          client = new Client(
+            {
+              name: 'sse-client',
+              version: '1.0.0',
+            },
+            { capabilities: {} },
+          );
+
           // Set up notification handler
           client.setNotificationHandler(LoggingMessageNotificationSchema, notification => {
             console.debug('[server log]:', notification.params.data);
           });
-          
+
           transport = new SSEClientTransport(baseUrl);
           await client.connect(transport);
-          
+
           console.log('Successfully connected using SSE transport');
           spinner.success(`Connected using legacy SSE transport`);
-          
+
           this.client = client;
           this.transport = transport;
         } catch (sseError) {
-          console.error(`Failed to connect with either transport method:\n1. StreamableHTTP error: ${streamableError}\n2. SSE error: ${sseError}`);
-          
+          console.error(
+            `Failed to connect with either transport method:\n1. StreamableHTTP error: ${streamableError}\n2. SSE error: ${sseError}`,
+          );
+
           // Provide more specific error message based on the errors
           let specificError = 'Could not connect to server with any available transport method.';
-          
+
           if (streamableError instanceof Error && sseError instanceof Error) {
             // Check for common connection issues
             if (streamableError.message.includes('404') || sseError.message.includes('404')) {
-              specificError = 'MCP endpoints not found (404). The server is running but does not have MCP service endpoints available.';
+              specificError =
+                'MCP endpoints not found (404). The server is running but does not have MCP service endpoints available.';
             } else if (streamableError.message.includes('403') || sseError.message.includes('403')) {
               specificError = 'Access forbidden (403). Please check server permissions and authentication settings.';
-            } else if (streamableError.message.includes('429') || sseError.message.includes('429') ||
-                       streamableError.message.includes('HTTP 429') || sseError.message.includes('HTTP 429')) {
-              specificError = 'Rate limited (429). The server is temporarily blocking requests due to too many attempts. Please wait a moment and try again.';
-            } else if (streamableError.message.includes('405') || sseError.message.includes('405') ||
-                       streamableError.message.includes('Method Not Allowed') || sseError.message.includes('Method Not Allowed')) {
-              specificError = 'Method not allowed (405). The server is available but may have restrictions on HTTP methods. This is usually a temporary issue.';
-            } else if (streamableError.message.includes('500') || sseError.message.includes('500') ||
-                       streamableError.message.includes('502') || sseError.message.includes('502') ||
-                       streamableError.message.includes('503') || sseError.message.includes('503')) {
+            } else if (
+              streamableError.message.includes('429') ||
+              sseError.message.includes('429') ||
+              streamableError.message.includes('HTTP 429') ||
+              sseError.message.includes('HTTP 429')
+            ) {
+              specificError =
+                'Rate limited (429). The server is temporarily blocking requests due to too many attempts. Please wait a moment and try again.';
+            } else if (
+              streamableError.message.includes('405') ||
+              sseError.message.includes('405') ||
+              streamableError.message.includes('Method Not Allowed') ||
+              sseError.message.includes('Method Not Allowed')
+            ) {
+              specificError =
+                'Method not allowed (405). The server is available but may have restrictions on HTTP methods. This is usually a temporary issue.';
+            } else if (
+              streamableError.message.includes('500') ||
+              sseError.message.includes('500') ||
+              streamableError.message.includes('502') ||
+              sseError.message.includes('502') ||
+              streamableError.message.includes('503') ||
+              sseError.message.includes('503')
+            ) {
               specificError = 'Server error detected. The MCP server may be experiencing issues.';
             } else if (streamableError.message.includes('timeout') || sseError.message.includes('timeout')) {
-              specificError = 'Connection timeout. The server may be slow to respond or the MCP endpoints are not accessible.';
+              specificError =
+                'Connection timeout. The server may be slow to respond or the MCP endpoints are not accessible.';
             }
           }
-          
+
           throw new Error(specificError);
         }
       }
@@ -212,48 +237,60 @@ class PersistentMcpClient {
       return this.client;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       // Enhanced error categorization for better user feedback
       let enhancedErrorMessage = errorMessage;
       if (errorMessage.includes('404') || errorMessage.includes('404 page not found')) {
-        enhancedErrorMessage = 'Server URL not found (404). Please check if the MCP server is running at the correct URL and verify the server configuration.';
+        enhancedErrorMessage =
+          'Server URL not found (404). Please check if the MCP server is running at the correct URL and verify the server configuration.';
       } else if (errorMessage.includes('403')) {
         enhancedErrorMessage = 'Access forbidden (403). Please check server permissions and authentication settings.';
       } else if (errorMessage.includes('429') || errorMessage.includes('HTTP 429')) {
-        enhancedErrorMessage = 'Rate limited (429). The server is temporarily blocking requests due to too many attempts. Please wait a moment and try again.';
+        enhancedErrorMessage =
+          'Rate limited (429). The server is temporarily blocking requests due to too many attempts. Please wait a moment and try again.';
       } else if (errorMessage.includes('405') || errorMessage.includes('Method Not Allowed')) {
-        enhancedErrorMessage = 'Method not allowed (405). The server is available but may not support the requested HTTP method. This is usually a temporary issue.';
+        enhancedErrorMessage =
+          'Method not allowed (405). The server is available but may not support the requested HTTP method. This is usually a temporary issue.';
       } else if (errorMessage.includes('500') || errorMessage.includes('502') || errorMessage.includes('503')) {
-        enhancedErrorMessage = 'Server error detected. The MCP server may be experiencing issues. Please try again later or contact your server administrator.';
+        enhancedErrorMessage =
+          'Server error detected. The MCP server may be experiencing issues. Please try again later or contact your server administrator.';
       } else if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('Connection refused')) {
-        enhancedErrorMessage = 'Connection refused. Please verify the MCP server is running and accessible at the configured URL.';
+        enhancedErrorMessage =
+          'Connection refused. Please verify the MCP server is running and accessible at the configured URL.';
       } else if (errorMessage.includes('timeout') || errorMessage.includes('ETIMEDOUT')) {
-        enhancedErrorMessage = 'Connection timeout. The server may be slow to respond or unreachable. Please check your network connection and server status.';
+        enhancedErrorMessage =
+          'Connection timeout. The server may be slow to respond or unreachable. Please check your network connection and server status.';
       } else if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('getaddrinfo ENOTFOUND')) {
         enhancedErrorMessage = 'Server not found. Please check the server URL and your network connection.';
       } else if (errorMessage.includes('Could not connect to server with any available transport')) {
-        enhancedErrorMessage = 'Unable to establish connection using any available method. Please verify the server URL and ensure the MCP server is running and accessible.';
+        enhancedErrorMessage =
+          'Unable to establish connection using any available method. Please verify the server URL and ensure the MCP server is running and accessible.';
       } else if (errorMessage.includes('MCP endpoints not found')) {
-        enhancedErrorMessage = 'MCP endpoints not found (404). The server is running but does not have MCP service endpoints available. Please verify this is an MCP server.';
+        enhancedErrorMessage =
+          'MCP endpoints not found (404). The server is running but does not have MCP service endpoints available. Please verify this is an MCP server.';
       } else if (errorMessage.includes('MCP server may be experiencing issues')) {
-        enhancedErrorMessage = 'The MCP server is experiencing internal errors. Please check server logs or contact the server administrator.';
+        enhancedErrorMessage =
+          'The MCP server is experiencing internal errors. Please check server logs or contact the server administrator.';
       } else if (errorMessage.includes('MCP endpoints are not accessible')) {
-        enhancedErrorMessage = 'MCP service endpoints are not accessible. The server is running but MCP services may not be properly configured.';
+        enhancedErrorMessage =
+          'MCP service endpoints are not accessible. The server is running but MCP services may not be properly configured.';
       }
-      
+
       this.lastConnectionError = enhancedErrorMessage;
       this.consecutiveFailures++;
-      
+
       spinner.error(enhancedErrorMessage);
       this.isConnected = false;
 
       // Log the failure count with enhanced message
-      console.error(`[PersistentMcpClient] Connection attempt ${this.consecutiveFailures}/${this.maxConsecutiveFailures} failed: ${enhancedErrorMessage}`);
+      console.error(
+        `[PersistentMcpClient] Connection attempt ${this.consecutiveFailures}/${this.maxConsecutiveFailures} failed: ${enhancedErrorMessage}`,
+      );
 
       // Create a new error with the enhanced message
       const enhancedError = new Error(enhancedErrorMessage);
       enhancedError.stack = error instanceof Error ? error.stack : undefined;
-      
+
       // Don't schedule reconnect - all reconnection is user-driven
       throw enhancedError;
     }
@@ -300,14 +337,14 @@ class PersistentMcpClient {
       clearTimeout(this.reconnectTimeoutId);
       this.reconnectTimeoutId = null;
     }
-    
+
     // Log that we're not automatically reconnecting
     console.log('[PersistentMcpClient] No automatic reconnection - reconnection is user-driven only');
-    
+
     // Reset reconnect attempts counter to ensure we don't hit the max limit
     // This allows user-initiated reconnects to always work
     this.reconnectAttempts = 0;
-    
+
     // Do not schedule any automatic reconnection
     // All reconnection must be explicitly initiated by the user through the UI
   }
@@ -324,7 +361,9 @@ class PersistentMcpClient {
 
     // Check if we've exceeded consecutive failures
     if (this.consecutiveFailures >= this.maxConsecutiveFailures) {
-      throw new Error(`Connection permanently failed after ${this.maxConsecutiveFailures} consecutive attempts. Last error: ${this.lastConnectionError}`);
+      throw new Error(
+        `Connection permanently failed after ${this.maxConsecutiveFailures} consecutive attempts. Last error: ${this.lastConnectionError}`,
+      );
     }
 
     // If we're already connected and it's been less than connectionCheckInterval since the last check, return the client
@@ -431,7 +470,7 @@ class PersistentMcpClient {
   public getConnectionStatus(): boolean {
     // For most calls, just return the current status without triggering checks
     // This prevents excessive network requests and false negatives
-    
+
     // Only trigger a background check if we haven't checked in a very long time (60 seconds)
     const timeSinceLastCheck = Date.now() - this.lastConnectionCheck;
     if (timeSinceLastCheck > 60000) {
@@ -440,8 +479,10 @@ class PersistentMcpClient {
         console.error('[PersistentMcpClient] Background connection check failed:', error);
       });
     }
-    
-    console.log(`[PersistentMcpClient] getConnectionStatus: ${this.isConnected} (last check: ${timeSinceLastCheck}ms ago)`);
+
+    console.log(
+      `[PersistentMcpClient] getConnectionStatus: ${this.isConnected} (last check: ${timeSinceLastCheck}ms ago)`,
+    );
     return this.isConnected;
   }
 
@@ -466,11 +507,11 @@ class PersistentMcpClient {
       // For periodic connection checks, we should be conservative
       // Only mark as disconnected if we have clear evidence of connection failure
       // The client itself tracks connection state, so we trust that unless proven otherwise
-      
+
       // Don't call isServerAvailable for periodic checks as it may give false negatives
       // The MCP client maintains its own connection state which is more reliable
       console.log(`[PersistentMcpClient] Connection check: client exists and marked as connected`);
-      
+
       // Update the last check time
       this.lastConnectionCheck = Date.now();
 
@@ -493,18 +534,18 @@ class PersistentMcpClient {
     // Reset failure counters to allow user-initiated reconnects
     this.consecutiveFailures = 0;
     this.lastConnectionError = null;
-    
+
     // Clear the primitives cache to ensure we get fresh data from the new server
     this.clearCache();
 
     // Disconnect first
     await this.disconnect();
-    
+
     // If a new URI is provided, update the server URL
     if (uri) {
       this.serverUrl = uri;
     }
-    
+
     // Reconnect with the current (possibly updated) server URL
     if (this.serverUrl) {
       await this.connect(this.serverUrl);
@@ -581,7 +622,7 @@ async function isServerAvailable(url: string, requiresActiveClient: boolean = fa
     try {
       const parsedUrl = new URL(url);
       const baseUrl = `${parsedUrl.protocol}//${parsedUrl.hostname}${parsedUrl.port ? ':' + parsedUrl.port : ''}`;
-      
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2000); // Shorter timeout for hostname check
 
@@ -589,18 +630,20 @@ async function isServerAvailable(url: string, requiresActiveClient: boolean = fa
         const response = await fetch(baseUrl, {
           method: 'HEAD',
           signal: controller.signal,
-          mode: 'no-cors' // Use no-cors for basic connectivity check
+          mode: 'no-cors', // Use no-cors for basic connectivity check
         });
-        
+
         console.log(`Hostname ${baseUrl} is reachable for active client`);
         return true;
       } catch (fetchError) {
         const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
-        
+
         // For no-cors requests, most responses will throw, so we need to be more lenient
-        if (errorMessage.includes('ECONNREFUSED') || 
-            errorMessage.includes('ENOTFOUND') ||
-            errorMessage.includes('ERR_INTERNET_DISCONNECTED')) {
+        if (
+          errorMessage.includes('ECONNREFUSED') ||
+          errorMessage.includes('ENOTFOUND') ||
+          errorMessage.includes('ERR_INTERNET_DISCONNECTED')
+        ) {
           console.log(`Hostname ${baseUrl} is not reachable: ${errorMessage}`);
           return false;
         } else {
@@ -622,7 +665,7 @@ async function isServerAvailable(url: string, requiresActiveClient: boolean = fa
     const parsedUrl = new URL(url);
     const hostname = parsedUrl.hostname;
     const port = parsedUrl.port || (parsedUrl.protocol === 'https:' ? '443' : '80');
-    
+
     // Create an abort controller with timeout to prevent long waits
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
@@ -633,7 +676,7 @@ async function isServerAvailable(url: string, requiresActiveClient: boolean = fa
       const response = await fetch(url, {
         method: 'HEAD',
         signal: controller.signal,
-        mode: 'cors' // Use CORS since MCP requires it
+        mode: 'cors', // Use CORS since MCP requires it
       });
 
       // Check for successful responses or expected MCP-related status codes
@@ -661,19 +704,23 @@ async function isServerAvailable(url: string, requiresActiveClient: boolean = fa
       }
     } catch (fetchError) {
       const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
-      
+
       // Network-level errors indicate the endpoint is not available
-      if (errorMessage.includes('Failed to fetch') || 
-          errorMessage.includes('NetworkError') ||
-          errorMessage.includes('ECONNREFUSED') ||
-          errorMessage.includes('ENOTFOUND') ||
-          errorMessage.includes('CORS error') ||
-          errorMessage.includes('ERR_INTERNET_DISCONNECTED')) {
+      if (
+        errorMessage.includes('Failed to fetch') ||
+        errorMessage.includes('NetworkError') ||
+        errorMessage.includes('ECONNREFUSED') ||
+        errorMessage.includes('ENOTFOUND') ||
+        errorMessage.includes('CORS error') ||
+        errorMessage.includes('ERR_INTERNET_DISCONNECTED')
+      ) {
         console.log(`MCP endpoint ${url} is not reachable: ${errorMessage}`);
         return false;
       } else {
         // For other errors, be conservative and consider the endpoint potentially available
-        console.log(`MCP endpoint ${url} check failed with non-network error: ${errorMessage} - considering potentially available`);
+        console.log(
+          `MCP endpoint ${url} check failed with non-network error: ${errorMessage} - considering potentially available`,
+        );
         return true;
       }
     } finally {
@@ -685,7 +732,6 @@ async function isServerAvailable(url: string, requiresActiveClient: boolean = fa
     return false;
   }
 }
-
 
 async function listPrimitives(client: Client): Promise<Primitive[]> {
   const capabilities = client.getServerCapabilities() as ServerCapabilities;
@@ -727,7 +773,11 @@ const persistentClient = PersistentMcpClient.getInstance();
  * @param args The arguments to pass to the tool as an object with string keys
  * @returns Promise that resolves to the result of the tool call
  */
-export async function callToolWithBackwardsCompatibility(uri: string, toolName: string, args: { [key: string]: unknown }): Promise<any> {
+export async function callToolWithBackwardsCompatibility(
+  uri: string,
+  toolName: string,
+  args: { [key: string]: unknown },
+): Promise<any> {
   try {
     // Connect to the server if not already connected (with backwards compatibility)
     await persistentClient.connect(uri);
@@ -754,7 +804,10 @@ export async function callToolWithSSE(uri: string, toolName: string, args: { [ke
  * @param forceRefresh Whether to force a refresh and ignore the cache
  * @returns Promise that resolves to an array of primitives (resources, tools, and prompts)
  */
-export async function getPrimitivesWithBackwardsCompatibility(uri: string, forceRefresh: boolean = false): Promise<Primitive[]> {
+export async function getPrimitivesWithBackwardsCompatibility(
+  uri: string,
+  forceRefresh: boolean = false,
+): Promise<Primitive[]> {
   try {
     // Connect to the server if not already connected (with backwards compatibility)
     await persistentClient.connect(uri);
@@ -799,9 +852,9 @@ export async function checkMcpServerConnection(): Promise<boolean> {
     // First check if we have a client and it's marked as connected
     const hasClient = !!persistentClient.getClient();
     const isMarkedConnected = persistentClient.getConnectionStatus();
-    
+
     console.log(`[checkMcpServerConnection] hasClient: ${hasClient}, isMarkedConnected: ${isMarkedConnected}`);
-    
+
     if (!hasClient || !isMarkedConnected) {
       console.log(`[checkMcpServerConnection] No client or not marked connected, returning false`);
       return false;
@@ -819,7 +872,7 @@ export async function checkMcpServerConnection(): Promise<boolean> {
     // because the MCP connection is persistent and the client tracks its own state
     const connectionStatus = persistentClient.getConnectionStatus();
     console.log(`[checkMcpServerConnection] Final connection status: ${connectionStatus}`);
-    
+
     return connectionStatus;
   } catch (error) {
     console.error('Error checking MCP server connection:', error);

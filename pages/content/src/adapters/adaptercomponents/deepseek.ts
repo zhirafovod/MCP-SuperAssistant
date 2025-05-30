@@ -1,6 +1,6 @@
 /**
  * DeepSeek website components for MCP-SuperAssistant
- * 
+ *
  * This file implements the toggle buttons for MCP functionality on the DeepSeek website:
  * 1. MCP ON/OFF toggle
  * 2. Auto Insert toggle
@@ -8,11 +8,8 @@
  * 4. Auto Execute toggle
  */
 
-import {
-  initializeAdapter,
-  AdapterConfig,
-  SimpleSiteAdapter
-} from './common'; // Import from the common file
+import type { AdapterConfig, SimpleSiteAdapter } from './common';
+import { initializeAdapter } from './common'; // Import from the common file
 
 // Keep DeepSeek-specific functions or overrides
 function findDeepSeekButtonInsertionPoint(): { container: Element; insertAfter: Element | null } | null {
@@ -30,7 +27,7 @@ function findDeepSeekButtonInsertionPoint(): { container: Element; insertAfter: 
         return { container: buttonContainer, insertAfter: button };
       }
     }
-    
+
     // If search button not found specifically, fall back to last button
     const lastButton = buttonContainer.querySelector('.ds-button:last-child');
     console.debug('[DeepSeek Adapter] Search button not found, using last button as insertion point');
@@ -64,33 +61,33 @@ function findDeepSeekButtonInsertionPoint(): { container: Element; insertAfter: 
 
 // DeepSeek-specific sidebar handling (if different from common)
 function showDeepSeekSidebar(adapter: SimpleSiteAdapter | null): void {
-    console.debug('[DeepSeek Adapter] MCP Enabled - Showing sidebar');
-    if (adapter?.showSidebarWithToolOutputs) {
-        adapter.showSidebarWithToolOutputs();
-    } else if (adapter?.toggleSidebar) {
-        adapter.toggleSidebar(); // Fallback
-    } else {
-        console.warn('[DeepSeek Adapter] No method found to show sidebar.');
-    }
+  console.debug('[DeepSeek Adapter] MCP Enabled - Showing sidebar');
+  if (adapter?.showSidebarWithToolOutputs) {
+    adapter.showSidebarWithToolOutputs();
+  } else if (adapter?.toggleSidebar) {
+    adapter.toggleSidebar(); // Fallback
+  } else {
+    console.warn('[DeepSeek Adapter] No method found to show sidebar.');
+  }
 }
 
 function hideDeepSeekSidebar(adapter: SimpleSiteAdapter | null): void {
-    console.debug('[DeepSeek Adapter] MCP Disabled - Hiding sidebar');
-     if (adapter?.hideSidebar) {
-        adapter.hideSidebar();
-     } else if (adapter?.sidebarManager?.hide) {
-         adapter.sidebarManager.hide();
-     } else if (adapter?.toggleSidebar) {
-        adapter.toggleSidebar(); // Fallback (might show if already hidden)
-    } else {
-        console.warn('[DeepSeek Adapter] No method found to hide sidebar.');
-    }
+  console.debug('[DeepSeek Adapter] MCP Disabled - Hiding sidebar');
+  if (adapter?.hideSidebar) {
+    adapter.hideSidebar();
+  } else if (adapter?.sidebarManager?.hide) {
+    adapter.sidebarManager.hide();
+  } else if (adapter?.toggleSidebar) {
+    adapter.toggleSidebar(); // Fallback (might show if already hidden)
+  } else {
+    console.warn('[DeepSeek Adapter] No method found to hide sidebar.');
+  }
 }
 
 // DeepSeek-specific URL key generation (if different from default)
 function getDeepSeekURLKey(): string {
-    // DeepSeek might not need complex keys, maybe just a constant
-    return 'deepseek_chat'; // Or derive from URL if needed
+  // DeepSeek might not need complex keys, maybe just a constant
+  return 'deepseek_chat'; // Or derive from URL if needed
 }
 
 // DeepSeek Adapter Configuration
@@ -106,7 +103,6 @@ const deepseekAdapterConfig: AdapterConfig = {
   // updateUI: customUpdateUI, // Optional: If specific UI updates needed beyond popover
 };
 
-
 // Initialize DeepSeek components using the common initializer
 export function initDeepSeekComponents(): void {
   console.debug('Initializing DeepSeek MCP components using common framework');
@@ -114,16 +110,16 @@ export function initDeepSeekComponents(): void {
   const stateManager = initializeAdapter(deepseekAdapterConfig);
 
   // Expose manual injection for debugging (optional, uses adapter name)
-   window.injectMCPButtons = () => {
-       console.debug('Manual injection for DeepSeek triggered');
-       // Use the specific function exposed by initializeAdapter if needed, or re-call init
-       const insertFn = (window as any)[`injectMCPButtons_${deepseekAdapterConfig.adapterName}`];
-       if (insertFn) {
-           insertFn();
-       } else {
-           console.warn('Manual injection function not found.');
-       }
-   };
+  window.injectMCPButtons = () => {
+    console.debug('Manual injection for DeepSeek triggered');
+    // Use the specific function exposed by initializeAdapter if needed, or re-call init
+    const insertFn = (window as any)[`injectMCPButtons_${deepseekAdapterConfig.adapterName}`];
+    if (insertFn) {
+      insertFn();
+    } else {
+      console.warn('Manual injection function not found.');
+    }
+  };
 
   console.debug('DeepSeek MCP components initialization complete.');
 }

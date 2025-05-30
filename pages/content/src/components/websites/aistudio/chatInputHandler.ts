@@ -35,7 +35,9 @@ export const findChatInputElement = (): HTMLTextAreaElement | null => {
   }
 
   // Try to find the input with "Type something or tab to choose an example prompt" aria-label
-  chatInput = document.querySelector("textarea.textarea[aria-label='Type something or tab to choose an example prompt']");
+  chatInput = document.querySelector(
+    "textarea.textarea[aria-label='Type something or tab to choose an example prompt']",
+  );
 
   if (chatInput) {
     logMessage('Found AiStudio input with "Type something or tab to choose an example prompt" aria-label');

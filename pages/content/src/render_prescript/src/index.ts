@@ -48,7 +48,7 @@ const initializeRenderer = () => {
 
   injectStyles();
   processFunctionCalls(); // Initial processing of existing blocks
-  
+
   // Process function results if selectors are configured
   if (CONFIG.function_result_selector && CONFIG.function_result_selector.length > 0) {
     processFunctionResults(); // Initial processing of existing function results
@@ -70,7 +70,7 @@ const initializeRenderer = () => {
   // Initialize the mutation observer
   initializeObserver(); // Start the main MutationObserver
   startDirectMonitoring(); // Start direct monitoring if enabled
-  
+
   // Initialize the function result observer if selectors are configured
   if (CONFIG.function_result_selector && CONFIG.function_result_selector.length > 0) {
     initializeFunctionResultObserver(); // Start the function result observer
@@ -123,11 +123,13 @@ const configure = (options: Partial<FunctionCallRendererConfig>) => {
   if (userOptions.function_result_selector !== undefined) {
     const oldLength = CONFIG.function_result_selector?.length || 0;
     CONFIG.function_result_selector = [...userOptions.function_result_selector];
-    
+
     // If function_result_selector was empty before and now has items, or vice versa,
     // we need to restart monitoring
-    if ((oldLength === 0 && CONFIG.function_result_selector.length > 0) ||
-        (oldLength > 0 && CONFIG.function_result_selector.length === 0)) {
+    if (
+      (oldLength === 0 && CONFIG.function_result_selector.length > 0) ||
+      (oldLength > 0 && CONFIG.function_result_selector.length === 0)
+    ) {
       monitoringRestart = true;
     }
   }
@@ -167,7 +169,7 @@ const configure = (options: Partial<FunctionCallRendererConfig>) => {
     if (CONFIG.enableDirectMonitoring) {
       startDirectMonitoring();
     }
-    
+
     // Restart function result monitoring if selectors are configured
     stopFunctionResultMonitoring();
     if (CONFIG.function_result_selector && CONFIG.function_result_selector.length > 0) {
