@@ -119,14 +119,6 @@ class PersistentMcpClient {
 
       spinner.success(`URI validated: ${uri}`);
 
-      // Check server availability using the complete URL provided by the user
-      spinner.success(`Checking if MCP server at ${uri} is available...`);
-      const isAvailable = await isServerAvailable(uri);
-      if (!isAvailable) {
-        throw new Error(`MCP server at ${uri} is not available.`);
-      }
-      spinner.success(`MCP server at ${uri} is available`);
-
       // Try modern StreamableHTTP transport first, fall back to SSE
       spinner.success(`Attempting connection with backwards compatibility...`);
       
@@ -437,13 +429,19 @@ class PersistentMcpClient {
    * @returns True if connected, false otherwise
    */
   public getConnectionStatus(): boolean {
-    // If we haven't checked the connection in a while, do a quick check
+    // For most calls, just return the current status without triggering checks
+    // This prevents excessive network requests and false negatives
+    
+    // Only trigger a background check if we haven't checked in a very long time (60 seconds)
     const timeSinceLastCheck = Date.now() - this.lastConnectionCheck;
-    if (timeSinceLastCheck > 5000) {
-      // 5 seconds
-      // Don't wait for the promise to resolve, just trigger the check
-      this.checkConnectionStatus();
+    if (timeSinceLastCheck > 60000) {
+      // Don't wait for the promise to resolve, just trigger the check in background
+      this.checkConnectionStatus().catch(error => {
+        console.error('[PersistentMcpClient] Background connection check failed:', error);
+      });
     }
+    
+    console.log(`[PersistentMcpClient] getConnectionStatus: ${this.isConnected} (last check: ${timeSinceLastCheck}ms ago)`);
     return this.isConnected;
   }
 
@@ -459,32 +457,31 @@ class PersistentMcpClient {
         return false;
       }
 
-      // Check if the server is available using the complete URL
-      const isAvailable = await isServerAvailable(this.serverUrl);
-
-      // Update the connection status
-      const wasConnected = this.isConnected;
-      this.isConnected = isAvailable;
-
-      // If the status changed, log it
-      if (wasConnected !== this.isConnected) {
-        console.log(`[PersistentMcpClient] Connection status changed: ${this.isConnected}`);
-
-        // If we were connected but now we're not, schedule a reconnect
-        if (wasConnected && !this.isConnected) {
-          this.scheduleReconnect();
-        }
+      // If we don't have an active client, we're definitely not connected
+      if (!this.client) {
+        this.isConnected = false;
+        return false;
       }
 
+      // For periodic connection checks, we should be conservative
+      // Only mark as disconnected if we have clear evidence of connection failure
+      // The client itself tracks connection state, so we trust that unless proven otherwise
+      
+      // Don't call isServerAvailable for periodic checks as it may give false negatives
+      // The MCP client maintains its own connection state which is more reliable
+      console.log(`[PersistentMcpClient] Connection check: client exists and marked as connected`);
+      
       // Update the last check time
       this.lastConnectionCheck = Date.now();
 
+      // Return the current connection state without changing it
+      // Only actual connection errors should change this state
       return this.isConnected;
     } catch (error) {
-      // If there was an error, we're not connected
-      this.isConnected = false;
+      console.error(`[PersistentMcpClient] Error during connection status check:`, error);
+      // Don't change connection status on check errors
       this.lastConnectionCheck = Date.now();
-      return false;
+      return this.isConnected;
     }
   }
 
@@ -529,6 +526,13 @@ class PersistentMcpClient {
   public getServerUrl(): string {
     return this.serverUrl;
   }
+
+  /**
+   * Get the client instance
+   */
+  public getClient(): Client | null {
+    return this.client;
+  }
 }
 
 /**
@@ -557,69 +561,131 @@ function prettyPrint(obj: any): void {
 }
 
 /**
- * Utility function to check if a server is available
- * @param url The URL to check - this should be the exact URL provided by the user
- * @returns Promise that resolves to true if server is available, false otherwise
+ * Utility function to check if an MCP server is available at the specific endpoint
+ * @param url The complete MCP URL to check (including endpoint path)
+ * @param requiresActiveClient Whether to require an active client connection (default: false)
+ * @returns Promise that resolves to true if MCP server is available at this endpoint, false otherwise
  */
-async function isServerAvailable(url: string): Promise<boolean> {
+async function isServerAvailable(url: string, requiresActiveClient: boolean = false): Promise<boolean> {
+  // If requiresActiveClient is true, check if we have an active client connection
+  // and verify the hostname is still reachable
+  if (requiresActiveClient) {
+    // First check if we have an active client connection
+    const hasActiveClient = persistentClient.getConnectionStatus() && !!persistentClient.getClient();
+    if (!hasActiveClient) {
+      return false;
+    }
+
+    // If we have an active client, verify the hostname/domain is still reachable
+    // This provides a basic connectivity check without testing the specific MCP endpoint
+    try {
+      const parsedUrl = new URL(url);
+      const baseUrl = `${parsedUrl.protocol}//${parsedUrl.hostname}${parsedUrl.port ? ':' + parsedUrl.port : ''}`;
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // Shorter timeout for hostname check
+
+      try {
+        const response = await fetch(baseUrl, {
+          method: 'HEAD',
+          signal: controller.signal,
+          mode: 'no-cors' // Use no-cors for basic connectivity check
+        });
+        
+        console.log(`Hostname ${baseUrl} is reachable for active client`);
+        return true;
+      } catch (fetchError) {
+        const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+        
+        // For no-cors requests, most responses will throw, so we need to be more lenient
+        if (errorMessage.includes('ECONNREFUSED') || 
+            errorMessage.includes('ENOTFOUND') ||
+            errorMessage.includes('ERR_INTERNET_DISCONNECTED')) {
+          console.log(`Hostname ${baseUrl} is not reachable: ${errorMessage}`);
+          return false;
+        } else {
+          // Other errors might indicate the server is actually reachable
+          console.log(`Hostname ${baseUrl} appears reachable despite error: ${errorMessage}`);
+          return true;
+        }
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    } catch (error) {
+      console.log(`Error checking hostname availability for active client: ${error}`);
+      return false;
+    }
+  }
+
   try {
+    // Parse the URL to get hostname and port
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname;
+    const port = parsedUrl.port || (parsedUrl.protocol === 'https:' ? '443' : '80');
+    
     // Create an abort controller with timeout to prevent long waits
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
 
     try {
-      // Always use CORS for MCP communication - CORS must be enabled for proper MCP functionality
+      // Check the exact MCP endpoint, not just the hostname
+      // This is more accurate for MCP availability
       const response = await fetch(url, {
         method: 'HEAD',
         signal: controller.signal,
-        // Don't set mode: 'no-cors' - we need CORS for MCP communication
+        mode: 'cors' // Use CORS since MCP requires it
       });
 
-      // Check the actual response status
+      // Check for successful responses or expected MCP-related status codes
       if (response.ok || response.status === 200) {
-        console.log(`Server at ${url} is available (status: ${response.status})`);
+        console.log(`MCP endpoint ${url} is available (status: ${response.status})`);
+        return true;
+      } else if (response.status === 405) {
+        // Method not allowed usually means the endpoint exists but doesn't support HEAD
+        // This is common for MCP endpoints
+        console.log(`MCP endpoint ${url} exists but doesn't support HEAD (405) - considering available`);
         return true;
       } else if (response.status === 404) {
-        console.log(`Server at ${url} is not available (404 - URL not found)`);
+        console.log(`MCP endpoint ${url} not found (404) - not available`);
         return false;
       } else if (response.status === 403) {
-        console.log(`Server at ${url} returned 403 (forbidden) - considering unavailable`);
+        console.log(`MCP endpoint ${url} forbidden (403) - considering unavailable`);
         return false;
-      } else if (response.status === 429) {
-        console.log(`Server at ${url} returned 429 (rate limited) - considering available but with rate limiting`);
-        return true; // Rate limiting means server is available, just busy
-      } else if (response.status === 405) {
-        console.log(`Server at ${url} returned 405 (method not allowed) - considering available`);
-        return true; // Method not allowed for HEAD, but server is responsive
       } else if (response.status >= 500) {
-        console.log(`Server at ${url} returned server error (status: ${response.status}) - considering unavailable`);
+        console.log(`MCP endpoint ${url} server error (${response.status}) - considering unavailable`);
         return false;
       } else {
-        // For other status codes, the server is available but may not support HEAD
-        console.log(`Server at ${url} returned status ${response.status} - considering available`);
+        // For other status codes, be conservative and consider available
+        console.log(`MCP endpoint ${url} returned status ${response.status} - considering available`);
         return true;
       }
     } catch (fetchError) {
-      // Any fetch error (including CORS errors) means the server is not available for MCP communication
-      console.log(`Server at ${url} is not available (fetch failed): ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
-      return false;
+      const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+      
+      // Network-level errors indicate the endpoint is not available
+      if (errorMessage.includes('Failed to fetch') || 
+          errorMessage.includes('NetworkError') ||
+          errorMessage.includes('ECONNREFUSED') ||
+          errorMessage.includes('ENOTFOUND') ||
+          errorMessage.includes('CORS error') ||
+          errorMessage.includes('ERR_INTERNET_DISCONNECTED')) {
+        console.log(`MCP endpoint ${url} is not reachable: ${errorMessage}`);
+        return false;
+      } else {
+        // For other errors, be conservative and consider the endpoint potentially available
+        console.log(`MCP endpoint ${url} check failed with non-network error: ${errorMessage} - considering potentially available`);
+        return true;
+      }
     } finally {
       clearTimeout(timeoutId);
     }
   } catch (error) {
-    // This catch block handles any other errors that might occur
-    console.log(`Error checking server availability at ${url}:`, error);
+    // This catch block handles URL parsing errors and other issues
+    console.log(`Error checking MCP endpoint availability for ${url}:`, error);
     return false;
   }
 }
 
-async function createClient(): Promise<Client> {
-  const client = new Client({ name: 'mcp-cli', version: '1.0.0' }, { capabilities: {} });
-  client.setNotificationHandler(LoggingMessageNotificationSchema, notification => {
-    console.debug('[server log]:', notification.params.data);
-  });
-  return client;
-}
 
 async function listPrimitives(client: Client): Promise<Primitive[]> {
   const capabilities = client.getServerCapabilities() as ServerCapabilities;
@@ -730,19 +796,31 @@ export function isMcpServerConnected(): boolean {
  */
 export async function checkMcpServerConnection(): Promise<boolean> {
   try {
-    // If we don't have a client or it's not connected, return false
-    if (!persistentClient.getConnectionStatus()) {
+    // First check if we have a client and it's marked as connected
+    const hasClient = !!persistentClient.getClient();
+    const isMarkedConnected = persistentClient.getConnectionStatus();
+    
+    console.log(`[checkMcpServerConnection] hasClient: ${hasClient}, isMarkedConnected: ${isMarkedConnected}`);
+    
+    if (!hasClient || !isMarkedConnected) {
+      console.log(`[checkMcpServerConnection] No client or not marked connected, returning false`);
       return false;
     }
 
-    // Get the server URL (this is the complete URL provided by the user)
+    // Get the server URL
     const serverUrl = persistentClient.getServerUrl();
     if (!serverUrl) {
+      console.log(`[checkMcpServerConnection] No server URL, returning false`);
       return false;
     }
 
-    // Check if the server is available using the complete URL
-    return await isServerAvailable(serverUrl);
+    // For a quick connection check, we trust the internal state
+    // The client connection state is more reliable than external HTTP checks
+    // because the MCP connection is persistent and the client tracks its own state
+    const connectionStatus = persistentClient.getConnectionStatus();
+    console.log(`[checkMcpServerConnection] Final connection status: ${connectionStatus}`);
+    
+    return connectionStatus;
   } catch (error) {
     console.error('Error checking MCP server connection:', error);
     return false;
@@ -803,13 +881,6 @@ async function callTool(client: Client, toolName: string, args: { [key: string]:
 export async function runWithBackwardsCompatibility(uri: string): Promise<void> {
   try {
     console.log(`Attempting to connect to MCP server with backwards compatibility: ${uri}`);
-
-    // First check if the complete URL is available before attempting to connect
-    const isAvailable = await isServerAvailable(uri);
-
-    if (!isAvailable) {
-      throw new Error(`MCP server at ${uri} is not available`);
-    }
 
     // Connect to the server using the persistent client (with backwards compatibility)
     await persistentClient.connect(uri);
