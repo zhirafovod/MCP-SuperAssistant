@@ -222,33 +222,7 @@ export class SidebarManager extends BaseSidebarManager {
 
     // Use already-loaded preferences or load them if not available
     try {
-      if (!this.initialPreferences) {
-        logMessage('[SidebarManager] initialPreferences is null, fetching in initializeCollapsedState');
-        try {
-            this.initialPreferences = await getSidebarPreferences();
-        } catch (e) {
-            logMessage(`[SidebarManager] Error fetching preferences in initializeCollapsedState: ${e instanceof Error ? e.message : String(e)}. Using defaults.`);
-            // Explicitly set to null so the next block assigns defaults
-            this.initialPreferences = null;
-        }
-      }
-
-      // If still null (either initialPreferences was null and fetch failed, or it was explicitly set to null after fetch error), assign defaults.
-      if (!this.initialPreferences) {
-          logMessage('[SidebarManager] Preferences still null after fetch attempt or error, using defaults for initialization.');
-          this.initialPreferences = {
-              isMinimized: false,
-              isPushMode: false,
-              sidebarWidth: 320, // Default width
-              autoSubmit: false,
-              theme: 'system', // Default theme
-              customInstructions: '', // Added missing field
-              customInstructionsEnabled: false, // Added missing field
-          };
-      }
-      // Now, this.initialPreferences is guaranteed to be non-null.
-      const preferences = this.initialPreferences;
-
+      const preferences = this.initialPreferences || (await getSidebarPreferences());
       const wasMinimized = preferences.isMinimized ?? false;
       const isPushMode = preferences.isPushMode ?? false;
       const sidebarWidth = preferences.sidebarWidth || 320;
@@ -300,37 +274,17 @@ export class SidebarManager extends BaseSidebarManager {
       );
       // OPTIMIZATION: Fallback with proper attribute setting to prevent re-renders
       try {
-        // CRITICAL FIX: Load preferences or use defaults even in fallback scenario
+        // CRITICAL FIX: Load preferences even in fallback scenario
         if (!this.initialPreferences) {
-          logMessage('[SidebarManager] Loading preferences for fallback initialization or using defaults.');
-          try {
-            this.initialPreferences = await getSidebarPreferences();
-          } catch (e) {
-            logMessage(`[SidebarManager] Error fetching preferences in fallback: ${e instanceof Error ? e.message : String(e)}. Using defaults.`);
-            this.initialPreferences = null; // Ensure it's null before assigning defaults if fetch fails
-          }
-
-          if (!this.initialPreferences) {
-            logMessage('[SidebarManager] Preferences still null in fallback after fetch attempt, using defaults.');
-            this.initialPreferences = {
-                isMinimized: false,
-                isPushMode: false,
-                sidebarWidth: 320,
-                autoSubmit: false,
-                theme: 'system',
-                customInstructions: '', // Added missing field
-                customInstructionsEnabled: false, // Added missing field
-            };
-          }
+          logMessage('[SidebarManager] Loading preferences for fallback initialization');
+          this.initialPreferences = await getSidebarPreferences();
         }
-        // Now, this.initialPreferences is guaranteed to be non-null for the fallback.
-        const fallbackPreferences = this.initialPreferences;
 
         // Initialize without rendering first, then render once with proper attributes
         await this.initialize();
         if (this.shadowHost) {
           // CRITICAL: Set the data-initial-minimized attribute based on loaded preferences
-          const wasMinimized = fallbackPreferences.isMinimized ?? false;
+          const wasMinimized = this.initialPreferences?.isMinimized ?? false;
           this.shadowHost.setAttribute('data-initial-minimized', wasMinimized ? 'true' : 'false');
 
           // Set initial width based on minimized state
