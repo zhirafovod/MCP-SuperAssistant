@@ -401,12 +401,21 @@ export const injectTailwindToShadowDom = async (shadowRoot: ShadowRoot): Promise
 
     const cssText = await response.text();
 
-    // 2. Create a CSSStyleSheet using the Constructable Stylesheets API
-    const sheet = new CSSStyleSheet();
-    await sheet.replace(cssText);
-
-    // 3. Apply the stylesheet to the shadow root
-    shadowRoot.adoptedStyleSheets = [sheet];
+    // 2. Try Constructable Stylesheets API first (Chrome/modern browsers)
+    try {
+      const sheet = new CSSStyleSheet();
+      await sheet.replace(cssText);
+      shadowRoot.adoptedStyleSheets = [sheet];
+      logMessage('Successfully injected Tailwind CSS using Constructable Stylesheets');
+    } catch (constructableError) {
+      // 3. Fallback to style element for Firefox and older browsers
+      logMessage(`Constructable Stylesheets not supported, falling back to style element: ${constructableError instanceof Error ? constructableError.message : String(constructableError)}`);
+      
+      const styleElement = document.createElement('style');
+      styleElement.textContent = cssText;
+      shadowRoot.appendChild(styleElement);
+      logMessage('Successfully injected Tailwind CSS using style element fallback');
+    }
 
     // 4. Add essential Shadow DOM reset styles
     const resetStyles = document.createElement('style');
@@ -420,7 +429,7 @@ export const injectTailwindToShadowDom = async (shadowRoot: ShadowRoot): Promise
     `;
     shadowRoot.appendChild(resetStyles);
 
-    logMessage('Successfully injected Tailwind CSS into Shadow DOM using Constructable Stylesheets');
+    logMessage('Tailwind CSS injection completed with browser compatibility handling');
   } catch (error) {
     logMessage(`Error injecting Tailwind CSS: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
