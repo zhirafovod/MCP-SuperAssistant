@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+// import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'; // DISABLED: Using SSE only
 import type { ServerCapabilities } from '@modelcontextprotocol/sdk/types.js';
 import { LoggingMessageNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
@@ -119,112 +119,31 @@ class PersistentMcpClient {
 
       spinner.success(`URI validated: ${uri}`);
 
-      // Try modern StreamableHTTP transport first, fall back to SSE
-      spinner.success(`Attempting connection with backwards compatibility...`);
+      // Use SSE transport only (StreamableHTTP disabled)
+      spinner.success(`Attempting connection with SSE transport...`);
 
-      let client: Client | undefined = undefined;
-      let transport: Transport;
+      console.log('Connecting with SSE transport...');
+      const client = new Client(
+        {
+          name: 'sse-client',
+          version: '1.0.0',
+        },
+        { capabilities: {} },
+      );
 
-      try {
-        // Try StreamableHTTP transport first (modern)
-        console.log('1. Trying StreamableHTTP transport first...');
-        client = new Client(
-          {
-            name: 'streamable-http-client',
-            version: '1.0.0',
-          },
-          { capabilities: {} },
-        );
+      // Set up notification handler
+      client.setNotificationHandler(LoggingMessageNotificationSchema, notification => {
+        console.debug('[server log]:', notification.params.data);
+      });
 
-        // Set up notification handler
-        client.setNotificationHandler(LoggingMessageNotificationSchema, notification => {
-          console.debug('[server log]:', notification.params.data);
-        });
+      const transport = new SSEClientTransport(baseUrl);
+      await client.connect(transport);
 
-        transport = new StreamableHTTPClientTransport(baseUrl);
-        await client.connect(transport);
+      console.log('Successfully connected using SSE transport');
+      spinner.success(`Connected using SSE transport`);
 
-        console.log('Successfully connected using StreamableHTTP transport');
-        spinner.success(`Connected using modern StreamableHTTP transport`);
-
-        this.client = client;
-        this.transport = transport;
-      } catch (streamableError) {
-        // If StreamableHTTP fails, try the older SSE transport
-        console.log(`StreamableHTTP connection failed: ${streamableError}`);
-        console.log('2. Falling back to deprecated SSE transport...');
-
-        try {
-          client = new Client(
-            {
-              name: 'sse-client',
-              version: '1.0.0',
-            },
-            { capabilities: {} },
-          );
-
-          // Set up notification handler
-          client.setNotificationHandler(LoggingMessageNotificationSchema, notification => {
-            console.debug('[server log]:', notification.params.data);
-          });
-
-          transport = new SSEClientTransport(baseUrl);
-          await client.connect(transport);
-
-          console.log('Successfully connected using SSE transport');
-          spinner.success(`Connected using legacy SSE transport`);
-
-          this.client = client;
-          this.transport = transport;
-        } catch (sseError) {
-          console.error(
-            `Failed to connect with either transport method:\n1. StreamableHTTP error: ${streamableError}\n2. SSE error: ${sseError}`,
-          );
-
-          // Provide more specific error message based on the errors
-          let specificError = 'Could not connect to server with any available transport method.';
-
-          if (streamableError instanceof Error && sseError instanceof Error) {
-            // Check for common connection issues
-            if (streamableError.message.includes('404') || sseError.message.includes('404')) {
-              specificError =
-                'MCP endpoints not found (404). The server is running but does not have MCP service endpoints available.';
-            } else if (streamableError.message.includes('403') || sseError.message.includes('403')) {
-              specificError = 'Access forbidden (403). Please check server permissions and authentication settings.';
-            } else if (
-              streamableError.message.includes('429') ||
-              sseError.message.includes('429') ||
-              streamableError.message.includes('HTTP 429') ||
-              sseError.message.includes('HTTP 429')
-            ) {
-              specificError =
-                'Rate limited (429). The server is temporarily blocking requests due to too many attempts. Please wait a moment and try again.';
-            } else if (
-              streamableError.message.includes('405') ||
-              sseError.message.includes('405') ||
-              streamableError.message.includes('Method Not Allowed') ||
-              sseError.message.includes('Method Not Allowed')
-            ) {
-              specificError =
-                'Method not allowed (405). The server is available but may have restrictions on HTTP methods. This is usually a temporary issue.';
-            } else if (
-              streamableError.message.includes('500') ||
-              sseError.message.includes('500') ||
-              streamableError.message.includes('502') ||
-              sseError.message.includes('502') ||
-              streamableError.message.includes('503') ||
-              sseError.message.includes('503')
-            ) {
-              specificError = 'Server error detected. The MCP server may be experiencing issues.';
-            } else if (streamableError.message.includes('timeout') || sseError.message.includes('timeout')) {
-              specificError =
-                'Connection timeout. The server may be slow to respond or the MCP endpoints are not accessible.';
-            }
-          }
-
-          throw new Error(specificError);
-        }
-      }
+      this.client = client;
+      this.transport = transport;
 
       // Reset reconnect attempts on successful connection
       this.reconnectAttempts = 0;
@@ -262,9 +181,6 @@ class PersistentMcpClient {
           'Connection timeout. The server may be slow to respond or unreachable. Please check your network connection and server status.';
       } else if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('getaddrinfo ENOTFOUND')) {
         enhancedErrorMessage = 'Server not found. Please check the server URL and your network connection.';
-      } else if (errorMessage.includes('Could not connect to server with any available transport')) {
-        enhancedErrorMessage =
-          'Unable to establish connection using any available method. Please verify the server URL and ensure the MCP server is running and accessible.';
       } else if (errorMessage.includes('MCP endpoints not found')) {
         enhancedErrorMessage =
           'MCP endpoints not found (404). The server is running but does not have MCP service endpoints available. Please verify this is an MCP server.';
@@ -779,7 +695,7 @@ export async function callToolWithBackwardsCompatibility(
   args: { [key: string]: unknown },
 ): Promise<any> {
   try {
-    // Connect to the server if not already connected (with backwards compatibility)
+    // Connect to the server if not already connected (with SSE transport)
     await persistentClient.connect(uri);
 
     // Call the tool using the persistent connection
@@ -809,7 +725,7 @@ export async function getPrimitivesWithBackwardsCompatibility(
   forceRefresh: boolean = false,
 ): Promise<Primitive[]> {
   try {
-    // Connect to the server if not already connected (with backwards compatibility)
+    // Connect to the server if not already connected (with SSE transport)
     await persistentClient.connect(uri);
 
     // Clear cache if force refresh is requested
@@ -925,17 +841,17 @@ async function callTool(client: Client, toolName: string, args: { [key: string]:
 }
 
 /**
- * Run the MCP client with backwards compatibility
+ * Run the MCP client with SSE transport
  * This function is used by the background script to initialize the connection
- * It tries StreamableHTTP transport first, then falls back to SSE transport
+ * It uses SSE transport only (StreamableHTTP disabled)
  * @param uri The URI of the MCP server
  * @returns Promise that resolves when the connection is established
  */
 export async function runWithBackwardsCompatibility(uri: string): Promise<void> {
   try {
-    console.log(`Attempting to connect to MCP server with backwards compatibility: ${uri}`);
+    console.log(`Attempting to connect to MCP server with SSE transport: ${uri}`);
 
-    // Connect to the server using the persistent client (with backwards compatibility)
+    // Connect to the server using the persistent client (with SSE transport)
     await persistentClient.connect(uri);
 
     // Get primitives to verify the connection works
