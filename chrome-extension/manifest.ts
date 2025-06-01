@@ -24,7 +24,6 @@ const manifest = {
   browser_specific_settings: {
     gecko: {
       id: 'saurabh@mcpsuperassistant.ai',
-      strict_min_version: '109.0',
     },
   },
   version: packageJson.version,
