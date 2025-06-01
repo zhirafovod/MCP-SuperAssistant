@@ -16,7 +16,7 @@ import {
 import { SidebarManager } from '../components/sidebar';
 import { registerSiteAdapter } from '../utils/siteAdapter';
 import { adapterRegistry } from './adapterRegistry';
-import { initGeminiComponents, handleAutoInsert, handleAutoSubmit } from './adaptercomponents/gemini';
+import { initGeminiComponents } from './adaptercomponents/gemini';
 
 export class GeminiAdapter extends BaseAdapter {
   name = 'Gemini';
