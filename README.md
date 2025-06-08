@@ -140,7 +140,7 @@ A minimal server is included to expose an OpenAI compatible API. Start it with:
 pnpm -F @extension/api-server start
 ```
 
-It listens on `http://localhost:3007`. POST chat requests to `/v1/chat/completions` and the extension will insert the messages and return the response.
+It listens on `http://localhost:3000`. POST chat requests to `/v1/chat/completions` and the extension will insert the messages and return the response.
 
 ## Usage
 

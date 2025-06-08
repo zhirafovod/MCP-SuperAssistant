@@ -75,7 +75,7 @@ app.post('/v1/response', (req, res) => {
   res.json({ ok: true });
 });
 
-const port = 3007;
+const port = 3000;
 app.listen(port, () => {
   console.log(`API server listening on http://localhost:${port}`);
 });
