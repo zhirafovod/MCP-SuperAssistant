@@ -13,9 +13,13 @@ WORKDIR /workspace
 COPY mcpconfig.yaml /mcpconfig.json
 
 # 4. Install the MCP SuperAssistant proxy globally
-RUN npm install -g @srbhptl39/mcp-superassistant-proxy@latest
+RUN npm install -g @srbhptl39/mcp-superassistant-proxy@latest tsx express cors body-parser
+
+# Copy API server
+COPY packages/api-server /api-server
 
 # 5. Expose the SSE port
+EXPOSE 3000
 EXPOSE 3006
 EXPOSE 3007
 
@@ -25,5 +29,6 @@ EXPOSE 3007
 ENTRYPOINT ["sh","-c", "\
   WORKDIR=\"${1:-/workspace}\"; \
   shift; \
+  tsx /api-server/index.mts & \
   exec mcp-superassistant-proxy --config \"/mcpconfig.json\" \"$@\"\
 ","-"]

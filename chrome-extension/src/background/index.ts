@@ -11,6 +11,7 @@ import { sendAnalyticsEvent, trackError } from '../../utils/analytics';
 
 // Default MCP server URL
 const DEFAULT_MCP_SERVER_URL = 'http://localhost:3006/sse';
+const API_SERVER_BASE = 'http://localhost:3000';
 
 // Define server connection state
 let isConnecting = false;
@@ -66,6 +67,56 @@ function categorizeToolError(error: Error): { isConnectionError: boolean; isTool
   return { isConnectionError: false, isToolError: true, category: 'unknown_tool_error' };
 }
 
+let apiEventSource: EventSource | null = null;
+
+async function handleChatCompletionRequest(id: string, messages: any[]): Promise<void> {
+  const tabs = await chrome.tabs.query({
+    url: ['*://*.chatgpt.com/*', '*://*.chat.openai.com/*', '*://*.grok.com/*'],
+  });
+  if (!tabs.length || tabs[0].id === undefined) {
+    console.warn('No supported chat tab available for request');
+    return;
+  }
+  try {
+    const response = await chrome.tabs.sendMessage(tabs[0].id, {
+      command: 'chatCompletionRequest',
+      id,
+      messages,
+    });
+    if (response && response.success) {
+      await fetch(`${API_SERVER_BASE}/v1/response`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, content: response.content }),
+      });
+    }
+  } catch (err) {
+    console.error('Error handling chat completion request', err);
+  }
+}
+
+function connectApiServer(): void {
+  if (apiEventSource) {
+    apiEventSource.close();
+  }
+  apiEventSource = new EventSource(`${API_SERVER_BASE}/sse`);
+  apiEventSource.onmessage = event => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === 'CHAT_COMPLETION_REQUEST') {
+        handleChatCompletionRequest(data.id, data.messages);
+      }
+    } catch (e) {
+      console.error('Failed to parse SSE message', e);
+    }
+  };
+  apiEventSource.onerror = () => {
+    console.error('API server SSE connection lost, retrying...');
+    apiEventSource?.close();
+    setTimeout(connectApiServer, 5000);
+  };
+}
+
 /**
  * Initialize the extension
  * This function is called once when the extension starts
@@ -93,6 +144,8 @@ async function initializeExtension() {
   mcpInterface.updateConnectionStatus(false);
 
   console.log('Extension initialized successfully');
+
+  connectApiServer();
 
   // After initialization is complete, try connecting to the server asynchronously
   setTimeout(() => {

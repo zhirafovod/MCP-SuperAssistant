@@ -33,6 +33,7 @@ const manifest = {
     '*://*.chat.openai.com/*',
     '*://*.chatgpt.com/*',
     '*://*.grok.com/*',
+    'http://localhost:3000/*',
     '*://*.x.com/*',
     '*://*.twitter.com/*',
     '*://*.gemini.google.com/*',

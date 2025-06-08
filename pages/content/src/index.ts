@@ -477,11 +477,59 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       logMessage('Cannot configure renderer: Not initialized.');
       sendResponse({ success: false, error: 'Renderer not initialized' });
     }
+  } else if (message.command === 'chatCompletionRequest') {
+    (async () => {
+      const { id, messages } = message;
+      const adapter = getCurrentAdapter();
+      if (adapter && (adapter.name.toLowerCase() === 'chatgpt' || adapter.name.toLowerCase() === 'grok')) {
+        const prompt = Array.isArray(messages) ? messages.map((m: any) => m.content).join('\n') : '';
+        adapter.insertTextIntoInput(prompt);
+        adapter.triggerSubmission();
+        let content: string | null = null;
+        if (adapter.name.toLowerCase() === 'chatgpt') {
+          content = await waitForChatGptResponse();
+        } else {
+          content = await waitForGrokResponse();
+        }
+        sendResponse({ success: !!content, content, id });
+      } else {
+        sendResponse({ success: false, error: 'Unsupported site' });
+      }
+    })();
+    return true;
   }
 
   // Always return true if you want to use sendResponse asynchronously
   return true;
 });
+
+async function waitForChatGptResponse(timeout = 30000): Promise<string | null> {
+  const selector = 'div[data-message-author-role="assistant"]';
+  const startCount = document.querySelectorAll(selector).length;
+  for (let elapsed = 0; elapsed < timeout; elapsed += 500) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const messages = document.querySelectorAll(selector);
+    if (messages.length > startCount) {
+      const last = messages[messages.length - 1] as HTMLElement;
+      return last.textContent || null;
+    }
+  }
+  return null;
+}
+
+async function waitForGrokResponse(timeout = 30000): Promise<string | null> {
+  const selector = 'div.relative.items-end';
+  const startCount = document.querySelectorAll(selector).length;
+  for (let elapsed = 0; elapsed < timeout; elapsed += 500) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const messages = document.querySelectorAll(selector);
+    if (messages.length > startCount) {
+      const last = messages[messages.length - 1] as HTMLElement;
+      return last.textContent || null;
+    }
+  }
+  return null;
+}
 
 // Handle page unload to clean up resources
 window.addEventListener('beforeunload', () => {
